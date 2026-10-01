@@ -1,0 +1,73 @@
+# UAV-Based Landmine Detection System — Prototype
+
+Graduation project prototype (Software Engineering, Prince Sattam Bin Abdulaziz University).
+A simulated UAV surveys an area with a metal detector (MD) and ground-penetrating radar (GPR);
+the system stores the mission data, classifies **potential detections**, and presents them for
+verification by trained personnel. Nothing in this system confirms a landmine.
+
+> All UAV flights and sensor readings in this prototype are **simulated**. No flight hardware is used.
+
+## Repository layout — who owns what
+
+| Folder | Responsibility | Depends on |
+|---|---|---|
+| `backend/app/simulation/` | Simulated world: soil profiles, buried objects (ground truth), lawnmower flight path, MD/GPR sensor models | nothing else in the app |
+| `backend/app/uav/` | **UAV interface layer.** `TelemetrySource` protocol + `SimulatedSource`. `px4_mavlink_source.py` is a documented stub for a future PX4 phase | `simulation/` |
+| `backend/app/detection/` | Detection & classification library (baseline today, adaptive next). Pure Python, no FastAPI/DB imports, unit-testable on its own | nothing else in the app |
+| `backend/app/api/` | REST endpoints, auth dependencies, background mission runner | all of the above + DB |
+| `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
+| `backend/tests/` | PyTest suite | — |
+| `web/` | React dashboard (planned, Day 2) | REST/WebSocket API only |
+| `docs/` | Architecture and demo script (planned, Day 3) | — |
+
+Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames) → `api.runner` → database → `detection` → database → API → web.
+
+## Running the backend
+
+```bash
+cd backend
+python -m venv .venv
+.venv/Scripts/pip install -r requirements.txt     # on Linux/macOS: .venv/bin/pip
+.venv/Scripts/python -m uvicorn app.main:app --reload --port 8000
+```
+
+Interactive API docs: http://localhost:8000/docs . Demo accounts (supervisor and field operator) are defined in
+`backend/app/seed.py` and are test credentials only.
+
+Settings (environment variables):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///backend/uav.db` | e.g. `postgresql+psycopg://user:pass@localhost:5432/uav` |
+| `SIM_SPEED_FACTOR` | `10` | default playback speed for missions (1 = real time) |
+| `SECRET_KEY` | dev value | token signing key |
+
+The code uses only portable column types so switching to PostgreSQL needs no code change; this has not yet been
+run against a PostgreSQL server in this prototype.
+
+## Tests
+
+```bash
+cd backend
+.venv/Scripts/python -m pytest
+```
+
+## Main API endpoints
+
+| Method | Path | Who |
+|---|---|---|
+| POST | `/api/auth/login` | anyone |
+| GET/POST | `/api/missions` | read: any user, create: supervisor |
+| GET | `/api/missions/{id}` | any user (includes stored-data counts) |
+| POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10}` |
+| GET | `/api/missions/{id}/telemetry` | any user |
+| GET | `/api/missions/{id}/detections` | any user |
+| PATCH | `/api/detections/{id}` | any user; `pending` / `confirmed_by_team` / `false_alarm` |
+
+## Status
+
+- [x] Day 1 — simulator, TelemetrySource, baseline (fixed-threshold) detector, persistence, tests
+- [ ] Day 2 — adaptive detection & classification, WebSocket live updates, React dashboard
+- [ ] Day 3 — evaluation page (baseline vs adaptive on simulated data), demo scenario, docs
+
+Not implemented (documented future phases only): PX4 SITL + Gazebo, ROS 2, Flutter mobile app.
