@@ -1029,3 +1029,247 @@ td.miss {
   color: var(--hazard);
   font-weight: 600;
 }
+
+/* ---------- field view (mobile-first) ---------- */
+
+.field-app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--paper);
+}
+.field-loading,
+.field-empty {
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  padding: 24px;
+  text-align: center;
+  display: grid;
+  gap: 12px;
+}
+
+.field-top {
+  z-index: 20;
+  background: var(--ink);
+  padding-top: env(safe-area-inset-top);
+}
+.field-alert,
+.field-quiet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 11px 14px;
+  border: 0;
+  font: 600 15px var(--font-cond);
+  text-align: left;
+}
+.field-alert {
+  background: var(--hazard);
+  color: #fff;
+  cursor: pointer;
+}
+.field-alert .swatch-high {
+  background: #fff;
+}
+.field-quiet {
+  color: #c9d1c8;
+  font-weight: 500;
+}
+
+.field-main {
+  position: relative;
+  min-height: 0;
+}
+.field-main .survey-map {
+  z-index: 0;
+}
+
+.drone-card {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 500;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgb(29 42 36 / 0.92);
+  color: #fff;
+}
+.drone-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+.progress.dark {
+  background: rgb(255 255 255 / 0.18);
+}
+.progress.dark > div {
+  background: #8fb8ee;
+}
+.drone-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+}
+.drone-card dt {
+  font-size: 12px;
+  color: #b7c1b8;
+}
+.drone-card dd {
+  margin: 0;
+  font-size: 20px;
+}
+.drone-card dd.warn {
+  color: #ff9d92;
+}
+
+.field-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 600;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px 16px 24px;
+  background: var(--surface);
+}
+.field-panel h1 {
+  font-size: 24px;
+}
+.field-panel h2 {
+  margin-top: 8px;
+}
+
+.fd-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+.fd-list button {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fd-list .swatch {
+  width: 18px;
+  height: 16px;
+}
+.fd-main {
+  flex: 1;
+  display: grid;
+}
+.fd-main strong {
+  font-family: var(--font-cond);
+  font-size: 16px;
+}
+.fd-status {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.fd-status.ver-confirmed_by_team {
+  color: var(--hazard);
+}
+.fd-status.ver-false_alarm {
+  color: var(--ok);
+}
+.fd-dist {
+  font-size: 18px;
+  white-space: nowrap;
+}
+.fd-dist small {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.field-nav {
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--ink);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.field-nav button {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-height: 58px;
+  padding: 8px 4px 6px;
+  border: 0;
+  border-top: 3px solid transparent;
+  background: none;
+  color: #b7c1b8;
+  font: 500 13px var(--font);
+  cursor: pointer;
+}
+.field-nav button svg {
+  width: 24px;
+  height: 24px;
+}
+.field-nav button[aria-current='page'] {
+  color: #fff;
+  border-top-color: var(--amber);
+}
+.badge {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 8px);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--hazard);
+  color: #fff;
+  font-style: normal;
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.field-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  overflow-y: auto;
+  padding: calc(16px + env(safe-area-inset-top)) 16px 28px;
+  background: var(--surface);
+}
+.field-toast {
+  left: 10px;
+  right: 10px;
+  max-width: none;
+  z-index: 700;
+}
+
+@media (min-width: 700px) {
+  /* Still usable on a tablet or laptop, but laid out for one hand on a phone. */
+  .drone-card {
+    left: auto;
+    width: 380px;
+  }
+  .field-panel,
+  .field-sheet {
+    padding-left: max(16px, calc(50% - 300px));
+    padding-right: max(16px, calc(50% - 300px));
+  }
+}

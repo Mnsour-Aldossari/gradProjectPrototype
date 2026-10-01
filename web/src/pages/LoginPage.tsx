@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth'
+import { homePath, useAuth } from '../auth'
 
 export function LoginPage() {
   const { user, login } = useAuth()
@@ -11,16 +11,16 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
-  if (user) return <Navigate to={from} replace />
+  const from = (location.state as { from?: string } | null)?.from
+  if (user) return <Navigate to={from ?? homePath(user)} replace />
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      await login(username.trim(), password)
-      navigate(from, { replace: true })
+      const signedIn = await login(username.trim(), password)
+      navigate(from ?? homePath(signedIn), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed')
     } finally {

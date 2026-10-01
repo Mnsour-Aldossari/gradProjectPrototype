@@ -5,8 +5,13 @@ import type { User } from './types'
 
 interface AuthState {
   user: User | null
-  login: (username: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<User>
   logout: () => void
+}
+
+/** Where each role lands after signing in: field personnel get the mobile field view. */
+export function homePath(user: User): string {
+  return user.role === 'field_operator' ? '/field' : '/'
 }
 
 const AuthContext = createContext<AuthState | null>(null)
@@ -21,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     saveSession(res.token, res.user)
     setUser(res.user)
+    return res.user
   }, [])
 
   const logout = useCallback(() => {
@@ -43,4 +49,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
   return children
+}
+
+/** The desktop home (mission list) for supervisors; field personnel are sent to the field view. */
+export function HomeRoute({ missions }: { missions: ReactNode }) {
+  const { user } = useAuth()
+  if (user?.role === 'field_operator') return <Navigate to="/field" replace />
+  return missions
 }

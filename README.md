@@ -43,7 +43,13 @@ npm install
 npm run dev          # http://localhost:5180 (forwards /api and /ws to the backend on :8000)
 ```
 
-Start the backend first. Satellite imagery is loaded from Esri and needs an internet connection. Demo accounts (supervisor and field operator) are defined in
+Start the backend first. Satellite imagery is loaded from Esri and needs an internet connection.
+
+Field view: field operators land on `/field` after signing in, a mobile-first page (full-screen map,
+high-priority alerts, nearest potential detections by distance, verification, bottom navigation).
+It ships a web app manifest and icons so it can be installed as a PWA. The manifest and icons were checked in
+the browser; the service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be
+registered inside the built-in test browser, and installing on a real phone has not been tried yet. Demo accounts (supervisor and field operator) are defined in
 `backend/app/seed.py` and are test credentials only.
 
 Settings (environment variables):

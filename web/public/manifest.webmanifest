@@ -1,0 +1,17 @@
+{
+  "name": "UAV Landmine Survey Field",
+  "short_name": "UAV Field",
+  "description": "Field view of the UAV landmine survey prototype: live map, alerts and verification of potential detections.",
+  "id": "/field",
+  "start_url": "/field",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1d2a24",
+  "theme_color": "#1d2a24",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
