@@ -145,6 +145,20 @@ class DetectionRead(BaseModel):
             return self.category
 
 
+class ConditionProfileRead(BaseModel):
+    soil_type: str
+    soil_label: str
+    permittivity: float
+    md_reliability: float
+    gpr_reliability: float
+    md_threshold_k: float
+    gpr_threshold_k: float
+    radar_trusted: bool
+    background_window_m: float
+    link_radius_m: float
+    notes: list[str]
+
+
 class DetectionUpdate(BaseModel):
     status: DetectionStatus
     notes: str | None = Field(None, max_length=500)

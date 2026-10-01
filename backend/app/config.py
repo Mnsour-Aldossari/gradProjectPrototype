@@ -19,7 +19,7 @@ class Settings:
     default_speed_factor: float = 10.0
     uav_source: str = "simulated"  # "simulated" | "px4" (future phase)
     token_ttl_s: int = 12 * 3600
-    cors_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
+    cors_origins: tuple[str, ...] = ("http://localhost:5180", "http://127.0.0.1:5180")
 
     @classmethod
     def from_env(cls) -> Settings:

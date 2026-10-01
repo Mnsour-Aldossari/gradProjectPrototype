@@ -13,14 +13,16 @@ verification by trained personnel. Nothing in this system confirms a landmine.
 |---|---|---|
 | `backend/app/simulation/` | Simulated world: soil profiles, buried objects (ground truth), lawnmower flight path, MD/GPR sensor models | nothing else in the app |
 | `backend/app/uav/` | **UAV interface layer.** `TelemetrySource` protocol + `SimulatedSource`. `px4_mavlink_source.py` is a documented stub for a future PX4 phase | `simulation/` |
-| `backend/app/detection/` | Detection & classification library (baseline today, adaptive next). Pure Python, no FastAPI/DB imports, unit-testable on its own | nothing else in the app |
-| `backend/app/api/` | REST endpoints, auth dependencies, background mission runner | all of the above + DB |
+| `backend/app/detection/` | Detection & classification library: fixed-threshold baseline and the adaptive classifier (condition profile, CFAR-style thresholds, reliability-weighted decision), plus scoring against ground truth. Pure Python, no FastAPI/DB imports | nothing else in the app |
+| `backend/app/evaluation/` | Evaluation protocol (tuning vs. evaluation seeds) and harness that runs simulated surveys through both methods | `simulation/`, `detection/` |
+| `backend/scripts/calibrate.py` | Parameter calibration on tuning seeds only | `evaluation/` |
+| `backend/app/api/` | REST endpoints, WebSocket hub (`/ws/missions/{id}`), auth, background mission runner (live adaptive detections) | all of the above + DB |
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
 | `backend/tests/` | PyTest suite | — |
-| `web/` | React dashboard (planned, Day 2) | REST/WebSocket API only |
-| `docs/` | Architecture and demo script (planned, Day 3) | — |
+| `web/` | React + TypeScript dashboard: mission planning, live satellite map, detection review and verification. Responsive, used on phones by field staff | REST/WebSocket API only |
+| `docs/` | `EVALUATION_PROTOCOL.md` (seeds, calibration, results), `calibration_result.json`; architecture and demo script planned for Day 3 | — |
 
-Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames) → `api.runner` → database → `detection` → database → API → web.
+Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames) → `api.runner` → database + `detection.AdaptiveDetector` (every 5 s of flight) → WebSocket events → web.
 
 ## Running the backend
 
@@ -31,7 +33,17 @@ python -m venv .venv
 .venv/Scripts/python -m uvicorn app.main:app --reload --port 8000
 ```
 
-Interactive API docs: http://localhost:8000/docs . Demo accounts (supervisor and field operator) are defined in
+Interactive API docs: http://localhost:8000/docs .
+
+## Running the web dashboard
+
+```bash
+cd web
+npm install
+npm run dev          # http://localhost:5180 (forwards /api and /ws to the backend on :8000)
+```
+
+Start the backend first. Satellite imagery is loaded from Esri and needs an internet connection. Demo accounts (supervisor and field operator) are defined in
 `backend/app/seed.py` and are test credentials only.
 
 Settings (environment variables):
@@ -45,12 +57,16 @@ Settings (environment variables):
 The code uses only portable column types so switching to PostgreSQL needs no code change; this has not yet been
 run against a PostgreSQL server in this prototype.
 
-## Tests
+## Tests and calibration
 
 ```bash
 cd backend
-.venv/Scripts/python -m pytest
+.venv/Scripts/python -m pytest                  # includes mandatory tests T1-T3 on the evaluation seeds
+.venv/Scripts/python -m scripts.calibrate       # re-runs calibration on tuning seeds (does not change code)
 ```
+
+Known failing test (kept as is, see `docs/EVALUATION_PROTOCOL.md` section 6):
+`test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503.
 
 ## Main API endpoints
 
@@ -61,13 +77,15 @@ cd backend
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
 | POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10}` |
 | GET | `/api/missions/{id}/telemetry` | any user |
-| GET | `/api/missions/{id}/detections` | any user |
+| GET | `/api/missions/{id}/detections?method=adaptive` | any user |
+| GET | `/api/missions/{id}/profile` | any user — how the adaptive classifier is configured for the mission |
+| WS | `/ws/missions/{id}?token=...` | snapshot, then live telemetry, detections, alerts, status |
 | PATCH | `/api/detections/{id}` | any user; `pending` / `confirmed_by_team` / `false_alarm` |
 
 ## Status
 
 - [x] Day 1 — simulator, TelemetrySource, baseline (fixed-threshold) detector, persistence, tests
-- [ ] Day 2 — adaptive detection & classification, WebSocket live updates, React dashboard
+- [x] Day 2 — adaptive detection & classification (calibrated on tuning seeds, frozen), WebSocket live updates, React dashboard
 - [ ] Day 3 — evaluation page (baseline vs adaptive on simulated data), demo scenario, docs
 
 Not implemented (documented future phases only): PX4 SITL + Gazebo, ROS 2, Flutter mobile app.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlmodel import select
 
 from app.models import Detection, utcnow
@@ -8,6 +8,7 @@ from app.schemas import DetectionRead, DetectionUpdate
 
 from .deps import CurrentUser, SessionDep
 from .missions import get_mission_or_404
+from .ws import detection_event
 
 router = APIRouter(tags=["detections"])
 
@@ -36,7 +37,9 @@ def get_detection(detection_id: int, session: SessionDep, _: CurrentUser) -> Det
 
 
 @router.patch("/api/detections/{detection_id}", response_model=DetectionRead)
-def update_detection(detection_id: int, body: DetectionUpdate, session: SessionDep, user: CurrentUser) -> Detection:
+def update_detection(
+    detection_id: int, body: DetectionUpdate, request: Request, session: SessionDep, user: CurrentUser
+) -> Detection:
     """Record the verification outcome reported by personnel for a potential detection."""
     detection = _get_detection_or_404(session, detection_id)
     detection.status = body.status
@@ -51,4 +54,6 @@ def update_detection(detection_id: int, body: DetectionUpdate, session: SessionD
     session.add(detection)
     session.commit()
     session.refresh(detection)
+    # Let every open dashboard (e.g. the supervisor's) see the field verification.
+    request.app.state.hub.publish(detection.mission_id, detection_event("detection_updated", detection))
     return detection

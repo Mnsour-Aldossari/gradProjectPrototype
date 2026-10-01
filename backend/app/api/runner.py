@@ -1,25 +1,31 @@
-"""Runs missions in the background: consumes a TelemetrySource and stores the data."""
+"""Runs missions in the background: consumes a TelemetrySource, stores the data,
+updates adaptive detections while the UAV flies, and pushes live events."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import math
+import time
 
 from sqlalchemy import Engine
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.config import Settings
-from app.detection import Candidate, Reading, detect_baseline
+from app.detection import AdaptiveDetector, Candidate, Category, Reading, SurveyContext, detect_baseline
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, utcnow
 from app.simulation import SimulationConfig
 from app.simulation.geo import LocalFrame
 from app.uav import SimulatedSource, TelemetryFrame, TelemetrySource
 from app.uav.px4_mavlink_source import Px4MavlinkSource
 
+from .ws import Hub, detection_event
+
 logger = logging.getLogger(__name__)
 
 FLUSH_ROWS = 50  # telemetry + sensor rows per database write
+DETECT_EVERY_FRAMES = 25  # re-run the adaptive detector every 5 s of flight
+TELEMETRY_EVENT_INTERVAL_S = 0.1  # max live telemetry rate pushed to clients (wall clock)
 
 
 def simulation_config_for(mission: Mission) -> SimulationConfig:
@@ -33,10 +39,30 @@ def simulation_config_for(mission: Mission) -> SimulationConfig:
     )
 
 
+def survey_context_for(mission: Mission) -> SurveyContext:
+    return SurveyContext(
+        soil_type=mission.soil_type,
+        altitude_m=mission.altitude_m,
+        speed_mps=mission.speed_mps,
+        line_spacing_m=mission.line_spacing_m,
+        sample_period_s=simulation_config_for(mission).dt_s,
+    )
+
+
 def make_source(mission: Mission, settings: Settings, speed_factor: float) -> TelemetrySource:
     if settings.uav_source == "px4":
         return Px4MavlinkSource()
     return SimulatedSource(simulation_config_for(mission), speed_factor=speed_factor)
+
+
+def mission_event(mission: Mission) -> dict:
+    return {
+        "type": "mission",
+        "status": mission.status,
+        "progress": mission.progress,
+        "battery_pct": mission.battery_pct,
+        "error": mission.error,
+    }
 
 
 def _telemetry_row(mission_id: int, f: TelemetryFrame) -> TelemetryPoint:
@@ -55,36 +81,121 @@ def _telemetry_row(mission_id: int, f: TelemetryFrame) -> TelemetryPoint:
     )
 
 
-def _flush(engine: Engine, mission_id: int, rows: list, last: TelemetryFrame | None) -> None:
+def _telemetry_event(f: TelemetryFrame) -> dict:
+    p = f.position
+    return {
+        "type": "telemetry",
+        "t_s": p.time_boot_ms / 1000,
+        "lat": p.lat / 1e7,
+        "lon": p.lon / 1e7,
+        "relative_alt_m": p.relative_alt / 1000,
+        "heading_deg": p.hdg / 100,
+        "ground_speed_mps": math.hypot(p.vx, p.vy) / 100,
+        "battery_pct": f.battery.battery_remaining,
+        "waypoint_seq": f.mission.seq,
+        "waypoint_total": f.mission.total,
+        "progress": f.progress,
+        "md": None if f.sensor is None else f.sensor.md,
+        "gpr": None if f.sensor is None else f.sensor.gpr_amp,
+    }
+
+
+def _apply(row: Detection, frame: LocalFrame, c: Candidate) -> None:
+    row.lat, row.lon = frame.to_latlon(c.x, c.y)
+    row.method = c.method
+    row.category = c.category.value
+    row.confidence = round(c.confidence, 3)
+    row.peak_md = round(c.peak_md, 4)
+    row.peak_gpr = round(c.peak_gpr, 4)
+    row.est_depth_m = None if c.est_depth_m is None else round(c.est_depth_m, 3)
+    row.n_hits = c.n_hits
+    row.explanation = c.explanation
+    row.features = dict(c.features)
+
+
+def _new_detection(mission_id: int, frame: LocalFrame, c: Candidate) -> Detection:
+    row = Detection(
+        mission_id=mission_id,
+        method=c.method,
+        lat=0,
+        lon=0,
+        category="",
+        confidence=0,
+        peak_md=0,
+        peak_gpr=0,
+        n_hits=0,
+        explanation="",
+    )
+    _apply(row, frame, c)
+    return row
+
+
+def sync_adaptive(
+    engine: Engine, mission_id: int, frame: LocalFrame, candidates: list[Candidate], match_radius_m: float
+) -> list[dict]:
+    """Make the stored adaptive detections match the latest candidates.
+
+    Candidates are matched to stored detections by position so a detection keeps
+    its id (and any verification already recorded) as more passes refine it.
+    """
+    events: list[dict] = []
+    with Session(engine) as session:
+        existing = list(
+            session.exec(select(Detection).where(Detection.mission_id == mission_id, Detection.method == "adaptive"))
+        )
+        positions = {row.id: frame.to_xy(row.lat, row.lon) for row in existing}
+        unclaimed = {row.id: row for row in existing}
+        changed: list[tuple[str, Detection, str | None]] = []
+
+        for c in sorted(candidates, key=lambda c: -c.confidence):
+            best = min(
+                unclaimed.values(),
+                key=lambda row: math.dist(positions[row.id], (c.x, c.y)),
+                default=None,
+            )
+            if best is not None and math.dist(positions[best.id], (c.x, c.y)) <= match_radius_m:
+                del unclaimed[best.id]
+                before = (best.category, best.confidence, best.n_hits)
+                previous_category = best.category
+                _apply(best, frame, c)
+                if (best.category, best.confidence, best.n_hits) != before:
+                    session.add(best)
+                    changed.append(("detection_updated", best, previous_category))
+            else:
+                row = _new_detection(mission_id, frame, c)
+                session.add(row)
+                changed.append(("detection_created", row, None))
+
+        removed = [row for row in unclaimed.values() if row.status == "pending"]
+        for row in removed:
+            session.delete(row)
+        session.commit()
+
+        for kind, row, previous_category in changed:
+            session.refresh(row)
+            events.append(detection_event(kind, row))
+            if row.category == Category.HIGH and previous_category != Category.HIGH:
+                events.append({**detection_event("alert", row), "message": "Potential detection - high priority"})
+        events += [{"type": "detection_removed", "id": row.id} for row in removed]
+    return events
+
+
+def _flush(engine: Engine, mission_id: int, rows: list, last: TelemetryFrame | None) -> Mission | None:
     with Session(engine) as session:
         session.add_all(rows)
+        mission = None
         if last is not None:
             mission = session.get(Mission, mission_id)
             mission.progress = last.progress
             mission.battery_pct = last.battery.battery_remaining
             session.add(mission)
         session.commit()
+        if mission is not None:
+            session.refresh(mission)
+        return mission
 
 
-def _detection_row(mission_id: int, frame: LocalFrame, c: Candidate) -> Detection:
-    lat, lon = frame.to_latlon(c.x, c.y)
-    return Detection(
-        mission_id=mission_id,
-        method=c.method,
-        lat=lat,
-        lon=lon,
-        category=c.category.value,
-        confidence=round(c.confidence, 3),
-        peak_md=round(c.peak_md, 4),
-        peak_gpr=round(c.peak_gpr, 4),
-        est_depth_m=None if c.est_depth_m is None else round(c.est_depth_m, 3),
-        n_hits=c.n_hits,
-        explanation=c.explanation,
-        features=dict(c.features),
-    )
-
-
-def _set_failed(engine: Engine, mission_id: int, error: str) -> None:
+def _set_failed(engine: Engine, mission_id: int, error: str) -> Mission:
     with Session(engine) as session:
         mission = session.get(Mission, mission_id)
         mission.status = "failed"
@@ -92,16 +203,23 @@ def _set_failed(engine: Engine, mission_id: int, error: str) -> None:
         mission.completed_at = utcnow()
         session.add(mission)
         session.commit()
+        session.refresh(mission)
+        return mission
 
 
-async def run_mission(engine: Engine, mission_id: int, source: TelemetrySource) -> None:
+async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: TelemetrySource) -> None:
     with Session(engine) as session:
-        area = session.get(Mission, mission_id).area
-    frame = LocalFrame.centred_on(area)
+        mission = session.get(Mission, mission_id)
+        frame = LocalFrame.centred_on(mission.area)
+        detector = AdaptiveDetector(survey_context_for(mission))
+    match_radius = detector.profile.link_radius_m
 
-    readings: list[Reading] = []
+    all_readings: list[Reading] = []
+    pending_readings: list[Reading] = []
     rows: list = []
     last: TelemetryFrame | None = None
+    frames_since_detect = 0
+    last_telemetry_event = 0.0
     try:
         async for f in source.frames():
             rows.append(_telemetry_row(mission_id, f))
@@ -122,42 +240,73 @@ async def run_mission(engine: Engine, mission_id: int, source: TelemetrySource) 
                     )
                 )
                 x, y = frame.to_xy(lat, lon)
-                readings.append(Reading(t_s, x, y, alt, f.sensor.md, f.sensor.gpr_amp, f.sensor.gpr_twt_ns))
+                reading = Reading(t_s, x, y, alt, f.sensor.md, f.sensor.gpr_amp, f.sensor.gpr_twt_ns)
+                all_readings.append(reading)
+                pending_readings.append(reading)
             last = f
-            if len(rows) >= FLUSH_ROWS:
-                _flush(engine, mission_id, rows, last)
-                rows = []
-        _flush(engine, mission_id, rows, last)
 
-        candidates = detect_baseline(readings)
+            now = time.monotonic()
+            if now - last_telemetry_event >= TELEMETRY_EVENT_INTERVAL_S:
+                hub.publish(mission_id, _telemetry_event(f))
+                last_telemetry_event = now
+
+            if len(rows) >= FLUSH_ROWS:
+                mission = _flush(engine, mission_id, rows, last)
+                rows = []
+                hub.publish(mission_id, mission_event(mission))
+
+            frames_since_detect += 1
+            if frames_since_detect >= DETECT_EVERY_FRAMES:
+                frames_since_detect = 0
+                detector.add(pending_readings)
+                pending_readings = []
+                for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
+                    hub.publish(mission_id, event)
+
+        _flush(engine, mission_id, rows, last)
+        if last is not None:
+            hub.publish(mission_id, _telemetry_event(last))
+        detector.add(pending_readings)
+        for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
+            hub.publish(mission_id, event)
+
         with Session(engine) as session:
-            session.add_all(_detection_row(mission_id, frame, c) for c in candidates)
+            baseline_rows = [_new_detection(mission_id, frame, c) for c in detect_baseline(all_readings)]
+            session.add_all(baseline_rows)
             mission = session.get(Mission, mission_id)
             mission.status = "completed"
             mission.progress = 1.0
             mission.completed_at = utcnow()
             session.add(mission)
             session.commit()
+            for row in baseline_rows:
+                session.refresh(row)
+                hub.publish(mission_id, detection_event("detection_created", row))
+            session.refresh(mission)
+            hub.publish(mission_id, mission_event(mission))
     except asyncio.CancelledError:
-        _set_failed(engine, mission_id, "Mission run was cancelled")
+        hub.publish(mission_id, mission_event(_set_failed(engine, mission_id, "Mission run was cancelled")))
         raise
     except Exception as exc:
         logger.exception("Mission %s failed", mission_id)
-        _set_failed(engine, mission_id, f"{type(exc).__name__}: {exc}")
+        hub.publish(mission_id, mission_event(_set_failed(engine, mission_id, f"{type(exc).__name__}: {exc}")))
 
 
 class MissionRunner:
     """Keeps track of the background task for each running mission."""
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, hub: Hub) -> None:
         self._engine = engine
+        self._hub = hub
         self._tasks: dict[int, asyncio.Task] = {}
 
     def is_running(self, mission_id: int) -> bool:
         return mission_id in self._tasks
 
     def start(self, mission_id: int, source: TelemetrySource) -> None:
-        task = asyncio.create_task(run_mission(self._engine, mission_id, source), name=f"mission-{mission_id}")
+        task = asyncio.create_task(
+            run_mission(self._engine, self._hub, mission_id, source), name=f"mission-{mission_id}"
+        )
         self._tasks[mission_id] = task
         task.add_done_callback(lambda _: self._tasks.pop(mission_id, None))
 

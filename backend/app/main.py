@@ -7,8 +7,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, detections, missions
+from .api import auth, detections, missions, ws
 from .api.runner import MissionRunner
+from .api.ws import Hub
 from .config import Settings
 from .db import init_db, make_engine
 from .seed import fail_interrupted_missions, seed_users
@@ -17,7 +18,8 @@ from .seed import fail_interrupted_missions, seed_users
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     engine = make_engine(settings.database_url)
-    runner = MissionRunner(engine)
+    hub = Hub()
+    runner = MissionRunner(engine, hub)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -37,6 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.state.runner = runner
+    app.state.hub = hub
 
     app.add_middleware(
         CORSMiddleware,
@@ -47,6 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(missions.router)
     app.include_router(detections.router)
+    app.include_router(ws.router)
 
     @app.get("/api/health", tags=["health"])
     def health() -> dict:

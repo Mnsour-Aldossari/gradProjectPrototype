@@ -111,3 +111,45 @@ changed to make it pass.
 - Rocks and low-metal mines produce similar radar-only responses. The adaptive method reports both
   for verification, which accounts for most of its false alarms.
 - One survey geometry (fixed altitude, speed and spacing) is evaluated.
+
+## 6. Results on the evaluation seeds
+
+Run once on 2026-10-01, **after** the freeze commit, with the frozen parameters. Reported as they came out.
+Simulated data.
+
+| Soil | Method | Targets | TP | FN | False alarms | Recall | Precision | F1 |
+|---|---|---|---|---|---|---|---|---|
+| Dry sand | Baseline | 86 | 38 | 48 | 53 | 0.442 | 0.418 | 0.429 |
+| Dry sand | Adaptive | 86 | 68 | 18 | 52 | 0.791 | 0.567 | 0.660 |
+| Wet clay | Baseline | 97 | 38 | 59 | 46 | 0.392 | 0.452 | 0.420 |
+| Wet clay | Adaptive | 97 | 65 | 32 | 20 | 0.670 | 0.765 | 0.714 |
+| Mineralised rocky | Baseline | 74 | 36 | 38 | 51 | 0.486 | 0.414 | 0.447 |
+| Mineralised rocky | Adaptive | 74 | 54 | 20 | 10 | 0.730 | 0.844 | 0.783 |
+| **All** | Baseline | 257 | 112 | 145 | 150 | 0.436 | 0.427 | 0.432 |
+| **All** | Adaptive | 257 | 187 | 70 | 82 | 0.728 | 0.695 | 0.711 |
+
+False-alarm causes: baseline — scrap metal 150. Adaptive — rock 40, scrap metal 34, background 8.
+
+Per object kind (adaptive): metal mines 109 of 116 reported (7 classified as clutter; the baseline reported
+112 of 116); low-metal mines 78 of 141 reported (52 produced no candidate, 11 only clutter; the baseline
+reported 0); scrap 153 of 192 clutter-only; rocks 40 of 151 reported.
+
+**Mandatory tests**
+
+| ID | Result | Value |
+|---|---|---|
+| T1 | Pass | adaptive 82 false alarms vs. baseline 150 (pooled) |
+| T2 | Pass | 78 / 141 = 55.3 % low-metal mines reported, all radar-driven |
+| T3 | Pass | 153 / 187 = 81.8 % of scrap objects with a candidate are clutter-only |
+| Single object: low-metal mine (7 cm, εr 2.5, 11 cm) | **Fail (2 of 3 seeds)** | seed 501 reported; 502 no candidate; 503 one sample at 1.05× radar threshold, treated as a noise spike |
+| Single object: scrap fragment | Pass (3 of 3) | |
+| Single object: metal mine | Pass (3 of 3) | |
+
+**Observations, stated plainly**
+
+- In dry sand the two methods raise almost the same number of false alarms (52 vs 53): the adaptive
+  method removes the scrap-metal alarms but reports buried rocks as radar-only reflectors instead.
+  The pooled reduction in false alarms comes from wet clay and mineralised rocky soil.
+- Low-metal mines are the hardest case: 45 % were not reported. A mid-sized one at 7 cm in dry sand
+  sits right at the radar threshold, which is what the failing single-object test shows.
+- The adaptive method misses slightly more metal mines than the baseline (7 vs 4).

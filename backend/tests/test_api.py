@@ -60,8 +60,68 @@ def test_full_mission_run_stores_telemetry_readings_and_detections(client):
 
     detections = client.get(f"/api/missions/{mission_id}/detections", headers=sup).json()
     assert len(detections) == stats["detections"]
-    assert all(d["method"] == "baseline" and d["status"] == "pending" for d in detections)
+    assert {d["method"] for d in detections} == {"baseline", "adaptive"}
+    assert all(d["status"] == "pending" for d in detections)
     assert all("potential" in d["category_label"].lower() or d["category"] != "high" for d in detections)
+    assert all("confirmed" not in d["explanation"].lower() for d in detections)
+
+    adaptive = client.get(f"/api/missions/{mission_id}/detections?method=adaptive", headers=sup).json()
+    assert adaptive and all(d["method"] == "adaptive" for d in adaptive)
+    assert all("soil_type" in d["features"] for d in adaptive)
+
+
+def test_live_adaptive_detections_match_the_offline_detector(client):
+    """Detections built up during the flight equal a batch run over the whole survey."""
+    from app.detection import detect_adaptive
+    from app.evaluation.harness import simulate_scenario
+    from app.simulation import DEMO_AREA
+
+    sup = auth_headers(client, "supervisor")
+    body = mission_body(speed_mps=2.0, line_spacing_m=2.0, soil_type="wet_clay", scenario_seed=77)
+    mission_id = client.post("/api/missions", json=body, headers=sup).json()["id"]
+    client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
+    assert wait_until_finished(client, mission_id, sup)["status"] == "completed"
+    live = client.get(f"/api/missions/{mission_id}/detections?method=adaptive", headers=sup).json()
+
+    run = simulate_scenario("wet_clay", 77, {"area": DEMO_AREA, "altitude_m": 1.5, "speed_mps": 2.0, "line_spacing_m": 2.0})
+    offline = detect_adaptive(run.readings, run.context)
+    assert sorted((d["category"], d["n_hits"]) for d in live) == sorted((c.category.value, c.n_hits) for c in offline)
+
+
+def test_condition_profile_endpoint(client):
+    sup = auth_headers(client, "supervisor")
+    mission_id = client.post("/api/missions", json=mission_body(soil_type="wet_clay"), headers=sup).json()["id"]
+    profile = client.get(f"/api/missions/{mission_id}/profile", headers=sup).json()
+    assert profile["soil_type"] == "wet_clay"
+    assert profile["permittivity"] == 20.0
+    assert profile["notes"]
+
+
+def test_websocket_streams_snapshot_then_live_events(client):
+    sup = auth_headers(client, "supervisor")
+    mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
+    token = sup["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws/missions/{mission_id}?token={token}") as ws:
+        snapshot = ws.receive_json()
+        assert snapshot["type"] == "snapshot" and snapshot["mission"]["status"] == "planned"
+        client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
+        seen = set()
+        while True:
+            event = ws.receive_json()
+            seen.add(event["type"])
+            if event["type"] == "mission" and event["status"] in ("completed", "failed"):
+                assert event["status"] == "completed", event
+                break
+    assert {"telemetry", "detection_created", "mission"} <= seen
+
+
+def test_websocket_rejects_bad_token(client):
+    import pytest
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/missions/1?token=forged") as ws:
+            ws.receive_json()
 
 
 def test_mission_cannot_start_twice(client):
