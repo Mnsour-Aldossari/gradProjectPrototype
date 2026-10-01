@@ -1,0 +1,212 @@
+{
+  "data": "tuning seeds only",
+  "tuning_seeds": [
+    1000,
+    1019
+  ],
+  "soil_types": [
+    "dry_sand",
+    "wet_clay",
+    "mineralized_rocky"
+  ],
+  "objective": "pooled F1 of reported detections; ties -> higher recall -> grid order",
+  "grids": {
+    "baseline_md_threshold": [
+      0.1,
+      0.12,
+      0.14,
+      0.16,
+      0.18,
+      0.2,
+      0.22,
+      0.24,
+      0.26,
+      0.28,
+      0.3,
+      0.32,
+      0.34,
+      0.36,
+      0.38,
+      0.4,
+      0.42,
+      0.44,
+      0.46,
+      0.48,
+      0.5,
+      0.52,
+      0.54,
+      0.56,
+      0.58,
+      0.6,
+      0.62,
+      0.64,
+      0.66,
+      0.68,
+      0.7,
+      0.72,
+      0.74,
+      0.76,
+      0.78,
+      0.8
+    ],
+    "k_md": [
+      3.0,
+      4.0,
+      5.0,
+      6.0
+    ],
+    "k_gpr": [
+      3.0,
+      4.0,
+      5.0,
+      6.0
+    ],
+    "body_ratio": [
+      0.03,
+      0.05,
+      0.075,
+      0.1,
+      0.15,
+      0.2,
+      0.3,
+      0.4
+    ],
+    "reliability_md_and_gpr_per_soil": [
+      0.5,
+      0.75,
+      1.0
+    ]
+  },
+  "baseline": {
+    "md_threshold": 0.46,
+    "tuning": {
+      "targets": 201,
+      "tp": 96,
+      "fn": 105,
+      "fp": 67,
+      "recall": 0.4776,
+      "precision": 0.589,
+      "f1": 0.5275,
+      "fp_by_cause": {
+        "scrap_metal": 67
+      },
+      "outcomes": {
+        "low_metal_mine": {
+          "none": 101
+        },
+        "metal_mine": {
+          "reported": 96,
+          "none": 2,
+          "clutter": 2
+        },
+        "scrap_metal": {
+          "none": 21,
+          "reported": 67,
+          "clutter": 8
+        },
+        "rock": {
+          "none": 111
+        }
+      }
+    }
+  },
+  "adaptive": {
+    "k_md": 4.0,
+    "k_gpr": 5.0,
+    "body_ratio": 0.1,
+    "reliability": {
+      "dry_sand": {
+        "md": 0.5,
+        "gpr": 1.0
+      },
+      "wet_clay": {
+        "md": 0.5,
+        "gpr": 0.75
+      },
+      "mineralized_rocky": {
+        "md": 0.5,
+        "gpr": 1.0
+      }
+    },
+    "tuning": {
+      "targets": 201,
+      "tp": 152,
+      "fn": 49,
+      "fp": 49,
+      "recall": 0.7562,
+      "precision": 0.7562,
+      "f1": 0.7562,
+      "fp_by_cause": {
+        "rock": 31,
+        "scrap_metal": 13,
+        "background": 5
+      },
+      "outcomes": {
+        "low_metal_mine": {
+          "reported": 61,
+          "none": 24,
+          "clutter": 16
+        },
+        "metal_mine": {
+          "reported": 91,
+          "clutter": 9
+        },
+        "scrap_metal": {
+          "clutter": 77,
+          "reported": 13,
+          "none": 6
+        },
+        "rock": {
+          "reported": 31,
+          "clutter": 6,
+          "none": 74
+        }
+      }
+    }
+  },
+  "ablation_shared_reliability": {
+    "note": "best result when every soil type must use the same reliabilities",
+    "k_md": 4.0,
+    "k_gpr": 5.0,
+    "body_ratio": 0.1,
+    "reliability": {
+      "md": 0.5,
+      "gpr": 1.0
+    },
+    "tuning": {
+      "targets": 201,
+      "tp": 148,
+      "fn": 53,
+      "fp": 47,
+      "recall": 0.7363,
+      "precision": 0.759,
+      "f1": 0.7475,
+      "fp_by_cause": {
+        "rock": 31,
+        "scrap_metal": 11,
+        "background": 5
+      },
+      "outcomes": {
+        "low_metal_mine": {
+          "reported": 61,
+          "none": 24,
+          "clutter": 16
+        },
+        "metal_mine": {
+          "reported": 87,
+          "clutter": 13
+        },
+        "scrap_metal": {
+          "clutter": 79,
+          "reported": 11,
+          "none": 6
+        },
+        "rock": {
+          "reported": 31,
+          "clutter": 6,
+          "none": 74
+        }
+      }
+    }
+  }
+}

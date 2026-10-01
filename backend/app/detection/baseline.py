@@ -17,9 +17,9 @@ METHOD = "baseline"
 
 @dataclass(frozen=True)
 class BaselineConfig:
-    # Provisional value (about 8x the dry-sand metal-detector p95 background).
-    # It will be fixed once on tuning seeds before the held-out evaluation and not changed afterwards.
-    md_threshold: float = 0.30
+    # FROZEN on 2026-10-01: best single fixed threshold on tuning seeds 1000-1019
+    # (docs/calibration_result.json). Not changed after evaluation.
+    md_threshold: float = 0.46
     link_radius_m: float = 2.5
     min_hits: int = 2
 

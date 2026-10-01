@@ -40,6 +40,7 @@ class Reading:
 class Hit:
     reading: Reading
     score: float
+    index: int = -1  # position of the reading in the survey sequence
 
 
 @dataclass(frozen=True)
