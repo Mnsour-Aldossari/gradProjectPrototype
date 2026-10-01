@@ -153,3 +153,15 @@ def test_personnel_can_record_verification_outcome(client):
     assert r.json()["verified_by"] is None
 
     assert client.patch(f"/api/detections/{detection['id']}", json={"status": "mine"}, headers=field).status_code == 422
+
+
+def test_evaluation_report_is_marked_simulated_and_lists_known_limitations(client):
+    assert client.get("/api/evaluation").status_code == 401
+    r = client.get("/api/evaluation", headers=auth_headers(client, "field"))
+    assert r.status_code == 200
+    report = r.json()
+    assert report["simulated"] is True and "simulated data" in report["notice"]
+    assert {s["key"] for s in report["soils"]} == {"dry_sand", "wet_clay", "mineralized_rocky", "all"}
+    assert report["protocol"]["evaluation_seeds"] == [2000, 2029]
+    assert len(report["limitations"]) == 4
+    assert "confirmed mine" not in r.text.lower()

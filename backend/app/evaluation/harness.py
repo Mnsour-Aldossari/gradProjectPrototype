@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -10,10 +12,19 @@ from app.detection.adaptive import detect_adaptive
 from app.detection.context import SurveyContext
 from app.detection.evaluation import EvalCounts, TruthObject, evaluate
 from app.detection.params import FROZEN_PARAMS, AdaptiveParams
-from app.detection.types import Reading
-from app.simulation import SimulationConfig, build_simulation
+from app.detection.types import Candidate, Reading
+from app.simulation import ObjectKind, Simulation, SimulationConfig, build_simulation
+from app.simulation.scenario import BuriedObject
+from app.simulation.sensors import SensorModel
 
 from .protocol import MATCH_RADIUS_M, STANDARD_SURVEY
+
+# Borderline case kept in the test suite as a known limitation: a mid-sized low-metal
+# mine 7 cm deep in dry sand, checked on three fixed seeds.
+LOW_METAL_MINE_7CM = BuriedObject(
+    1, ObjectKind.LOW_METAL_MINE, 1.0, 0.5, depth_m=0.07, metal_mass=0.006, size_m=0.11, permittivity=2.5
+)
+BORDERLINE_SEEDS = (501, 502, 503)
 
 METHODS = ("baseline", "adaptive")
 
@@ -42,6 +53,18 @@ def simulate_scenario(soil_type: str, seed: int, survey: dict = STANDARD_SURVEY)
         sample_period_s=cfg.dt_s,
     )
     return ScenarioRun(soil_type, seed, context, truths, readings)
+
+
+def single_object_candidates(obj: BuriedObject, soil_type: str, seed: int) -> list[Candidate]:
+    """Adaptive candidates within the match radius of a lone object, on the standard survey."""
+    cfg = SimulationConfig(soil_type=soil_type, seed=seed, **STANDARD_SURVEY)
+    generated = build_simulation(cfg)
+    scenario = dataclasses.replace(generated.scenario, objects=(obj,))
+    sim = Simulation(cfg, generated.plan, scenario, SensorModel(scenario, noise_seed=seed))
+    readings = [Reading(fs.t_s, fs.x, fs.y, fs.alt_m, ss.md, ss.gpr_amp, ss.gpr_twt_ns) for fs, ss in sim.samples()]
+    context = SurveyContext(soil_type, cfg.altitude_m, cfg.speed_mps, cfg.line_spacing_m, cfg.dt_s)
+    candidates = detect_adaptive(readings, context)
+    return [c for c in candidates if math.hypot(c.x - obj.x, c.y - obj.y) <= MATCH_RADIUS_M]
 
 
 def run_methods(

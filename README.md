@@ -20,7 +20,7 @@ verification by trained personnel. Nothing in this system confirms a landmine.
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
 | `backend/tests/` | PyTest suite | — |
 | `web/` | React + TypeScript dashboard: mission planning, live satellite map, detection review and verification. Responsive, used on phones by field staff | REST/WebSocket API only |
-| `docs/` | `EVALUATION_PROTOCOL.md` (seeds, calibration, results), `calibration_result.json`; architecture and demo script planned for Day 3 | — |
+| `docs/` | `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json`; architecture and demo script planned for Day 3 | — |
 
 Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames) → `api.runner` → database + `detection.AdaptiveDetector` (every 5 s of flight) → WebSocket events → web.
 
@@ -63,6 +63,7 @@ run against a PostgreSQL server in this prototype.
 cd backend
 .venv/Scripts/python -m pytest                  # includes mandatory tests T1-T3 on the evaluation seeds
 .venv/Scripts/python -m scripts.calibrate       # re-runs calibration on tuning seeds (does not change code)
+.venv/Scripts/python -m scripts.evaluate        # regenerates docs/EVALUATION_RESULTS.md (same report as the Evaluation page)
 ```
 
 Known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md` section 6):
@@ -81,6 +82,7 @@ Known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 | GET | `/api/missions/{id}/profile` | any user — how the adaptive classifier is configured for the mission |
 | WS | `/ws/missions/{id}?token=...` | snapshot, then live telemetry, detections, alerts, status |
 | PATCH | `/api/detections/{id}` | any user; `pending` / `confirmed_by_team` / `false_alarm` |
+| GET | `/api/evaluation` | any user — baseline vs adaptive on the evaluation seeds (simulated data) |
 
 ## Status
 

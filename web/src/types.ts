@@ -128,3 +128,37 @@ export const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
   confirmed_by_team: 'Confirmed by team',
   false_alarm: 'False alarm',
 }
+
+export interface EvaluationCounts {
+  targets: number
+  tp: number
+  fn: number
+  fp: number
+  recall: number
+  precision: number
+  f1: number
+  fp_by_cause: Record<string, number>
+  outcomes: Record<string, Record<string, number>>
+}
+
+export interface EvaluationReport {
+  simulated: boolean
+  notice: string
+  protocol: {
+    evaluation_seeds: [number, number]
+    tuning_seeds: [number, number]
+    scenarios: number
+    survey: { altitude_m: number; speed_mps: number; line_spacing_m: number }
+    match_radius_m: number
+    reported_categories: string
+  }
+  frozen_parameters: {
+    baseline: { md_threshold: number }
+    adaptive: { k_md: number; k_gpr: number; body_ratio: number; reliability: Record<string, { md: number; gpr: number }> }
+  }
+  soils: { key: string; label: string }[]
+  results: Record<'baseline' | 'adaptive', Record<string, EvaluationCounts>>
+  mandatory_tests: { id: string; name: string; value: string; passed: boolean }[]
+  borderline_case: { description: string; seeds: { seed: number; reported: boolean; detail: string }[] }
+  limitations: { title: string; text: string }[]
+}

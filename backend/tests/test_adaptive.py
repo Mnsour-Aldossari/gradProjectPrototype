@@ -1,6 +1,5 @@
 """Adaptive detector: building blocks, streaming behaviour and single-object checks on fixed seeds."""
 
-import dataclasses
 import math
 
 import pytest
@@ -9,12 +8,9 @@ from app.detection import AdaptiveDetector, Category, Reading, SurveyContext, de
 from app.detection.context import condition_profile
 from app.detection.params import FROZEN_PARAMS
 from app.detection.threshold import RollingRobustScaler, robust_scores
-from app.evaluation.harness import simulate_scenario
-from app.simulation import DEMO_AREA, ObjectKind, Simulation, SimulationConfig, build_simulation
+from app.evaluation.harness import LOW_METAL_MINE_7CM, simulate_scenario, single_object_candidates
+from app.simulation import ObjectKind
 from app.simulation.scenario import BuriedObject
-from app.simulation.sensors import SensorModel
-
-MATCH_RADIUS_M = 1.5
 
 
 # --- adaptive threshold -------------------------------------------------------------------------
@@ -73,16 +69,6 @@ def test_condition_profile_adapts_to_soil_and_speed():
 # --- single objects on fixed seeds ---------------------------------------------------------------
 
 
-def single_object_candidates(obj: BuriedObject, soil: str, seed: int):
-    cfg = SimulationConfig(area=DEMO_AREA, altitude_m=1.5, speed_mps=2.0, line_spacing_m=2.0, soil_type=soil, seed=seed)
-    generated = build_simulation(cfg)
-    scenario = dataclasses.replace(generated.scenario, objects=(obj,))
-    sim = Simulation(cfg, generated.plan, scenario, SensorModel(scenario, noise_seed=seed))
-    readings = [Reading(fs.t_s, fs.x, fs.y, fs.alt_m, ss.md, ss.gpr_amp, ss.gpr_twt_ns) for fs, ss in sim.samples()]
-    candidates = detect_adaptive(readings, SurveyContext(soil, 1.5, 2.0, 2.0))
-    return [c for c in candidates if math.hypot(c.x - obj.x, c.y - obj.y) <= MATCH_RADIUS_M]
-
-
 KNOWN_LIMIT_LOW_METAL_7CM = (
     "Known limitation (docs/EVALUATION_PROTOCOL.md section 6): a low-metal mine at 7 cm in dry sand gives a "
     "radar signal right at the frozen threshold and is missed for this seed. Parameters are not tuned to change this."
@@ -98,8 +84,7 @@ KNOWN_LIMIT_LOW_METAL_7CM = (
     ],
 )
 def test_lone_low_metal_mine_is_reported_through_radar(seed):
-    obj = BuriedObject(1, ObjectKind.LOW_METAL_MINE, 1.0, 0.5, depth_m=0.07, metal_mass=0.006, size_m=0.11, permittivity=2.5)
-    near = single_object_candidates(obj, "dry_sand", seed)
+    near = single_object_candidates(LOW_METAL_MINE_7CM, "dry_sand", seed)
     reported = [c for c in near if c.category != Category.CLUTTER]
     assert reported, [(c.category, c.features) for c in near]
     for c in reported:

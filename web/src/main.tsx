@@ -8,6 +8,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './auth'
+import { EvaluationPage } from './pages/EvaluationPage'
 import { Layout } from './pages/Layout'
 import { LoginPage } from './pages/LoginPage'
 import { MissionPage } from './pages/MissionPage'
@@ -30,6 +31,7 @@ createRoot(document.getElementById('root')!).render(
             <Route index element={<MissionsPage />} />
             <Route path="missions/new" element={<NewMissionPage />} />
             <Route path="missions/:id" element={<MissionPage />} />
+            <Route path="evaluation" element={<EvaluationPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

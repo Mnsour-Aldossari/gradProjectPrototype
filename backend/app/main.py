@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, detections, missions, ws
+from .api import auth, detections, evaluation, missions, ws
 from .api.runner import MissionRunner
 from .api.ws import Hub
 from .config import Settings
@@ -50,6 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(missions.router)
     app.include_router(detections.router)
+    app.include_router(evaluation.router)
     app.include_router(ws.router)
 
     @app.get("/api/health", tags=["health"])

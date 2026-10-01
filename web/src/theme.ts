@@ -7,3 +7,9 @@ export const COLORS = {
   clutter: '#8a948c',
   white: '#ffffff',
 } as const
+
+// Two-series chart palette, validated (lightness, chroma, colour-blind separation, contrast on #f6f8f4).
+export const CHART = {
+  baseline: '#b5651d',
+  adaptive: '#1f5fad',
+} as const
