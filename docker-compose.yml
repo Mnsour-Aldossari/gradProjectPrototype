@@ -1,0 +1,19 @@
+# NOT built or run yet - see README. Start with: docker compose up --build  ->  http://localhost:8080
+services:
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: sqlite:////data/uav.db
+      SIM_SPEED_FACTOR: "10"
+    volumes:
+      - uav-data:/data
+
+  web:
+    build: ./web
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  uav-data:

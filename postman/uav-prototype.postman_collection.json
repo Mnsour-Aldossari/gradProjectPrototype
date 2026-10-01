@@ -1,0 +1,271 @@
+{
+  "info": {
+    "name": "UAV Landmine Prototype API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Six requests for the prototype API. Start the backend on port 8000 first. All data is simulated."
+  },
+  "item": [
+    {
+      "name": "1. Login (supervisor)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Saves the token in the collection variable `token`. Demo accounts are test credentials only (backend/app/seed.py).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('token', pm.response.json().token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Run the demo scenario",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/missions/demo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "missions",
+            "demo"
+          ]
+        },
+        "description": "Creates and starts the fixed demo scenario (seed 2000, dry sand, 20x). Takes about 33 s to finish."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+              "pm.collectionVariables.set('missionId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Mission status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/missions/{{missionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "missions",
+            "{{missionId}}"
+          ]
+        },
+        "description": "Repeat until `status` is `completed` (progress reaches 1)."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('has a status', () => pm.expect(pm.response.json().status).to.be.a('string'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Potential detections (adaptive)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/missions/{{missionId}}/detections?method=adaptive",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "missions",
+            "{{missionId}}",
+            "detections"
+          ],
+          "query": [
+            {
+              "key": "method",
+              "value": "adaptive"
+            }
+          ]
+        },
+        "description": "Every item is a potential detection for verification by trained personnel. Saves the first reported (high / suspect) one."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const reported = pm.response.json().filter(d => d.category !== 'clutter');",
+              "if (reported.length) pm.collectionVariables.set('detectionId', reported[0].id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Record verification result",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/detections/{{detectionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "detections",
+            "{{detectionId}}"
+          ]
+        },
+        "description": "Changes the verification status (pending / confirmed_by_team / false_alarm). It changes stored data; the demo scenario can simply be run again.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"false_alarm\",\n  \"notes\": \"Postman test\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('status updated', () => pm.expect(pm.response.json().status).to.eql('false_alarm'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Mission history",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/missions/history",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "missions",
+            "history"
+          ]
+        },
+        "description": "Finished missions with potential-detection counts per category."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('has counts', () => pm.expect(pm.response.json()).to.have.property('totals_adaptive'));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "username",
+      "value": "supervisor"
+    },
+    {
+      "key": "password",
+      "value": "Supervisor#2026"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "missionId",
+      "value": ""
+    },
+    {
+      "key": "detectionId",
+      "value": ""
+    }
+  ]
+}

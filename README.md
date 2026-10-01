@@ -63,6 +63,17 @@ Settings (environment variables):
 The code uses only portable column types so switching to PostgreSQL needs no code change; this has not yet been
 run against a PostgreSQL server in this prototype.
 
+## Docker and Postman (files only, partly checked)
+
+- `docker-compose.yml`, `backend/Dockerfile`, `web/Dockerfile`, `web/nginx.conf`: backend plus an nginx web image that
+  forwards `/api` and `/ws` to it (`docker compose up --build`, then http://localhost:8080). **The images have not been
+  built and the containers have not been run**: Docker Desktop's engine was not running when these files were written.
+  Only `docker compose config` was run, and it accepts the compose file.
+- `postman/uav-prototype.postman_collection.json`: six requests (login, run demo scenario, mission status, potential
+  detections, record verification, mission history). **It has not been opened in Postman.** The same six requests and
+  their test scripts were replayed against the running backend with a small Node script that mimics `pm`, and all
+  passed.
+
 ## Tests and calibration
 
 ```bash
@@ -97,6 +108,6 @@ Known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 - [x] Day 1 — simulator, TelemetrySource, baseline (fixed-threshold) detector, persistence, tests
 - [x] Day 2 — adaptive detection & classification (calibrated on tuning seeds, frozen), WebSocket live updates, React dashboard
 - [x] Day 3 — evaluation page (baseline vs adaptive on simulated data), demo scenario, mission history page, field view, docs
-- [ ] Day 3 extras — Docker and Postman collection (not done)
+- [~] Day 3 extras — Docker files and Postman collection written; Docker not built or run, Postman collection not opened in Postman (see above)
 
 Not implemented (documented future phases only): PX4 SITL + Gazebo, ROS 2, Flutter mobile app.
