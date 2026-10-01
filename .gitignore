@@ -20,3 +20,6 @@ Thumbs.db
 
 # Generated test reports
 backend/report.html
+
+# Local database backups
+backups/

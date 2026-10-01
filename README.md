@@ -74,6 +74,19 @@ run against a PostgreSQL server in this prototype.
   their test scripts were replayed against the running backend with a small Node script that mimics `pm`, and all
   passed.
 
+## Resetting the local database before a demo
+
+```bash
+cd backend
+.venv/Scripts/python -m scripts.reset_db          # dry run: lists what would be deleted, changes nothing
+.venv/Scripts/python -m scripts.reset_db --yes    # copies uav.db to backups/, then resets
+```
+
+The reset removes all missions, telemetry, sensor readings and detections and leaves only the two demo users
+(supervisor and field operator, re-created by the same seeding the server runs at startup). Stop the backend before
+running it. `backups/` is git-ignored. It only touches the database in `DATABASE_URL`; the automatic backup is made
+for SQLite only.
+
 ## Tests and calibration
 
 ```bash
