@@ -58,7 +58,7 @@ Settings (environment variables):
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///backend/uav.db` | e.g. `postgresql+psycopg://user:pass@localhost:5432/uav` |
 | `SIM_SPEED_FACTOR` | `10` | default playback speed for missions (1 = real time) |
-| `SECRET_KEY` | dev value | token signing key |
+| `SECRET_KEY` | random, saved in `backend/.secret_key` | token signing key; if unset, one is generated on first start and reused (git-ignored) |
 
 The code uses only portable column types so switching to PostgreSQL needs no code change; this has not yet been
 run against a PostgreSQL server in this prototype.
