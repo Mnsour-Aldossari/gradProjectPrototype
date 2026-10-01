@@ -1,7 +1,5 @@
-import type { User } from './types'
-
 const TOKEN_KEY = 'uav.token'
-const USER_KEY = 'uav.user'
+const LEGACY_USER_KEY = 'uav.user' // older versions stored a copy of the user here; it is never read any more
 
 function read(key: string): string | null {
   try {
@@ -11,41 +9,34 @@ function read(key: string): string | null {
   }
 }
 
-function write(key: string, value: string | null): void {
+/** Returns false when storage is unavailable (private mode). */
+function write(key: string, value: string | null): boolean {
   try {
     if (value === null) localStorage.removeItem(key)
     else localStorage.setItem(key, value)
+    return true
   } catch {
-    // Storage unavailable (private mode): the session lasts until reload.
+    return false
   }
 }
 
-let memoryToken: string | null = read(TOKEN_KEY)
+// Only used when storage is unavailable: the session then lasts until reload.
+let fallbackToken: string | null = null
 
+/** The token is always read from storage, so clearing storage ends the session. */
 export function getToken(): string | null {
-  return memoryToken
+  return read(TOKEN_KEY) ?? fallbackToken
 }
 
-export function getStoredUser(): User | null {
-  const raw = read(USER_KEY)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as User
-  } catch {
-    return null
-  }
-}
-
-export function saveSession(token: string, user: User): void {
-  memoryToken = token
-  write(TOKEN_KEY, token)
-  write(USER_KEY, JSON.stringify(user))
+export function saveSession(token: string): void {
+  fallbackToken = write(TOKEN_KEY, token) ? null : token
+  write(LEGACY_USER_KEY, null)
 }
 
 export function clearSession(): void {
-  memoryToken = null
+  fallbackToken = null
   write(TOKEN_KEY, null)
-  write(USER_KEY, null)
+  write(LEGACY_USER_KEY, null)
 }
 
 export class ApiError extends Error {

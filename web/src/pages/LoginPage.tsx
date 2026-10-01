@@ -1,18 +1,18 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { homePath, useAuth } from '../auth'
 
 export function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, ready, login } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const from = (location.state as { from?: string } | null)?.from
-  if (user) return <Navigate to={from ?? homePath(user)} replace />
+  // Always land on the home page of the role that just signed in, never on a page remembered from before.
+  if (!ready) return null
+  if (user) return <Navigate to={homePath(user)} replace />
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -20,7 +20,7 @@ export function LoginPage() {
     setError(null)
     try {
       const signedIn = await login(username.trim(), password)
-      navigate(from ?? homePath(signedIn), { replace: true })
+      navigate(homePath(signedIn), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed')
     } finally {
