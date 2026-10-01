@@ -20,7 +20,7 @@ verification by trained personnel. Nothing in this system confirms a landmine.
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
 | `backend/tests/` | PyTest suite | — |
 | `web/` | React + TypeScript dashboard: mission planning, live satellite map, detection review and verification. Responsive, used on phones by field staff | REST/WebSocket API only |
-| `docs/` | `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json`; architecture and demo script planned for Day 3 | — |
+| `docs/` | `ARCHITECTURE.md` (report section 4.1, diagrams, future phases), `DEMO_SCRIPT.md` (Arabic demo script), `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json` | — |
 
 Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames) → `api.runner` → database + `detection.AdaptiveDetector` (every 5 s of flight) → WebSocket events → web.
 
