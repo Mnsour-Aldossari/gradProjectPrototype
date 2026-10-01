@@ -271,7 +271,13 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 20px;
+}
+.demo-note {
+  margin: -8px 0 20px;
+  max-width: 75ch;
 }
 .empty {
   padding: 28px;

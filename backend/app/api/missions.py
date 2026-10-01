@@ -7,7 +7,8 @@ from sqlmodel import Session, func, select
 
 from app.detection import FROZEN_PARAMS
 from app.detection.context import condition_profile
-from app.models import Detection, Mission, SensorReading, TelemetryPoint, utcnow
+from app.evaluation.protocol import EVALUATION_SEEDS, STANDARD_SURVEY
+from app.models import Detection, Mission, SensorReading, TelemetryPoint, User, utcnow
 from app.schemas import ConditionProfileRead, MissionCreate, MissionRead, MissionStats, StartRequest, TelemetryRead
 from app.simulation import plan_survey
 from app.simulation.scenario import generate_scenario
@@ -20,6 +21,20 @@ router = APIRouter(prefix="/api/missions", tags=["missions"])
 MIN_SIDE_M = 20.0
 MAX_SIDE_M = 300.0
 MAX_PATH_M = 15_000.0
+
+# Demo scenario, chosen by rule rather than by its result: the first evaluation seed and
+# the default soil type, on the standard survey used in the evaluation.
+DEMO_SEED = EVALUATION_SEEDS[0]
+DEMO_SPEED_FACTOR = 20.0
+DEMO_SCENARIO = {
+    "name": f"Demo scenario (seed {DEMO_SEED}, dry sand)",
+    "area": [list(p) for p in STANDARD_SURVEY["area"]],
+    "altitude_m": STANDARD_SURVEY["altitude_m"],
+    "speed_mps": STANDARD_SURVEY["speed_mps"],
+    "line_spacing_m": STANDARD_SURVEY["line_spacing_m"],
+    "soil_type": "dry_sand",
+    "scenario_seed": DEMO_SEED,
+}
 
 
 def get_mission_or_404(session: Session, mission_id: int) -> Mission:
@@ -50,8 +65,7 @@ def list_missions(session: SessionDep, _: CurrentUser) -> list[MissionRead]:
     return [mission_read(session, m) for m in missions]
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=MissionRead)
-def create_mission(body: MissionCreate, session: SessionDep, user: SupervisorUser) -> MissionRead:
+def _create(session: Session, body: MissionCreate, user: User) -> Mission:
     plan = plan_survey(body.area, body.line_spacing_m)
     width, height = plan.width_m, plan.height_m
     if not (MIN_SIDE_M <= width <= MAX_SIDE_M and MIN_SIDE_M <= height <= MAX_SIDE_M):
@@ -85,7 +99,37 @@ def create_mission(body: MissionCreate, session: SessionDep, user: SupervisorUse
     session.add(mission)
     session.commit()
     session.refresh(mission)
-    return mission_read(session, mission)
+    return mission
+
+
+def _start(request: Request, session: Session, mission: Mission, speed_factor: float) -> Mission:
+    runner = request.app.state.runner
+    if mission.status != "planned" or runner.is_running(mission.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
+    source = make_source(mission, request.app.state.settings, speed_factor)
+    mission.status = "running"
+    mission.started_at = utcnow()
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+    request.app.state.hub.publish(mission.id, mission_event(mission))
+    runner.start(mission.id, source)
+    return mission
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=MissionRead)
+def create_mission(body: MissionCreate, session: SessionDep, user: SupervisorUser) -> MissionRead:
+    return mission_read(session, _create(session, body, user))
+
+
+@router.post("/demo", status_code=status.HTTP_202_ACCEPTED, response_model=MissionRead)
+async def run_demo_scenario(
+    request: Request, session: SessionDep, user: SupervisorUser, body: StartRequest | None = None
+) -> MissionRead:
+    """Create and start the fixed demo scenario. Same seed and settings every time, so the same result."""
+    mission = _create(session, MissionCreate(**DEMO_SCENARIO), user)
+    speed_factor = body.speed_factor if body and body.speed_factor is not None else DEMO_SPEED_FACTOR
+    return mission_read(session, _start(request, session, mission, speed_factor))
 
 
 @router.get("/{mission_id}", response_model=MissionRead)
@@ -103,20 +147,8 @@ async def start_mission(
     body: StartRequest | None = None,
 ) -> MissionRead:
     mission = get_mission_or_404(session, mission_id)
-    runner = request.app.state.runner
-    if mission.status != "planned" or runner.is_running(mission_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
     speed_factor = body.speed_factor if body and body.speed_factor is not None else settings.default_speed_factor
-    source = make_source(mission, settings, speed_factor)
-
-    mission.status = "running"
-    mission.started_at = utcnow()
-    session.add(mission)
-    session.commit()
-    session.refresh(mission)
-    request.app.state.hub.publish(mission_id, mission_event(mission))
-    runner.start(mission_id, source)
-    return mission_read(session, mission)
+    return mission_read(session, _start(request, session, mission, speed_factor))
 
 
 @router.get("/{mission_id}/telemetry", response_model=list[TelemetryRead])

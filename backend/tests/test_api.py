@@ -165,3 +165,21 @@ def test_evaluation_report_is_marked_simulated_and_lists_known_limitations(clien
     assert report["protocol"]["evaluation_seeds"] == [2000, 2029]
     assert len(report["limitations"]) == 4
     assert "confirmed mine" not in r.text.lower()
+
+
+def test_demo_scenario_gives_the_same_detections_every_run(client):
+    sup = auth_headers(client, "supervisor")
+    assert client.post("/api/missions/demo", headers=auth_headers(client, "field")).status_code == 403
+
+    def run_once():
+        mission = client.post("/api/missions/demo", json={"speed_factor": 0}, headers=sup).json()
+        assert mission["scenario_seed"] == 2000 and mission["soil_type"] == "dry_sand"
+        assert wait_until_finished(client, mission["id"], sup)["status"] == "completed"
+        detections = client.get(f"/api/missions/{mission['id']}/detections", headers=sup).json()
+        return sorted(
+            (d["method"], d["category"], round(d["lat"], 7), round(d["lon"], 7), d["n_hits"], d["confidence"])
+            for d in detections
+        )
+
+    first, second = run_once(), run_once()
+    assert first and first == second

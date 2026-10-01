@@ -77,6 +77,7 @@ Known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 | GET/POST | `/api/missions` | read: any user, create: supervisor |
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
 | POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10}` |
+| POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
 | GET | `/api/missions/{id}/telemetry` | any user |
 | GET | `/api/missions/{id}/detections?method=adaptive` | any user |
 | GET | `/api/missions/{id}/profile` | any user — how the adaptive classifier is configured for the mission |
