@@ -81,6 +81,7 @@ Known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 |---|---|---|
 | POST | `/api/auth/login` | anyone |
 | GET/POST | `/api/missions` | read: any user, create: supervisor |
+| GET | `/api/missions/history` | any user — finished missions with potential-detection counts per category and verification progress |
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
 | POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10}` |
 | POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
@@ -95,6 +96,7 @@ Known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 
 - [x] Day 1 — simulator, TelemetrySource, baseline (fixed-threshold) detector, persistence, tests
 - [x] Day 2 — adaptive detection & classification (calibrated on tuning seeds, frozen), WebSocket live updates, React dashboard
-- [ ] Day 3 — evaluation page (baseline vs adaptive on simulated data), demo scenario, docs
+- [x] Day 3 — evaluation page (baseline vs adaptive on simulated data), demo scenario, mission history page, field view, docs
+- [ ] Day 3 extras — Docker and Postman collection (not done)
 
 Not implemented (documented future phases only): PX4 SITL + Gazebo, ROS 2, Flutter mobile app.

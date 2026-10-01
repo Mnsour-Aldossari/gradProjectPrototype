@@ -183,3 +183,26 @@ def test_demo_scenario_gives_the_same_detections_every_run(client):
 
     first, second = run_once(), run_once()
     assert first and first == second
+
+
+def test_history_counts_potential_detections_per_category(client):
+    sup = auth_headers(client, "supervisor")
+    planned = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
+    done = client.post("/api/missions", json=mission_body(scenario_seed=12), headers=sup).json()["id"]
+    client.post(f"/api/missions/{done}/start", json={"speed_factor": 0}, headers=sup)
+    wait_until_finished(client, done, sup)
+    detections = client.get(f"/api/missions/{done}/detections", headers=sup).json()
+    reported = [d for d in detections if d["method"] == "adaptive" and d["category"] != "clutter"]
+    client.patch(f"/api/detections/{reported[0]['id']}", json={"status": "false_alarm"}, headers=sup)
+
+    history = client.get("/api/missions/history", headers=auth_headers(client, "field")).json()
+    assert [i["mission"]["id"] for i in history["missions"]] == [done]  # planned missions are not history
+    assert planned not in [i["mission"]["id"] for i in history["missions"]]
+    item = history["missions"][0]
+    for category in ("high", "suspect", "clutter"):
+        expected = sum(d["method"] == "adaptive" and d["category"] == category for d in detections)
+        assert item["adaptive"][category] == expected
+    assert item["baseline_high"] == sum(d["method"] == "baseline" and d["category"] == "high" for d in detections)
+    assert item["verification"]["false_alarm"] == 1
+    assert item["verification"]["pending"] == len(reported) - 1
+    assert history["completed"] == 1 and history["totals_adaptive"] == item["adaptive"]

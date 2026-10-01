@@ -94,6 +94,35 @@ class MissionRead(BaseModel):
         return round(self.path_length_m / self.speed_mps, 1)
 
 
+class CategoryCounts(BaseModel):
+    high: int = 0
+    suspect: int = 0
+    clutter: int = 0
+
+
+class VerificationCounts(BaseModel):
+    """Verification status of the reported (high + suspect) adaptive detections."""
+
+    pending: int = 0
+    confirmed_by_team: int = 0
+    false_alarm: int = 0
+
+
+class MissionHistoryItem(BaseModel):
+    mission: MissionRead
+    adaptive: CategoryCounts
+    verification: VerificationCounts
+    baseline_high: int
+
+
+class MissionHistory(BaseModel):
+    missions: list[MissionHistoryItem]
+    totals_adaptive: CategoryCounts
+    totals_verification: VerificationCounts
+    completed: int
+    failed: int
+
+
 class StartRequest(BaseModel):
     speed_factor: float | None = Field(
         None, ge=0, le=100, description="1 = real time, 10 = ten times faster, 0 = as fast as possible"

@@ -17,6 +17,7 @@ export function Layout() {
             Missions
           </NavLink>
           {user?.role === 'supervisor' && <NavLink to="/missions/new">New mission</NavLink>}
+          <NavLink to="/history">History</NavLink>
           <NavLink to="/evaluation">Evaluation</NavLink>
         </nav>
         <div className="who">

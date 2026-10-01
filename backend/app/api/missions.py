@@ -9,7 +9,18 @@ from app.detection import FROZEN_PARAMS
 from app.detection.context import condition_profile
 from app.evaluation.protocol import EVALUATION_SEEDS, STANDARD_SURVEY
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, User, utcnow
-from app.schemas import ConditionProfileRead, MissionCreate, MissionRead, MissionStats, StartRequest, TelemetryRead
+from app.schemas import (
+    CategoryCounts,
+    ConditionProfileRead,
+    MissionCreate,
+    MissionHistory,
+    MissionHistoryItem,
+    MissionRead,
+    MissionStats,
+    StartRequest,
+    TelemetryRead,
+    VerificationCounts,
+)
 from app.simulation import plan_survey
 from app.simulation.scenario import generate_scenario
 
@@ -63,6 +74,58 @@ def mission_read(session: Session, mission: Mission, with_stats: bool = False) -
 def list_missions(session: SessionDep, _: CurrentUser) -> list[MissionRead]:
     missions = session.exec(select(Mission).order_by(Mission.id.desc())).all()
     return [mission_read(session, m) for m in missions]
+
+
+@router.get("/history", response_model=MissionHistory)
+def mission_history(session: SessionDep, _: CurrentUser) -> MissionHistory:
+    """Finished missions (completed or failed) with potential-detection counts per category."""
+    missions = session.exec(
+        select(Mission).where(Mission.status.in_(("completed", "failed"))).order_by(Mission.id.desc())
+    ).all()
+    rows = session.exec(
+        select(Detection.mission_id, Detection.method, Detection.category, Detection.status, func.count())
+        .where(Detection.mission_id.in_([m.id for m in missions]))
+        .group_by(Detection.mission_id, Detection.method, Detection.category, Detection.status)
+    ).all()
+
+    adaptive = {m.id: CategoryCounts() for m in missions}
+    verification = {m.id: VerificationCounts() for m in missions}
+    baseline_high = {m.id: 0 for m in missions}
+    for mission_id, method, category, det_status, n in rows:
+        if method == "baseline":
+            if category == "high":
+                baseline_high[mission_id] += n
+            continue
+        counts = adaptive[mission_id]
+        setattr(counts, category, getattr(counts, category) + n)
+        if category != "clutter":
+            v = verification[mission_id]
+            setattr(v, det_status, getattr(v, det_status) + n)
+
+    items = [
+        MissionHistoryItem(
+            mission=mission_read(session, m),
+            adaptive=adaptive[m.id],
+            verification=verification[m.id],
+            baseline_high=baseline_high[m.id],
+        )
+        for m in missions
+    ]
+    return MissionHistory(
+        missions=items,
+        totals_adaptive=CategoryCounts(
+            high=sum(i.adaptive.high for i in items),
+            suspect=sum(i.adaptive.suspect for i in items),
+            clutter=sum(i.adaptive.clutter for i in items),
+        ),
+        totals_verification=VerificationCounts(
+            pending=sum(i.verification.pending for i in items),
+            confirmed_by_team=sum(i.verification.confirmed_by_team for i in items),
+            false_alarm=sum(i.verification.false_alarm for i in items),
+        ),
+        completed=sum(m.status == "completed" for m in missions),
+        failed=sum(m.status == "failed" for m in missions),
+    )
 
 
 def _create(session: Session, body: MissionCreate, user: User) -> Mission:

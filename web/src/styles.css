@@ -1273,3 +1273,52 @@ td.miss {
     padding-right: max(16px, calc(50% - 300px));
   }
 }
+
+/* ---------- history ---------- */
+
+.history {
+  display: grid;
+  gap: 16px;
+}
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.stat {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-left: 4px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.stat .num {
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.stat-high {
+  border-left-color: var(--hazard);
+}
+.stat-suspect {
+  border-left-color: var(--amber);
+}
+.stat-clutter {
+  border-left-color: var(--clutter);
+}
+.history-table th:first-child {
+  text-align: left;
+  font: 500 15px var(--font);
+  background: none;
+  color: var(--ink);
+}
+.history-table thead th:first-child {
+  font: 600 14px var(--font-cond);
+  color: var(--ink-2);
+  background: #dfe4dc;
+}
+.history-table .status {
+  margin-left: 8px;
+}

@@ -31,7 +31,7 @@ narrow interface. The prototype has five layers:
 
 Two user interfaces sit on top and talk to the backend only through REST and WebSocket:
 
-- a **web dashboard** for the mission supervisor (planning, live monitoring, review, evaluation);
+- a **web dashboard** for the mission supervisor (planning, live monitoring, review, mission history, evaluation);
 - a **mobile-first field view** (`/field`) for field personnel (alerts, nearest potential detections,
   verification), delivered as a Progressive Web App.
 
@@ -239,6 +239,7 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | SQLite database | Implemented and tested |
 | Supervisor web dashboard (React + TypeScript + Leaflet) | Implemented and tested in the browser |
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
+| Mission history page (counts per category, verification progress) | Implemented and tested in the browser |
 | Evaluation page and generated results | Implemented |
 | PX4 / MAVLink source | Stub only; see Future Phases |
 
@@ -251,10 +252,12 @@ None of the items below is implemented in the prototype.
   payload computer as a separate stream and be time-aligned with position before entering the system.
 - **ROS 2 (optional).** Use it for the sensor pipeline if Gazebo sensor plugins are introduced. The detection
   engine can be wrapped as a ROS 2 node without changes to its logic.
-- **UAV commands.** Takeoff, landing, pause, resume and return-to-launch commands from the dashboard are not
-  implemented.
-- **Multiple UAVs.** A `uavs` table and a `uav_id` on missions and telemetry are not implemented; the prototype
-  assumes one UAV per mission.
+- **Simulated control commands.** Takeoff, landing, pause, resume and return-to-launch would first be added as
+  commands to the simulated UAV, then forwarded to a PX4 source. None of them is implemented; the dashboard can
+  only plan and start a mission.
+- **Multiple UAVs.** A `uavs` table and a `uav_id` on missions and telemetry would allow several UAVs in one
+  system. Neither exists today; the prototype assumes one UAV per mission. Coordinated swarm behaviour is out of
+  scope for this project.
 - **Sharing field-team positions.** The field view uses the device location locally, for distances, but does not
   send it to the server.
 - **Flutter mobile app.** A native app could use the same REST and WebSocket API as the PWA.

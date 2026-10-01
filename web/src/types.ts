@@ -162,3 +162,23 @@ export interface EvaluationReport {
   borderline_case: { description: string; seeds: { seed: number; reported: boolean; detail: string }[] }
   limitations: { title: string; text: string }[]
 }
+
+export interface CategoryCounts {
+  high: number
+  suspect: number
+  clutter: number
+}
+
+export interface VerificationCounts {
+  pending: number
+  confirmed_by_team: number
+  false_alarm: number
+}
+
+export interface MissionHistory {
+  missions: { mission: Mission; adaptive: CategoryCounts; verification: VerificationCounts; baseline_high: number }[]
+  totals_adaptive: CategoryCounts
+  totals_verification: VerificationCounts
+  completed: number
+  failed: number
+}
