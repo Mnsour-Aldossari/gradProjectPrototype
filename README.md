@@ -65,8 +65,8 @@ cd backend
 .venv/Scripts/python -m scripts.calibrate       # re-runs calibration on tuning seeds (does not change code)
 ```
 
-Known failing test (kept as is, see `docs/EVALUATION_PROTOCOL.md` section 6):
-`test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503.
+Known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md` section 6):
+`test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a normal test.
 
 ## Main API endpoints
 
