@@ -1,7 +1,14 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { clearSessionExpired, peekSessionExpired } from '../api'
+import { ApiError, clearSessionExpired, peekSessionExpired } from '../api'
 import { homePath, useAuth } from '../auth'
+
+/** What to tell the user when sign-in fails, without technical wording. */
+function signInError(err: unknown): string {
+  if (err instanceof ApiError && err.status === 401) return 'Wrong username or password. Check them and try again.'
+  if (err instanceof ApiError && err.status < 500) return err.message
+  return 'Cannot reach the server. Check that it is running and try again.'
+}
 
 export function LoginPage() {
   const { user, ready, login } = useAuth()
@@ -10,6 +17,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const passwordInput = useRef<HTMLInputElement>(null)
+  const submitting = useRef(false) // unlike `busy`, updates at once, so two quick submits cannot both pass
   // Set when the server rejected the token; kept until the next successful sign-in.
   const [expired] = useState(peekSessionExpired)
 
@@ -19,6 +28,8 @@ export function LoginPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    if (submitting.current) return // Enter in a field still submits while the button is disabled
+    submitting.current = true
     setBusy(true)
     setError(null)
     try {
@@ -26,8 +37,13 @@ export function LoginPage() {
       clearSessionExpired()
       navigate(homePath(signedIn), { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed')
+      setError(signInError(err))
+      if (err instanceof ApiError && err.status === 401) {
+        setPassword('')
+        passwordInput.current?.focus()
+      }
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
@@ -56,11 +72,18 @@ export function LoginPage() {
       <form className="login-form" onSubmit={submit}>
         <label className="field">
           <span>Username</span>
-          <input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <input
+            autoFocus
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
         </label>
         <label className="field">
           <span>Password</span>
           <input
+            ref={passwordInput}
             type="password"
             autoComplete="current-password"
             value={password}
@@ -68,9 +91,13 @@ export function LoginPage() {
             required
           />
         </label>
-        {error && <p className="error">{error}</p>}
-        <button className="button" type="submit" disabled={busy}>
-          {busy ? 'Signing in' : 'Sign in'}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <button className="button" type="submit" disabled={busy} aria-busy={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
       <p className="small">
