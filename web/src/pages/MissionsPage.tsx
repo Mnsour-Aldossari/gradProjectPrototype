@@ -52,7 +52,7 @@ export function MissionsPage() {
         </p>
       )}
       {error && <p className="error">{error}</p>}
-      {missions === null && !error && <p className="small">Loading missions</p>}
+      {missions === null && !error && <p className="small loading">Loading missions</p>}
       {missions?.length === 0 && (
         <p className="empty">
           {user?.role === 'supervisor'

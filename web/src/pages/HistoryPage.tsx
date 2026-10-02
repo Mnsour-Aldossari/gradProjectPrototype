@@ -23,7 +23,7 @@ export function HistoryPage() {
     <main className="page history">
       <h1>Mission history</h1>
       {error && <p className="error">{error}</p>}
-      {!history && !error && <p className="small">Loading mission history</p>}
+      {!history && !error && <p className="small loading">Loading mission history</p>}
 
       {history && history.missions.length === 0 && (
         <p className="empty">No finished missions yet. Missions appear here once a survey has completed.</p>

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Rectangle, useMapEvents } from 'react-leaflet'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { areaSize } from '../format'
 import { SurveyMap } from '../map/SurveyMap'
@@ -105,7 +105,12 @@ export function NewMissionPage() {
       </div>
       <aside className="side-pane">
         <form className="stack" onSubmit={submit}>
-          <h1>Plan a mission</h1>
+          <div>
+            <Link to="/" className="link-button">
+              All missions
+            </Link>
+            <h1>Plan a mission</h1>
+          </div>
           <label className="field">
             <span>Mission name</span>
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} />

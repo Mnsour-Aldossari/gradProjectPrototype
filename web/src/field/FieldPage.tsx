@@ -174,7 +174,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
             </button>
           </p>
         ) : (
-          <p className="field-loading">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
+          <p className="field-loading loading">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
         )}
       </div>
     )
@@ -300,7 +300,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
                 <dd className="num">{t ? `${t.relative_alt_m.toFixed(2)} m` : '–'}</dd>
               </div>
               <div>
-                <dt>Speed</dt>
+                <dt>Ground speed</dt>
                 <dd className="num">{t ? `${t.ground_speed_mps.toFixed(1)} m/s` : '–'}</dd>
               </div>
               <div>
@@ -400,13 +400,19 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
 export function FieldPage() {
   const params = useParams()
   const [missions, setMissions] = useState<Mission[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const { logout } = useAuth()
 
   useEffect(() => {
+    setLoadError(null)
     api<Mission[]>('/api/missions')
       .then(setMissions)
-      .catch(() => setMissions([]))
-  }, [params.id])
+      .catch((e) => {
+        setLoadError(e instanceof Error ? e.message : 'Could not load the missions')
+        setMissions([])
+      })
+  }, [params.id, attempt])
 
   const requested = params.id ? Number(params.id) : null
   // Default: a mission that is flying now, otherwise the most recent one.
@@ -418,7 +424,27 @@ export function FieldPage() {
       <div className="field-app">
         <div className="field-empty">
           {missions === null ? (
-            <p>Loading missions</p>
+            <p className="loading">Loading missions</p>
+          ) : loadError ? (
+            <>
+              <h1>Could not load the missions</h1>
+              <p className="error">{loadError}</p>
+              <div className="row">
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setMissions(null)
+                    setAttempt((a) => a + 1)
+                  }}
+                >
+                  Try again
+                </button>
+                <button type="button" className="button secondary" onClick={logout}>
+                  Sign out
+                </button>
+              </div>
+            </>
           ) : (
             <>
               <h1>No missions yet</h1>

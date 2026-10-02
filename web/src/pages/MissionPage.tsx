@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { DetectionDetail } from '../components/DetectionDetail'
+import { confirmDiscard, DetectionDetail } from '../components/DetectionDetail'
 import { SensorTrace } from '../components/SensorTrace'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
@@ -37,6 +37,7 @@ export function MissionPage() {
   const { user } = useAuth()
   const { state, replaceDetection, reconnect } = useMissionLive(missionId)
   const [profile, setProfile] = useState<ConditionProfile | null>(null)
+  const [profileError, setProfileError] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showClutter, setShowClutter] = useState(false)
   const [showBaseline, setShowBaseline] = useState(false)
@@ -44,22 +45,44 @@ export function MissionPage() {
   const [startError, setStartError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [toast, setToast] = useState<Detection | null>(null)
+  const toastTimer = useRef<number | undefined>(undefined)
   const sideRef = useRef<HTMLElement>(null)
+  const dirtyRef = useRef(false)
+  const onDirtyChange = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty
+  }, [])
+
+  // Switching to another detection asks first when the open one has an unsaved verification change.
+  function select(id: number) {
+    if (id !== selectedId && dirtyRef.current && !confirmDiscard()) return
+    setSelectedId(id)
+  }
+
+  function hideToastAfter(ms: number) {
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(null), ms)
+  }
 
   useEffect(() => {
     sideRef.current?.scrollTo({ top: 0 })
   }, [selectedId])
 
   useEffect(() => {
-    api<ConditionProfile>(`/api/missions/${missionId}/profile`).then(setProfile).catch(() => setProfile(null))
+    setProfileError(false)
+    api<ConditionProfile>(`/api/missions/${missionId}/profile`)
+      .then(setProfile)
+      .catch(() => {
+        setProfile(null)
+        setProfileError(true)
+      })
   }, [missionId])
 
   const latestAlert = state.alerts[0]
   useEffect(() => {
     if (!latestAlert) return
     setToast(latestAlert.detection)
-    const t = window.setTimeout(() => setToast(null), 7000)
-    return () => window.clearTimeout(t)
+    hideToastAfter(7000)
+    return () => window.clearTimeout(toastTimer.current)
   }, [latestAlert])
 
   const all = useMemo(() => Object.values(state.detections), [state.detections])
@@ -94,7 +117,7 @@ export function MissionPage() {
             </button>
           </p>
         ) : (
-          <p className="small">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
+          <p className="small loading">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
         )}
       </main>
     )
@@ -129,7 +152,7 @@ export function MissionPage() {
           uav={mission.status === 'running' || mission.status === 'completed' ? t : null}
           detections={visible}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={select}
         />
         <Legend showBaseline={showBaseline} />
         {state.connection === 'failed' ? (
@@ -143,13 +166,24 @@ export function MissionPage() {
           state.connection !== 'open' && <div className="map-banner">Live connection lost. Reconnecting.</div>
         )}
         {toast && (
-          <button type="button" className="toast" onClick={() => setSelectedId(toast.id)}>
-            <span className="swatch swatch-high" aria-hidden="true" />
-            <span>
-              <strong>New high-priority potential detection</strong>
-              <span className="small">Detection #{toast.id}. Open to review.</span>
-            </span>
-          </button>
+          // Stays while the pointer is on it; closes on its own a few seconds later.
+          <div
+            className="toast-wrap"
+            role="status"
+            onMouseEnter={() => window.clearTimeout(toastTimer.current)}
+            onMouseLeave={() => hideToastAfter(3000)}
+          >
+            <button type="button" className="toast" onClick={() => select(toast.id)}>
+              <span className="swatch swatch-high" aria-hidden="true" />
+              <span>
+                <strong>New high-priority potential detection</strong>
+                <span className="small">Detection #{toast.id}. Open to review.</span>
+              </span>
+            </button>
+            <button type="button" className="toast-close" aria-label="Dismiss alert" onClick={() => setToast(null)}>
+              ×
+            </button>
+          </div>
         )}
       </div>
 
@@ -159,6 +193,7 @@ export function MissionPage() {
             detection={selected}
             onClose={() => setSelectedId(null)}
             onUpdated={replaceDetection}
+            onDirtyChange={onDirtyChange}
           />
         ) : (
           <div className="stack">
@@ -252,7 +287,7 @@ export function MissionPage() {
                 <ul className="det-list">
                   {reported.map((d) => (
                     <li key={d.id}>
-                      <button type="button" onClick={() => setSelectedId(d.id)}>
+                      <button type="button" onClick={() => select(d.id)}>
                         <span className={`swatch swatch-${d.category}`} aria-hidden="true" />
                         <span className="det-name">
                           #{d.id} {CATEGORY_LABELS[d.category]}
@@ -274,6 +309,9 @@ export function MissionPage() {
               </label>
             </section>
 
+            {profileError && (
+              <p className="small">Could not load how the classifier adapts to this soil. Reload the page to try again.</p>
+            )}
             {profile && (
               <section className="block" aria-labelledby="profile-heading">
                 <h2 id="profile-heading">How the classifier adapts here</h2>

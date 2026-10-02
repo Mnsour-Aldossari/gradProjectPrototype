@@ -23,14 +23,22 @@ function EvidenceBar({ label, value }: { label: string; value: number | undefine
 
 const STATUS_ORDER: VerificationStatus[] = ['pending', 'confirmed_by_team', 'false_alarm']
 
+/** Asks before an unsaved verification change is thrown away. */
+export function confirmDiscard(): boolean {
+  return window.confirm('Discard the unsaved verification change?')
+}
+
 export function DetectionDetail({
   detection,
   onClose,
   onUpdated,
+  onDirtyChange,
 }: {
   detection: Detection
   onClose: () => void
   onUpdated: (d: Detection) => void
+  /** Told whether the form holds an unsaved change, so the page can ask before switching detections. */
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [status, setStatus] = useState<VerificationStatus>(detection.status)
   const [notes, setNotes] = useState(detection.notes ?? '')
@@ -44,6 +52,12 @@ export function DetectionDetail({
     setSaved(false)
     setError(null)
   }, [detection.id, detection.status, detection.notes])
+
+  const dirty = status !== detection.status || notes.trim() !== (detection.notes ?? '')
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   const f = detection.features
   const isBaseline = detection.method === 'baseline'
@@ -67,7 +81,7 @@ export function DetectionDetail({
 
   return (
     <section className="detail" aria-labelledby="detail-title">
-      <button type="button" className="link-button" onClick={onClose}>
+      <button type="button" className="link-button" onClick={() => (!dirty || confirmDiscard()) && onClose()}>
         Back to mission
       </button>
       <h2 id="detail-title" className={`detail-title cat-${detection.category}`}>
