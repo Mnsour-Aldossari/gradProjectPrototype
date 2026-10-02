@@ -841,6 +841,9 @@ textarea {
   display: grid;
   gap: 14px;
 }
+.detail > .link-button {
+  justify-self: start;
+}
 .detail-title {
   display: flex;
   align-items: center;
@@ -983,44 +986,62 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
+  /* Two rows that fit any phone width: brand and Sign out, then the four links as tabs. */
   .sidebar {
     position: static;
     height: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'brand who'
+      'nav nav';
+    gap: 6px 8px;
+    padding: 10px 12px 0;
     border-right: 0;
     border-bottom: 1px solid var(--rule);
-    overflow-x: auto;
   }
   .brand {
+    grid-area: brand;
     padding: 0;
+    min-width: 0;
   }
-  .brand-text,
-  .who-name,
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+  }
+  .brand-text small,
   .avatar,
+  .who-name,
   .sim-note,
   .side-grow {
     display: none;
   }
-  .nav {
-    display: flex;
-  }
-  .nav a {
-    padding: 8px 10px;
-    white-space: nowrap;
-  }
-  .nav a svg {
-    display: none;
-  }
   .who {
-    margin-left: auto;
+    grid-area: who;
     padding: 0;
     border-top: 0;
   }
-  .who .link-button {
+  .nav {
+    grid-area: nav;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .nav a {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 2px 8px;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+    text-align: center;
     white-space: nowrap;
+  }
+  .nav a.active {
+    background: none;
+    border-bottom-color: var(--survey);
   }
   .mission-layout {
     display: flex;
@@ -1553,4 +1574,256 @@ td.miss {
 }
 .history-table .status {
   margin-left: 8px;
+}
+
+/* ---------- mission page (design 2) ---------- */
+
+.mission-page {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 16px;
+  height: 100vh;
+  height: 100dvh;
+  padding: 20px 24px;
+  min-width: 0;
+}
+.mp-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.mp-title {
+  min-width: 0;
+}
+.mp-title h1 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 24px;
+}
+.mp-title .small {
+  margin: 4px 0 0;
+}
+.crumb {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.crumb a {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.crumb a:hover {
+  color: var(--survey);
+  text-decoration: underline;
+}
+.crumb span:last-child {
+  color: var(--ink);
+  font-weight: 500;
+}
+.toggles {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--input-rule), 0 1px 2px rgb(16 24 40 / 0.05);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.toggle input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--survey);
+}
+.toggle:has(input:checked) {
+  background: var(--nav-active-bg);
+  box-shadow: inset 0 0 0 1px var(--survey);
+  color: var(--survey);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.kpi {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.kpi b {
+  display: block;
+  color: var(--ink);
+  font-size: 26px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+.kpi-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+.kpi-icon .swatch {
+  width: 20px;
+  height: 18px;
+}
+.kpi-icon .swatch-clutter {
+  width: 14px;
+  height: 14px;
+}
+.kpi-icon-high {
+  background: color-mix(in srgb, var(--hazard) 14%, transparent);
+}
+.kpi-icon-suspect {
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+}
+.kpi-icon-clutter {
+  background: var(--tint);
+}
+.kpi-icon-progress {
+  background: var(--nav-active-bg);
+  color: var(--survey);
+}
+.kpi-icon-progress svg {
+  width: 22px;
+}
+
+.mp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--side);
+  gap: 16px;
+  min-height: 0;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.card-pad {
+  padding: 16px 18px;
+}
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.map-card {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.map-card .survey-map {
+  border-radius: inherit;
+}
+.map-card .legend {
+  left: 14px;
+  bottom: 14px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  font-weight: 500;
+}
+.map-card .swatch-swath {
+  background: color-mix(in srgb, var(--survey) 25%, transparent);
+}
+.mp-col {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 0 2px 4px;
+}
+.mp-col .telemetry {
+  border-bottom: 0;
+}
+.mp-col .det-list {
+  border-top: 0;
+  display: grid;
+  gap: 8px;
+}
+.mp-col .det-list button {
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  transition: background-color 0.15s;
+}
+.mp-col .det-list button.det-high {
+  border-color: color-mix(in srgb, var(--hazard) 35%, transparent);
+  background: color-mix(in srgb, var(--hazard) 6%, transparent);
+}
+.mp-col .det-list button:hover {
+  background: var(--tint-soft);
+}
+.mp-col .det-name {
+  display: grid;
+  gap: 1px;
+  font-weight: 600;
+}
+.det-score {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.mp-col .footnote {
+  border-top: 0;
+  padding: 0 4px;
+}
+
+@media (max-width: 860px) {
+  .mission-page {
+    height: auto;
+    padding: 14px 12px 24px;
+  }
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .kpi {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .kpi-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .kpi b {
+    font-size: 22px;
+  }
+  .mp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .map-card {
+    height: 58vh;
+  }
+  .mp-col {
+    overflow: visible;
+  }
+  .toggle {
+    width: 100%;
+  }
 }
