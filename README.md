@@ -176,3 +176,4 @@ Not working, not run, or only partly checked:
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |
+ 
