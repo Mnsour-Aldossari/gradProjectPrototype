@@ -311,6 +311,7 @@ textarea {
 .sidebar {
   position: sticky;
   top: 0;
+  z-index: 1100; /* the Display menu opens over the map, whose panes use z-index up to 1000 */
   height: 100vh;
   height: 100dvh;
   display: flex;
@@ -1005,10 +1006,10 @@ textarea {
     position: static;
     height: auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
-      'brand who'
-      'nav nav';
+      'brand display who'
+      'nav nav nav';
     gap: 6px 8px;
     padding: 10px 12px 0;
     border-right: 0;
@@ -1056,6 +1057,29 @@ textarea {
   .nav a.active {
     background: none;
     border-bottom-color: var(--survey);
+  }
+  /* In the phone header the Display button is an icon; its name stays for screen readers. */
+  .sidebar .display {
+    grid-area: display;
+  }
+  .sidebar .display-button {
+    padding: 6px;
+  }
+  .sidebar .display-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sidebar .display-panel {
+    position: fixed;
+    top: 56px;
+    left: auto;
+    right: 12px;
+    bottom: auto;
+    width: min(320px, calc(100vw - 24px));
   }
   .mission-layout {
     display: flex;
@@ -1860,4 +1884,90 @@ td.miss {
   *::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* ---------- display menu ---------- */
+
+.display {
+  position: relative;
+}
+.display-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: calc(9px * var(--density)) 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: 500 calc(14px * var(--text-scale)) var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+.display-button svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--ink-2);
+}
+.display-button:hover,
+.display-button[aria-expanded='true'] {
+  background: var(--tint-soft);
+}
+.display-panel {
+  position: absolute;
+  left: calc(100% + 22px);
+  bottom: 0;
+  z-index: 1100;
+  width: 320px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.display-row {
+  display: grid;
+  gap: 6px;
+}
+.display-row-label {
+  color: var(--ink-2);
+  font-size: calc(12.5px * var(--text-scale));
+  font-weight: 600;
+}
+.segmented-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.display-panel .segmented button {
+  min-height: 36px;
+}
+.display-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.display-foot .small {
+  margin: 0;
+}
+/* Field Status tab: a plain button, and the menu opens in the page flow. */
+.display-inline .display-button {
+  width: auto;
+  padding: 8px 14px;
+  border: 1px solid var(--input-rule);
+  background: var(--raised);
+  font-weight: 600;
+}
+.display-inline .display-panel {
+  position: static;
+  width: auto;
+  margin-top: 10px;
+  box-shadow: none;
 }

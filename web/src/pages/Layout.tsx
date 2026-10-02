@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { DisplayMenu } from '../components/DisplayMenu'
 
 function initials(name: string | undefined): string {
   return (name ?? '')
@@ -68,6 +69,7 @@ export function Layout() {
         <p className="sim-note">
           <b>Simulated data.</b> UAV flights and sensor readings are simulated. Every marker is a potential detection.
         </p>
+        <DisplayMenu />
         <div className="who">
           <span className="avatar" aria-hidden="true">
             {initials(user?.full_name)}

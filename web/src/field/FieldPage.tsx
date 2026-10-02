@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
+import { DisplayMenu } from '../components/DisplayMenu'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
 import { SurveyMap } from '../map/SurveyMap'
@@ -337,6 +338,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
                 ))}
               </select>
             </label>
+            <DisplayMenu inline />
             <div className="row spread">
               <span className="small">Signed in as {user?.full_name}</span>
               <button type="button" className="button secondary" onClick={logout}>
