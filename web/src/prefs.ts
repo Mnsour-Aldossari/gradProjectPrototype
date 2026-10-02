@@ -6,14 +6,24 @@ import { useAuth } from './auth'
  * Storage can be unavailable (private mode); every read and write is guarded and falls back to the defaults.
  */
 export type ThemePref = 'light' | 'dark' | 'system'
+export type FontSizePref = 'small' | 'normal' | 'large'
+export type DensityPref = 'comfortable' | 'compact'
 
 export interface Prefs {
   theme: ThemePref
+  fontSize: FontSizePref
+  density: DensityPref
 }
 
-export const DEFAULT_PREFS: Prefs = { theme: 'light' }
+export const DEFAULT_PREFS: Prefs = { theme: 'light', fontSize: 'normal', density: 'comfortable' }
 
 const THEMES: ThemePref[] = ['light', 'dark', 'system']
+const FONT_SIZES: FontSizePref[] = ['small', 'normal', 'large']
+const DENSITIES: DensityPref[] = ['comfortable', 'compact']
+
+function pick<T extends string>(value: unknown, allowed: T[], fallback: T): T {
+  return allowed.includes(value as T) ? (value as T) : fallback
+}
 
 const userKey = (username: string) => `uav.prefs.v1.${username}`
 // The preferences last applied on this device, read by the script in index.html before the first paint.
@@ -46,7 +56,9 @@ function parse(raw: string | null): Prefs {
     // unreadable entry: defaults
   }
   return {
-    theme: THEMES.includes(stored.theme as ThemePref) ? (stored.theme as ThemePref) : DEFAULT_PREFS.theme,
+    theme: pick(stored.theme, THEMES, DEFAULT_PREFS.theme),
+    fontSize: pick(stored.fontSize, FONT_SIZES, DEFAULT_PREFS.fontSize),
+    density: pick(stored.density, DENSITIES, DEFAULT_PREFS.density),
   }
 }
 
@@ -55,6 +67,9 @@ const darkQuery = () => window.matchMedia('(prefers-color-scheme: dark)')
 function apply(prefs: Prefs): void {
   const root = document.documentElement
   root.dataset.theme = prefs.theme === 'system' ? (darkQuery().matches ? 'dark' : 'light') : prefs.theme
+  // styles.css scales text with --text-scale and spacing with --density for these values.
+  root.dataset.font = prefs.fontSize
+  root.dataset.density = prefs.density
   write(LAST_KEY, JSON.stringify(prefs))
 }
 

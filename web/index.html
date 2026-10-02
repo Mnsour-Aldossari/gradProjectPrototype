@@ -19,7 +19,10 @@
         try {
           var p = JSON.parse(localStorage.getItem('uav.prefs.last') || 'null') || {}
           var dark = p.theme === 'dark' || (p.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+          var root = document.documentElement
+          root.setAttribute('data-theme', dark ? 'dark' : 'light')
+          if (p.fontSize === 'small' || p.fontSize === 'large') root.setAttribute('data-font', p.fontSize)
+          if (p.density === 'compact') root.setAttribute('data-density', 'compact')
         } catch (e) {
           // storage unavailable: light theme
         }

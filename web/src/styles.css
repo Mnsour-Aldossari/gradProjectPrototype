@@ -42,11 +42,14 @@
   --font-cond: var(--font);
   --side: 380px;
   --sidebar: 236px;
+  /* Display preferences (src/prefs.ts): text size and spacing scale with these. */
+  --text-scale: 1;
+  --density: 1;
 
   color: var(--ink);
   background: var(--paper);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
@@ -87,6 +90,17 @@
   color-scheme: dark;
 }
 
+/* Text size and density chosen under Display. */
+:root[data-font='small'] {
+  --text-scale: 0.9;
+}
+:root[data-font='large'] {
+  --text-scale: 1.15;
+}
+:root[data-density='compact'] {
+  --density: 0.65;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -105,15 +119,15 @@ h3 {
   margin: 0;
 }
 h1 {
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
   letter-spacing: -0.02em;
 }
 h2 {
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
   font-weight: 650;
 }
 h3 {
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   margin-top: 4px;
 }
 
@@ -134,30 +148,30 @@ code {
 }
 
 .small {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   color: var(--ink-2);
 }
 
 .notice {
   margin: 0;
-  padding: 10px 12px;
+  padding: calc(10px * var(--density)) calc(12px * var(--density));
   background: var(--notice-bg);
   border: 1px solid var(--notice-rule);
   border-radius: var(--radius-sm);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 .notice p {
   margin: 0;
 }
 .error {
   color: var(--hazard);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   margin: 0;
 }
 
 .ok {
   color: var(--ok);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 
 :focus-visible {
@@ -178,7 +192,7 @@ code {
   border-radius: var(--radius-sm);
   background: var(--button-bg);
   color: var(--button-fg);
-  font: 600 14px var(--font);
+  font: 600 calc(14px * var(--text-scale)) var(--font);
   text-decoration: none;
   cursor: pointer;
   box-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
@@ -206,7 +220,7 @@ code {
   padding: 0;
   color: var(--survey);
   font: inherit;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
@@ -215,14 +229,14 @@ code {
 .field {
   display: grid;
   gap: 5px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 .field > span {
   font-weight: 500;
 }
 .field small {
   color: var(--ink-2);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
 }
 .field.inline {
   display: flex;
@@ -267,14 +281,14 @@ textarea {
 
 .stack {
   display: grid;
-  gap: 22px;
+  gap: calc(22px * var(--density));
 }
 
 .check {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   margin-top: 8px;
 }
 .check input {
@@ -301,8 +315,8 @@ textarea {
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 20px 14px 14px;
+  gap: calc(4px * var(--density));
+  padding: calc(20px * var(--density)) calc(14px * var(--density)) calc(14px * var(--density));
   background: var(--surface);
   border-right: 1px solid var(--rule);
 }
@@ -314,7 +328,7 @@ textarea {
   color: var(--ink);
   text-decoration: none;
   font-weight: 700;
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   line-height: 1.2;
 }
 .brand-mark {
@@ -332,7 +346,7 @@ textarea {
 .brand-text small {
   display: block;
   font-weight: 500;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   color: var(--ink-2);
 }
 .nav {
@@ -342,12 +356,12 @@ textarea {
 .nav a {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
+  gap: calc(12px * var(--density));
+  padding: calc(9px * var(--density)) calc(12px * var(--density));
   border-radius: var(--radius-sm);
   color: var(--ink);
   font-weight: 500;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   text-decoration: none;
   transition: background-color 0.15s;
 }
@@ -376,7 +390,7 @@ textarea {
   border-radius: 10px;
   background: var(--notice-bg);
   border: 1px solid var(--notice-rule);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   line-height: 1.45;
 }
 .who {
@@ -385,7 +399,7 @@ textarea {
   gap: 10px;
   padding: 12px 6px 2px;
   border-top: 1px solid var(--rule);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 .avatar {
   flex: none;
@@ -397,7 +411,7 @@ textarea {
   display: grid;
   place-items: center;
   font-weight: 650;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .who-name {
   flex: 1;
@@ -408,27 +422,27 @@ textarea {
   display: block;
   color: var(--ink-2);
   font-weight: 400;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
 }
 
 .page {
   width: min(1100px, 100% - 48px);
-  margin: 28px auto;
+  margin: calc(28px * var(--density)) auto;
 }
 .page-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: calc(12px * var(--density));
+  margin-bottom: calc(20px * var(--density));
 }
 .demo-note {
   margin: -8px 0 20px;
   max-width: 75ch;
 }
 .empty {
-  padding: 28px;
+  padding: calc(28px * var(--density));
   background: var(--surface);
   border: 1px dashed var(--input-rule);
   border-radius: var(--radius);
@@ -450,11 +464,11 @@ textarea {
 .table th,
 .table td {
   text-align: left;
-  padding: 11px 14px;
+  padding: calc(11px * var(--density)) calc(14px * var(--density));
   border-bottom: 1px solid var(--rule);
 }
 .table th {
-  font: 600 13px var(--font);
+  font: 600 calc(13px * var(--text-scale)) var(--font);
   color: var(--ink-2);
   background: var(--tint-soft);
 }
@@ -464,7 +478,7 @@ textarea {
   padding: 2px 10px;
   border-radius: 999px;
   white-space: nowrap;
-  font: 600 12.5px var(--font);
+  font: 600 calc(12.5px * var(--text-scale)) var(--font);
   background: var(--tint);
 }
 .status-running {
@@ -504,14 +518,14 @@ textarea {
 
 .side-pane {
   overflow-y: auto;
-  padding: 22px 22px 28px;
+  padding: calc(22px * var(--density)) calc(22px * var(--density)) calc(28px * var(--density));
   background: var(--surface);
   border-left: 1px solid var(--rule);
 }
 
 .block {
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--density));
 }
 
 .progress {
@@ -530,9 +544,9 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: calc(12px * var(--density));
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: calc(4px * var(--density));
 }
 
 .telemetry {
@@ -544,7 +558,7 @@ textarea {
   border-bottom: 1px solid var(--rule);
 }
 .telemetry > div {
-  padding: 10px 0 10px 12px;
+  padding: calc(10px * var(--density)) 0 calc(10px * var(--density)) calc(12px * var(--density));
   border-left: 1px solid var(--rule);
 }
 .telemetry > div:nth-child(3n + 1) {
@@ -555,12 +569,12 @@ textarea {
   border-top: 1px solid var(--rule);
 }
 .telemetry dt {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   color: var(--ink-2);
 }
 .telemetry dd {
   margin: 2px 0 0;
-  font-size: 21px;
+  font-size: calc(21px * var(--text-scale));
 }
 .telemetry dd.warn {
   color: var(--hazard);
@@ -578,7 +592,7 @@ textarea {
 .trace-head {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   color: var(--ink-2);
 }
 .trace-axis {
@@ -597,11 +611,11 @@ textarea {
   border-radius: var(--radius-sm);
   border-left: 4px solid;
   background: var(--tint-soft);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   color: var(--ink-2);
 }
 .count .num {
-  font-size: 24px;
+  font-size: calc(24px * var(--text-scale));
   font-weight: 700;
   color: var(--ink);
   line-height: 1.1;
@@ -626,8 +640,8 @@ textarea {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 2px;
+  gap: calc(10px * var(--density));
+  padding: calc(9px * var(--density)) calc(2px * var(--density));
   border: 0;
   border-bottom: 1px solid var(--rule);
   background: none;
@@ -644,7 +658,7 @@ textarea {
   font-weight: 500;
 }
 .det-status {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   color: var(--ink-2);
 }
 .det-status.ver-confirmed_by_team {
@@ -659,11 +673,11 @@ textarea {
   padding-left: 18px;
   display: grid;
   gap: 6px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 
 .footnote {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   color: var(--ink-2);
   border-top: 1px solid var(--rule);
   padding-top: 12px;
@@ -720,7 +734,7 @@ textarea {
   background: rgb(29 42 36 / 0.86);
   color: #f0f2ee;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .legend span {
   display: inline-flex;
@@ -739,7 +753,7 @@ textarea {
   border-radius: 4px;
   background: rgb(29 42 36 / 0.86);
   color: #fff;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   white-space: nowrap;
 }
 .map-banner {
@@ -769,7 +783,7 @@ textarea {
 }
 .toast strong {
   display: block;
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
 }
 .toast .swatch {
   width: 18px;
@@ -839,7 +853,7 @@ textarea {
 
 .detail {
   display: grid;
-  gap: 14px;
+  gap: calc(14px * var(--density));
 }
 .detail > .link-button {
   justify-self: start;
@@ -848,7 +862,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 25px;
+  font-size: calc(25px * var(--text-scale));
 }
 .detail-title .swatch {
   width: 20px;
@@ -856,37 +870,37 @@ textarea {
 }
 .detail-id {
   margin-left: auto;
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
   color: var(--ink-2);
 }
 .detail-method {
   margin: -8px 0 0;
   color: var(--ink-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 .facts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
+  gap: calc(10px * var(--density)) calc(16px * var(--density));
   margin: 0;
 }
 .facts dt {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   color: var(--ink-2);
 }
 .facts dd {
   margin: 1px 0 0;
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
 }
 
 .evidence-group {
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--density));
 }
 .evidence-head {
   display: flex;
   justify-content: space-between;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--text-scale));
 }
 .evidence-track {
   position: relative;
@@ -913,7 +927,7 @@ textarea {
 
 .explanation {
   margin: 0;
-  font-size: 14.5px;
+  font-size: calc(14.5px * var(--text-scale));
   line-height: 1.55;
 }
 
@@ -931,7 +945,7 @@ textarea {
   border-left: 1px solid var(--input-rule);
   background: var(--raised);
   color: var(--ink);
-  font: 600 13px var(--font);
+  font: 600 calc(13px * var(--text-scale)) var(--font);
   cursor: pointer;
 }
 .segmented button:first-child {
@@ -958,7 +972,7 @@ textarea {
   fill: var(--hazard);
 }
 .login h1 {
-  font-size: 34px;
+  font-size: calc(34px * var(--text-scale));
 }
 .lede {
   margin: 0;
@@ -966,8 +980,8 @@ textarea {
 }
 .login-form {
   display: grid;
-  gap: 14px;
-  padding: 24px;
+  gap: calc(14px * var(--density));
+  padding: calc(24px * var(--density));
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
@@ -976,7 +990,7 @@ textarea {
 
 .area-size {
   margin: 0;
-  font-size: 20px;
+  font-size: calc(20px * var(--text-scale));
 }
 
 /* ---------- small screens: map on top, panel below ---------- */
@@ -1035,7 +1049,7 @@ textarea {
     padding: 6px 2px 8px;
     border-radius: 0;
     border-bottom: 2px solid transparent;
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
     text-align: center;
     white-space: nowrap;
   }
@@ -1055,7 +1069,7 @@ textarea {
   .side-pane {
     border-left: 0;
     border-top: 1px solid var(--rule);
-    padding: 18px 16px 28px;
+    padding: calc(18px * var(--density)) calc(16px * var(--density)) calc(28px * var(--density));
   }
   .field-grid {
     grid-template-columns: 1fr 1fr;
@@ -1087,7 +1101,7 @@ textarea {
 
 .evaluation {
   display: grid;
-  gap: 26px;
+  gap: calc(26px * var(--density));
   max-width: 980px;
 }
 .evaluation h1 {
@@ -1100,8 +1114,8 @@ textarea {
 }
 .simulated-banner {
   display: grid;
-  gap: 2px;
-  padding: 12px 16px;
+  gap: calc(2px * var(--density));
+  padding: calc(12px * var(--density)) calc(16px * var(--density));
   background: var(--notice-bg);
   border: 1px solid var(--notice-rule);
   border-radius: var(--radius);
@@ -1115,7 +1129,7 @@ textarea {
   font-weight: 600;
 }
 .simulated-banner .ar {
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
   max-width: none;
 }
 h2 .ar {
@@ -1125,7 +1139,7 @@ h2 .ar {
 }
 .eval-section {
   display: grid;
-  gap: 12px;
+  gap: calc(12px * var(--density));
 }
 .segmented.compact {
   grid-template-columns: repeat(4, auto);
@@ -1136,7 +1150,7 @@ h2 .ar {
 }
 
 .chart {
-  padding: 16px 18px 8px;
+  padding: calc(16px * var(--density)) calc(18px * var(--density)) calc(8px * var(--density));
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
@@ -1145,7 +1159,7 @@ h2 .ar {
 .chart-legend {
   display: flex;
   gap: 18px;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--text-scale));
   color: var(--ink-2);
 }
 .chart-legend span,
@@ -1190,7 +1204,7 @@ h2 .ar {
 }
 .chart-tick,
 .chart-cat {
-  font: 12px var(--font);
+  font: calc(12px * var(--text-scale)) var(--font);
   fill: var(--ink-2);
 }
 .chart-cat.strong {
@@ -1198,7 +1212,7 @@ h2 .ar {
   fill: var(--ink);
 }
 .chart-value {
-  font: 600 12.5px var(--font);
+  font: 600 calc(12.5px * var(--text-scale)) var(--font);
   fill: var(--ink);
 }
 .chart-tip {
@@ -1210,7 +1224,7 @@ h2 .ar {
   background: var(--button-bg);
   color: var(--button-fg);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   pointer-events: none;
   white-space: nowrap;
 }
@@ -1225,7 +1239,7 @@ h2 .ar {
   vertical-align: top;
   background: var(--surface);
   color: var(--ink);
-  font: 600 14px var(--font);
+  font: 600 calc(14px * var(--text-scale)) var(--font);
 }
 .num-table tr.total td,
 .num-table tr.total th {
@@ -1242,7 +1256,7 @@ h2 .ar {
 .compact-table caption {
   text-align: left;
   padding: 0 0 6px;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--text-scale));
   color: var(--ink-2);
 }
 td.ok {
@@ -1291,7 +1305,7 @@ td.miss {
   margin: 0;
   padding: 11px 14px;
   border: 0;
-  font: 600 15px var(--font);
+  font: 600 calc(15px * var(--text-scale)) var(--font);
   text-align: left;
 }
 .field-alert {
@@ -1316,7 +1330,7 @@ td.miss {
   padding: 1px 8px;
   background: var(--amber);
   color: #1d2a24; /* dark text on amber in both themes */
-  font: 700 11.5px var(--font);
+  font: 700 calc(11.5px * var(--text-scale)) var(--font);
   border-radius: 4px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1356,7 +1370,7 @@ td.miss {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 .progress.dark {
   background: rgb(255 255 255 / 0.18);
@@ -1370,12 +1384,12 @@ td.miss {
   margin: 0;
 }
 .drone-card dt {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   color: #b7c1b8;
 }
 .drone-card dd {
   margin: 0;
-  font-size: 20px;
+  font-size: calc(20px * var(--text-scale));
 }
 .drone-card dd.warn {
   color: #ff9d92;
@@ -1388,12 +1402,12 @@ td.miss {
   overflow-y: auto;
   display: grid;
   align-content: start;
-  gap: 14px;
-  padding: 18px 16px 24px;
+  gap: calc(14px * var(--density));
+  padding: calc(18px * var(--density)) calc(16px * var(--density)) calc(24px * var(--density));
   background: var(--surface);
 }
 .field-panel h1 {
-  font-size: 24px;
+  font-size: calc(24px * var(--text-scale));
 }
 .field-panel h2 {
   margin-top: 8px;
@@ -1410,8 +1424,8 @@ td.miss {
   min-height: 56px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 2px;
+  gap: calc(12px * var(--density));
+  padding: calc(8px * var(--density)) calc(2px * var(--density));
   border: 0;
   border-bottom: 1px solid var(--rule);
   background: none;
@@ -1429,10 +1443,10 @@ td.miss {
   display: grid;
 }
 .fd-main strong {
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
 }
 .fd-status {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   color: var(--ink-2);
 }
 .fd-status.ver-confirmed_by_team {
@@ -1442,11 +1456,11 @@ td.miss {
   color: var(--ok);
 }
 .fd-dist {
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
   white-space: nowrap;
 }
 .fd-dist small {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   color: var(--ink-2);
 }
 
@@ -1469,7 +1483,7 @@ td.miss {
   border-top: 3px solid transparent;
   background: none;
   color: var(--ink-2);
-  font: 600 12.5px var(--font);
+  font: 600 calc(12.5px * var(--text-scale)) var(--font);
   cursor: pointer;
 }
 .field-nav button svg {
@@ -1491,7 +1505,7 @@ td.miss {
   background: var(--hazard-fill);
   color: #fff;
   font-style: normal;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   line-height: 20px;
 }
 
@@ -1527,27 +1541,27 @@ td.miss {
 
 .history {
   display: grid;
-  gap: 16px;
+  gap: calc(16px * var(--density));
 }
 .stat-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
+  gap: calc(10px * var(--density));
 }
 .stat {
   display: grid;
-  gap: 2px;
-  padding: 14px 16px;
+  gap: calc(2px * var(--density));
+  padding: calc(14px * var(--density)) calc(16px * var(--density));
   background: var(--surface);
   border: 1px solid var(--rule);
   border-left: 4px solid var(--rule);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   color: var(--ink-2);
 }
 .stat .num {
-  font-size: 28px;
+  font-size: calc(28px * var(--text-scale));
   font-weight: 700;
   line-height: 1.1;
   color: var(--ink);
@@ -1563,12 +1577,12 @@ td.miss {
 }
 .history-table th:first-child {
   text-align: left;
-  font: 500 15px var(--font);
+  font: 500 calc(15px * var(--text-scale)) var(--font);
   background: none;
   color: var(--ink);
 }
 .history-table thead th:first-child {
-  font: 600 13px var(--font);
+  font: 600 calc(13px * var(--text-scale)) var(--font);
   color: var(--ink-2);
   background: var(--tint-soft);
 }
@@ -1581,17 +1595,17 @@ td.miss {
 .mission-page {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 16px;
+  gap: calc(16px * var(--density));
   height: 100vh;
   height: 100dvh;
-  padding: 20px 24px;
+  padding: calc(20px * var(--density)) calc(24px * var(--density));
   min-width: 0;
 }
 .mp-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: calc(16px * var(--density));
   flex-wrap: wrap;
 }
 .mp-title {
@@ -1603,13 +1617,13 @@ td.miss {
   flex-wrap: wrap;
   gap: 4px 12px;
   margin-top: 4px;
-  font-size: 24px;
+  font-size: calc(24px * var(--text-scale));
 }
 .mp-title .small {
   margin: 4px 0 0;
 }
 .crumb {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   color: var(--ink-2);
 }
 .crumb a {
@@ -1637,7 +1651,7 @@ td.miss {
   border-radius: var(--radius-sm);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--input-rule), 0 1px 2px rgb(16 24 40 / 0.05);
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--text-scale));
   font-weight: 600;
   cursor: pointer;
 }
@@ -1656,24 +1670,24 @@ td.miss {
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: calc(14px * var(--density));
 }
 .kpi {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: calc(14px * var(--density));
+  padding: calc(14px * var(--density)) calc(16px * var(--density));
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .kpi b {
   display: block;
   color: var(--ink);
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
   line-height: 1.1;
   font-weight: 700;
 }
@@ -1713,7 +1727,7 @@ td.miss {
 .mp-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--side);
-  gap: 16px;
+  gap: calc(16px * var(--density));
   min-height: 0;
 }
 .card {
@@ -1723,7 +1737,7 @@ td.miss {
   box-shadow: var(--shadow);
 }
 .card-pad {
-  padding: 16px 18px;
+  padding: calc(16px * var(--density)) calc(18px * var(--density));
 }
 .card-head {
   display: flex;
@@ -1760,8 +1774,8 @@ td.miss {
   overflow-y: auto;
   display: grid;
   align-content: start;
-  gap: 14px;
-  padding: 0 2px 4px;
+  gap: calc(14px * var(--density));
+  padding: 0 calc(2px * var(--density)) calc(4px * var(--density));
 }
 .mp-col .telemetry {
   border-bottom: 0;
@@ -1769,10 +1783,10 @@ td.miss {
 .mp-col .det-list {
   border-top: 0;
   display: grid;
-  gap: 8px;
+  gap: calc(8px * var(--density));
 }
 .mp-col .det-list button {
-  padding: 10px 12px;
+  padding: calc(10px * var(--density)) calc(12px * var(--density));
   border: 1px solid var(--rule);
   border-radius: 10px;
   transition: background-color 0.15s;
@@ -1791,7 +1805,7 @@ td.miss {
 }
 .det-score {
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .mp-col .footnote {
   border-top: 0;
@@ -1801,22 +1815,22 @@ td.miss {
 @media (max-width: 860px) {
   .mission-page {
     height: auto;
-    padding: 14px 12px 24px;
+    padding: calc(14px * var(--density)) calc(12px * var(--density)) calc(24px * var(--density));
   }
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: calc(10px * var(--density));
   }
   .kpi {
-    padding: 10px 12px;
-    gap: 10px;
+    padding: calc(10px * var(--density)) calc(12px * var(--density));
+    gap: calc(10px * var(--density));
   }
   .kpi-icon {
     width: 36px;
     height: 36px;
   }
   .kpi b {
-    font-size: 22px;
+    font-size: calc(22px * var(--text-scale));
   }
   .mp-grid {
     grid-template-columns: minmax(0, 1fr);
