@@ -21,6 +21,7 @@
   --status-ok-fg: #1f5a37;
   --status-fail-bg: #f3d9d5;
   --chart-grid: #dde3db;
+  --shadow: 0 1px 2px rgb(29 42 36 / 0.08), 0 2px 8px rgb(29 42 36 / 0.05);
   /* Two-series chart palette, validated (lightness, chroma, colour-blind separation, contrast on --surface). */
   --series-baseline: #b5651d;
   --series-adaptive: #1f5fad;
@@ -66,7 +67,7 @@
   --ok: #62bf86;
 
   --tint: #26302b;
-  --tint-soft: #202924;
+  --tint-soft: #242e29;
   --raised: #232d28;
   --input-bg: #111714;
   --notice-bg: #2e2816;
@@ -74,6 +75,7 @@
   --status-ok-fg: #8ed6a8;
   --status-fail-bg: #43211c;
   --chart-grid: #2b3631;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35);
   --series-baseline: #d9894a;
   --series-adaptive: #6f9fe0;
   --chrome: #0b100e;
@@ -178,6 +180,10 @@ code {
   letter-spacing: 0.01em;
   text-decoration: none;
   cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
 }
 .button:hover {
   background: var(--button-hover);
@@ -191,17 +197,27 @@ code {
   color: var(--ink);
   box-shadow: inset 0 0 0 1.5px var(--ink);
 }
+.button.secondary:hover {
+  background: var(--tint-soft);
+}
+.button.secondary:disabled:hover {
+  background: transparent;
+}
 
 .link-button {
   border: 0;
   background: none;
-  padding: 0;
+  padding: 6px 4px;
+  margin: -6px -4px; /* larger hit area, same position */
   color: var(--survey);
   font: inherit;
   font-size: 14px;
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
+}
+.link-button:hover {
+  text-decoration-thickness: 2px;
 }
 
 .field {
@@ -316,6 +332,12 @@ textarea {
   padding: 15px 0 13px;
   border-bottom: 3px solid transparent;
 }
+.nav a {
+  transition: color 0.15s;
+}
+.nav a:hover {
+  color: var(--on-chrome);
+}
 .nav a.active {
   color: var(--on-chrome);
   border-bottom-color: var(--amber);
@@ -364,6 +386,25 @@ textarea {
   background: var(--surface);
   border-radius: 6px;
   overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+/* Whole row opens the mission: the name link covers the row. */
+.clickable-rows tbody tr {
+  position: relative;
+}
+.clickable-rows tbody tr:hover > * {
+  background: var(--tint-soft);
+}
+.clickable-rows td:first-child a {
+  font-weight: 500;
+}
+.clickable-rows td:first-child a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 .table th,
 .table td {
@@ -379,14 +420,31 @@ textarea {
 
 .status {
   display: inline-block;
-  padding: 2px 9px;
-  border-radius: 3px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
   font: 600 13.5px var(--font-cond);
   background: var(--tint);
 }
 .status-running {
   background: var(--survey-fill);
   color: #fff;
+}
+.status-running::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
 }
 .status-completed {
   background: var(--status-ok-bg);
@@ -511,6 +569,7 @@ textarea {
 .count {
   display: grid;
   padding: 8px 10px;
+  border-radius: 4px;
   border-left: 4px solid;
   background: var(--tint-soft);
   font-size: 12.5px;
@@ -550,6 +609,11 @@ textarea {
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+.det-list button,
+.fd-list button,
+.segmented button {
+  transition: background-color 0.15s;
 }
 .det-list button:hover {
   background: var(--tint-soft);
@@ -861,6 +925,9 @@ textarea {
   font: 500 13.5px var(--font-cond);
   cursor: pointer;
 }
+.segmented button:not(.is-on):hover {
+  background: var(--tint-soft);
+}
 .segmented button:first-child {
   border-left: 0;
 }
@@ -898,6 +965,7 @@ textarea {
   background: var(--surface);
   border-top: 4px solid var(--ink);
   border-radius: 0 0 6px 6px;
+  box-shadow: var(--shadow);
 }
 
 .area-size {
@@ -961,8 +1029,16 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast {
+  .toast,
+  .status-running::before {
     animation: none;
+  }
+  .button,
+  .nav a,
+  .det-list button,
+  .fd-list button,
+  .segmented button {
+    transition: none;
   }
   .progress > div,
   .uav-icon svg {
@@ -1025,6 +1101,7 @@ h2 .ar {
   padding: 14px 16px 6px;
   background: var(--surface);
   border-radius: 6px;
+  box-shadow: var(--shadow);
 }
 .chart-legend {
   display: flex;
@@ -1423,6 +1500,8 @@ td.miss {
   gap: 2px;
   padding: 12px 14px;
   background: var(--surface);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
   border-left: 4px solid var(--rule);
   font-size: 13px;
   color: var(--ink-2);

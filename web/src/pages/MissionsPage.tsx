@@ -61,7 +61,7 @@ export function MissionsPage() {
         </p>
       )}
       {missions && missions.length > 0 && (
-        <table className="table">
+        <table className="table clickable-rows">
           <thead>
             <tr>
               <th>Mission</th>

@@ -23,11 +23,11 @@ const CATEGORY_ORDER: Category[] = ['high', 'suspect', 'clutter']
 function Legend({ showBaseline }: { showBaseline: boolean }) {
   return (
     <div className="legend" aria-label="Map legend">
-      <span><i className="swatch swatch-high" /> High priority</span>
-      <span><i className="swatch swatch-suspect" /> Needs verification</span>
-      <span><i className="swatch swatch-clutter" /> Likely clutter</span>
-      {showBaseline && <span><i className="swatch swatch-baseline" /> Fixed-threshold baseline</span>}
-      <span><i className="swatch swatch-swath" /> Ground scanned</span>
+      <span><i className="swatch swatch-high" aria-hidden="true" /> High priority</span>
+      <span><i className="swatch swatch-suspect" aria-hidden="true" /> Needs verification</span>
+      <span><i className="swatch swatch-clutter" aria-hidden="true" /> Likely clutter</span>
+      {showBaseline && <span><i className="swatch swatch-baseline" aria-hidden="true" /> Fixed-threshold baseline</span>}
+      <span><i className="swatch swatch-swath" aria-hidden="true" /> Ground scanned</span>
     </div>
   )
 }
