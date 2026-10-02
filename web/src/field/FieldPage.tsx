@@ -82,7 +82,7 @@ function locationNote(location: LocationState): string {
 function FieldMission({ missionId, missions }: { missionId: number; missions: Mission[] }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { state, replaceDetection } = useMissionLive(missionId)
+  const { state, replaceDetection, reconnect } = useMissionLive(missionId)
   const location = useDeviceLocation()
   const [tab, setTab] = useState<Tab>('map')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -117,7 +117,16 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
   if (!mission) {
     return (
       <div className="field-app">
-        <p className="field-loading">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
+        {state.connection === 'failed' ? (
+          <p className="field-loading">
+            Cannot reach the mission.{' '}
+            <button type="button" className="link-button" onClick={reconnect}>
+              Try again
+            </button>
+          </p>
+        ) : (
+          <p className="field-loading">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
+        )}
       </div>
     )
   }
@@ -246,7 +255,17 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
               </div>
               <div>
                 <dt>Live link</dt>
-                <dd>{state.connection === 'open' ? 'Connected' : 'Reconnecting'}</dd>
+                <dd>
+                  {state.connection === 'open' ? (
+                    'Connected'
+                  ) : state.connection === 'failed' ? (
+                    <button type="button" className="link-button" onClick={reconnect}>
+                      Lost, try again
+                    </button>
+                  ) : (
+                    'Reconnecting'
+                  )}
+                </dd>
               </div>
             </dl>
             <p className="small">{locationNote(location)}</p>

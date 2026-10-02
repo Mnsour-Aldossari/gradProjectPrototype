@@ -35,7 +35,7 @@ function Legend({ showBaseline }: { showBaseline: boolean }) {
 export function MissionPage() {
   const missionId = Number(useParams().id)
   const { user } = useAuth()
-  const { state, replaceDetection } = useMissionLive(missionId)
+  const { state, replaceDetection, reconnect } = useMissionLive(missionId)
   const [profile, setProfile] = useState<ConditionProfile | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showClutter, setShowClutter] = useState(false)
@@ -86,7 +86,16 @@ export function MissionPage() {
   if (!mission) {
     return (
       <main className="page">
-        <p className="small">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
+        {state.connection === 'failed' ? (
+          <p className="small">
+            Cannot reach the mission.{' '}
+            <button type="button" className="link-button" onClick={reconnect}>
+              Try again
+            </button>
+          </p>
+        ) : (
+          <p className="small">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
+        )}
       </main>
     )
   }
@@ -123,7 +132,16 @@ export function MissionPage() {
           onSelect={setSelectedId}
         />
         <Legend showBaseline={showBaseline} />
-        {state.connection !== 'open' && <div className="map-banner">Live connection lost. Reconnecting.</div>}
+        {state.connection === 'failed' ? (
+          <div className="map-banner">
+            Live connection lost.{' '}
+            <button type="button" className="link-button" onClick={reconnect}>
+              Try again
+            </button>
+          </div>
+        ) : (
+          state.connection !== 'open' && <div className="map-banner">Live connection lost. Reconnecting.</div>
+        )}
         {toast && (
           <button type="button" className="toast" onClick={() => setSelectedId(toast.id)}>
             <span className="swatch swatch-high" aria-hidden="true" />

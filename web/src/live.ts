@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
-import { liveUrl } from './api'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { api, liveUrl } from './api'
 import type { Detection, LatLon, Mission, Telemetry } from './types'
 
 const TRACE_LENGTH = 300 // ~30 s of sensor samples at the live event rate
@@ -10,7 +10,7 @@ export interface Alert {
 }
 
 export interface LiveState {
-  connection: 'connecting' | 'open' | 'closed'
+  connection: 'connecting' | 'open' | 'closed' | 'failed'  // 'failed': gave up after repeated failures
   mission: Mission | null
   detections: Record<number, Detection>
   track: LatLon[]
@@ -101,26 +101,40 @@ function reducer(state: LiveState, action: Action): LiveState {
   }
 }
 
+/** Consecutive failed attempts before the live link stops retrying on its own. */
+const MAX_RETRIES = 8
+
 export function useMissionLive(missionId: number) {
   const [state, dispatch] = useReducer(reducer, initial)
+  const [attempt, setAttempt] = useState(0)
   const retry = useRef(0)
 
   useEffect(() => {
     let socket: WebSocket | null = null
     let timer: number | undefined
     let stopped = false
+    let opened = false
 
     const connect = () => {
+      opened = false
       dispatch({ type: 'connection', value: 'connecting' })
       socket = new WebSocket(liveUrl(missionId))
       socket.onopen = () => {
+        opened = true
         retry.current = 0
         dispatch({ type: 'connection', value: 'open' })
       }
       socket.onmessage = (msg) => dispatch(JSON.parse(msg.data) as Event)
       socket.onclose = () => {
-        dispatch({ type: 'connection', value: 'closed' })
         if (stopped) return
+        if (retry.current >= MAX_RETRIES) {
+          dispatch({ type: 'connection', value: 'failed' })
+          return
+        }
+        dispatch({ type: 'connection', value: 'closed' })
+        // A refused handshake (rejected token) looks like any other failure to the browser, so ask the API:
+        // a 401 there ends the session and returns to the login page, which stops the retries.
+        if (!opened) api('/api/auth/me').catch(() => undefined)
         const delay = Math.min(10_000, 1000 * 2 ** retry.current++)
         timer = window.setTimeout(connect, delay)
       }
@@ -131,8 +145,13 @@ export function useMissionLive(missionId: number) {
       window.clearTimeout(timer)
       socket?.close()
     }
-  }, [missionId])
+  }, [missionId, attempt])
 
   const replaceDetection = useCallback((detection: Detection) => dispatch({ type: 'local_update', detection }), [])
-  return { state, replaceDetection }
+  /** Manual retry after the link gave up. */
+  const reconnect = useCallback(() => {
+    retry.current = 0
+    setAttempt((n) => n + 1)
+  }, [])
+  return { state, replaceDetection, reconnect }
 }
