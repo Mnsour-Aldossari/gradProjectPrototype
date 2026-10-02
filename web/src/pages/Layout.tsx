@@ -27,6 +27,9 @@ function Icon({ d }: { d: string }) {
 
 export function Layout() {
   const { user, logout } = useAuth()
+  const role = user?.role === 'supervisor' ? 'Supervisor' : 'Field operator'
+  // The seed names already say the role ("Mission Supervisor"), so the role line only shows when it adds something.
+  const showRole = !(user?.full_name ?? '').toLowerCase().includes(role.toLowerCase())
   return (
     <div className="app">
       <aside className="sidebar">
@@ -71,7 +74,7 @@ export function Layout() {
           </span>
           <span className="who-name">
             {user?.full_name}
-            <span className="role">{user?.role === 'supervisor' ? 'Supervisor' : 'Field operator'}</span>
+            {showRole && <span className="role">{role}</span>}
           </span>
           <button type="button" className="link-button" onClick={logout}>
             Sign out
