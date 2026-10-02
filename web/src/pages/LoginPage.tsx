@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { clearSessionExpired, peekSessionExpired } from '../api'
 import { homePath, useAuth } from '../auth'
 
 export function LoginPage() {
@@ -9,6 +10,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Set when the server rejected the token; kept until the next successful sign-in.
+  const [expired] = useState(peekSessionExpired)
 
   // Always land on the home page of the role that just signed in, never on a page remembered from before.
   if (!ready) return null
@@ -20,6 +23,7 @@ export function LoginPage() {
     setError(null)
     try {
       const signedIn = await login(username.trim(), password)
+      clearSessionExpired()
       navigate(homePath(signedIn), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed')
@@ -41,6 +45,14 @@ export function LoginPage() {
         Mission planning, live UAV monitoring and adaptive classification of potential detections. Graduation project
         prototype, Prince Sattam Bin Abdulaziz University.
       </p>
+      {expired && (
+        <div className="notice" role="status">
+          <p lang="ar" dir="rtl">
+            انتهت الجلسة، سجّل دخولك من جديد
+          </p>
+          <p className="small">Your session has ended. Sign in again.</p>
+        </div>
+      )}
       <form className="login-form" onSubmit={submit}>
         <label className="field">
           <span>Username</span>

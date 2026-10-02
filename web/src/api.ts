@@ -20,6 +20,44 @@ function write(key: string, value: string | null): boolean {
   }
 }
 
+// One-shot flag so the login page can say why the user is there. It holds no path and no user data.
+const EXPIRED_KEY = 'uav.sessionExpired'
+
+function markSessionExpired(): void {
+  try {
+    sessionStorage.setItem(EXPIRED_KEY, '1')
+  } catch {
+    // The message is a courtesy; without storage the login page simply shows no message.
+  }
+}
+
+export function peekSessionExpired(): boolean {
+  try {
+    return sessionStorage.getItem(EXPIRED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function clearSessionExpired(): void {
+  try {
+    sessionStorage.removeItem(EXPIRED_KEY)
+  } catch {
+    // nothing to clear
+  }
+}
+
+/**
+ * The server no longer accepts our token: end the session and go to the login page with a message.
+ * `hadSession` says whether the rejected request carried a token. It is not read from storage here,
+ * because another open tab may already have cleared the shared token.
+ */
+export function endExpiredSession(hadSession: boolean): void {
+  clearSession()
+  if (hadSession) markSessionExpired()
+  window.location.assign('/login')
+}
+
 // Only used when storage is unavailable: the session then lasts until reload.
 let fallbackToken: string | null = null
 
@@ -66,10 +104,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   })
-  if (res.status === 401 && !path.endsWith('/login')) {
-    clearSession()
-    window.location.assign('/login')
-  }
+  if (res.status === 401 && !path.endsWith('/login')) endExpiredSession(token !== null)
   if (!res.ok) {
     let detail: Detail
     try {

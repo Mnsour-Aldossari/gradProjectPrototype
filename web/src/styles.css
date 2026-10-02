@@ -74,6 +74,14 @@ code {
   color: var(--ink-2);
 }
 
+.notice {
+  padding: 10px 14px;
+  background: var(--surface);
+  border-left: 4px solid var(--amber);
+}
+.notice p {
+  margin: 0;
+}
 .error {
   color: var(--hazard);
   font-size: 14px;
