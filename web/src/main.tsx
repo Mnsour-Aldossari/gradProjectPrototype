@@ -12,37 +12,40 @@ import { LoginPage } from './pages/LoginPage'
 import { MissionPage } from './pages/MissionPage'
 import { MissionsPage } from './pages/MissionsPage'
 import { NewMissionPage } from './pages/NewMissionPage'
+import { PrefsProvider } from './prefs'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/field/:id?"
-            element={
-              <RequireAuth>
-                <FieldPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            element={
-              <RequireAuth>
-                <Layout />
-              </RequireAuth>
-            }
-          >
-            <Route index element={<HomeRoute missions={<MissionsPage />} />} />
-            <Route path="missions/new" element={<NewMissionPage />} />
-            <Route path="missions/:id" element={<MissionPage />} />
-            <Route path="history" element={<HistoryPage />} />
-            <Route path="evaluation" element={<EvaluationPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <PrefsProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/field/:id?"
+              element={
+                <RequireAuth>
+                  <FieldPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              element={
+                <RequireAuth>
+                  <Layout />
+                </RequireAuth>
+              }
+            >
+              <Route index element={<HomeRoute missions={<MissionsPage />} />} />
+              <Route path="missions/new" element={<NewMissionPage />} />
+              <Route path="missions/:id" element={<MissionPage />} />
+              <Route path="history" element={<HistoryPage />} />
+              <Route path="evaluation" element={<EvaluationPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </PrefsProvider>
     </AuthProvider>
   </StrictMode>,
 )

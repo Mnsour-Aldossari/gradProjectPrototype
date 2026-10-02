@@ -52,7 +52,7 @@
   color-scheme: light;
 }
 
-/* Dark version of the same palette (switched on in a later step). Map markers keep their colours. */
+/* Dark version of the same palette, chosen under Display (src/prefs.ts). Map markers keep their colours. */
 :root[data-theme='dark'] {
   --paper: #0b1220;
   --surface: #111a2b;
