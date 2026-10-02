@@ -163,6 +163,9 @@ Works (implemented and tested with PyTest and/or in the browser):
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
   verification, comparison with the baseline, mission history, evaluation page.
 - Field view `/field` at phone size: alerts, nearest potential detections, verification.
+- Display settings: light, dark or device theme, small / normal / large text and comfortable / compact density,
+  chosen under **Display** (in the sidebar, or on the Status tab of `/field`) and saved per user in the browser on
+  that device; **Reset to default** restores them. They change the look only, never what a user can see.
 
 Not working, not run, or only partly checked:
 
