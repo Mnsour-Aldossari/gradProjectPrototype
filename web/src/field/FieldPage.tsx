@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
 import { SurveyMap } from '../map/SurveyMap'
@@ -339,9 +340,12 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
             </label>
             <div className="row spread">
               <span className="small">Signed in as {user?.full_name}</span>
-              <button type="button" className="button secondary" onClick={logout}>
-                Sign out
-              </button>
+              <div className="row">
+                <ThemeToggle className="button secondary" />
+                <button type="button" className="button secondary" onClick={logout}>
+                  Sign out
+                </button>
+              </div>
             </div>
             <p className="footnote">Simulated survey data. Every marker is a potential detection until trained personnel verify it.</p>
           </section>

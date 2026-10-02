@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export function Layout() {
   const { user, logout } = useAuth()
@@ -25,6 +26,7 @@ export function Layout() {
             {user?.full_name}
             <span className="role">{user?.role === 'supervisor' ? 'Supervisor' : 'Field operator'}</span>
           </span>
+          <ThemeToggle className="link-button" />
           <button type="button" className="link-button" onClick={logout}>
             Sign out
           </button>

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { CHART } from '../theme'
 
 export interface ChartGroup {
   key: string
@@ -8,9 +7,10 @@ export interface ChartGroup {
   adaptive: number
 }
 
+// Colours are CSS variables (styles.css) so they follow the light/dark theme; SVG needs them in `style`, not attributes.
 const SERIES = [
-  { key: 'baseline' as const, label: 'Fixed threshold (baseline)', color: CHART.baseline },
-  { key: 'adaptive' as const, label: 'Adaptive', color: CHART.adaptive },
+  { key: 'baseline' as const, label: 'Fixed threshold (baseline)', color: 'var(--series-baseline)' },
+  { key: 'adaptive' as const, label: 'Adaptive', color: 'var(--series-adaptive)' },
 ]
 
 function yScale(dataMax: number, isRatio: boolean): { yMax: number; ticks: number[] } {
@@ -83,7 +83,7 @@ export function MetricChart({
                   const d = `M${x},${y(0)} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${y(0)} Z`
                   return (
                     <g key={s.key}>
-                      <path d={d} fill={s.color} />
+                      <path d={d} style={{ fill: s.color }} />
                       {/* Hit target taller than the bar so short bars stay easy to hover */}
                       <rect
                         x={x - 1}

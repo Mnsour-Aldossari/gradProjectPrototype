@@ -11,6 +11,33 @@
   --clutter: #8a948c;
   --ok: #2c7a4b;
 
+  /* Surfaces derived from the palette. */
+  --tint: #dfe4dc;
+  --tint-soft: #eef1eb;
+  --raised: #fff;
+  --input-bg: #fff;
+  --notice-bg: #fbf3dc;
+  --status-ok-bg: #d6e7dc;
+  --status-ok-fg: #1f5a37;
+  --status-fail-bg: #f3d9d5;
+  --chart-grid: #dde3db;
+  /* Two-series chart palette, validated (lightness, chroma, colour-blind separation, contrast on --surface). */
+  --series-baseline: #b5651d;
+  --series-adaptive: #1f5fad;
+  /* Dark bars (top bar, field navigation) and the primary button. */
+  --chrome: #1d2a24;
+  --chrome-edge: transparent;
+  --on-chrome: #fff;
+  --on-chrome-soft: #e9ece6;
+  --on-chrome-2: #c9d1c8;
+  --on-chrome-3: #b7c1b8;
+  --button-bg: #1d2a24;
+  --button-fg: #fff;
+  --button-hover: #2d4037;
+  /* Filled hazard and survey colours that carry white text: the same in both themes. */
+  --hazard-fill: #c62d1f;
+  --survey-fill: #1f5fad;
+
   --font: 'Barlow', system-ui, sans-serif;
   --font-cond: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
   --side: 380px;
@@ -21,6 +48,40 @@
   font-size: 15px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+
+/* Dark theme: index.html sets data-theme from the saved choice or the device setting. Map markers and the
+   overlays on the satellite image keep their colours. */
+:root[data-theme='dark'] {
+  --paper: #111714;
+  --surface: #19211d;
+  --ink: #e4e9e2;
+  --ink-2: #a3aea5;
+  --rule: #33403a;
+  --hazard: #f0675a;
+  --amber: #e8b440;
+  --survey: #7aa9e8;
+  --clutter: #8f9a91;
+  --ok: #62bf86;
+
+  --tint: #26302b;
+  --tint-soft: #202924;
+  --raised: #232d28;
+  --input-bg: #111714;
+  --notice-bg: #2e2816;
+  --status-ok-bg: #1c3a28;
+  --status-ok-fg: #8ed6a8;
+  --status-fail-bg: #43211c;
+  --chart-grid: #2b3631;
+  --series-baseline: #d9894a;
+  --series-adaptive: #6f9fe0;
+  --chrome: #0b100e;
+  --chrome-edge: #2a3530; /* separates the bars from the page in the dark theme */
+  --button-bg: #e4e9e2;
+  --button-fg: #111714;
+  --button-hover: #c9d1c8;
+  color-scheme: dark;
 }
 
 * {
@@ -58,7 +119,7 @@ a {
 
 code {
   font-size: 0.92em;
-  background: #dfe4dc;
+  background: var(--tint);
   padding: 1px 4px;
   border-radius: 3px;
 }
@@ -75,9 +136,11 @@ code {
 }
 
 .notice {
-  padding: 10px 14px;
-  background: var(--surface);
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--notice-bg);
   border-left: 4px solid var(--amber);
+  font-size: 14px;
 }
 .notice p {
   margin: 0;
@@ -109,15 +172,15 @@ code {
   padding: 0 18px;
   border: 0;
   border-radius: 4px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--button-bg);
+  color: var(--button-fg);
   font: 600 15px var(--font-cond);
   letter-spacing: 0.01em;
   text-decoration: none;
   cursor: pointer;
 }
 .button:hover {
-  background: #2d4037;
+  background: var(--button-hover);
 }
 .button:disabled {
   opacity: 0.55;
@@ -164,7 +227,7 @@ select,
 textarea {
   font: inherit;
   color: var(--ink);
-  background: #fff;
+  background: var(--input-bg);
   border: 1px solid var(--rule);
   border-radius: 4px;
   padding: 8px 10px;
@@ -226,14 +289,15 @@ textarea {
   gap: 28px;
   padding: 0 20px;
   height: 52px;
-  background: var(--ink);
-  color: #e9ece6;
+  background: var(--chrome);
+  color: var(--on-chrome-soft);
+  box-shadow: inset 0 -1px 0 var(--chrome-edge);
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #fff;
+  color: var(--on-chrome);
   text-decoration: none;
   font: 600 18px var(--font-cond);
 }
@@ -246,14 +310,14 @@ textarea {
   gap: 18px;
 }
 .nav a {
-  color: #c9d1c8;
+  color: var(--on-chrome-2);
   text-decoration: none;
   font-size: 14px;
   padding: 15px 0 13px;
   border-bottom: 3px solid transparent;
 }
 .nav a.active {
-  color: #fff;
+  color: var(--on-chrome);
   border-bottom-color: var(--amber);
 }
 .who {
@@ -265,10 +329,10 @@ textarea {
 }
 .who .role {
   margin-left: 8px;
-  color: #a9b4aa;
+  color: var(--on-chrome-3);
 }
 .topbar .link-button {
-  color: #e9ece6;
+  color: var(--on-chrome-soft);
 }
 
 .page {
@@ -310,7 +374,7 @@ textarea {
 .table th {
   font: 600 14px var(--font-cond);
   color: var(--ink-2);
-  background: #dfe4dc;
+  background: var(--tint);
 }
 
 .status {
@@ -318,18 +382,18 @@ textarea {
   padding: 2px 9px;
   border-radius: 3px;
   font: 600 13.5px var(--font-cond);
-  background: #dfe4dc;
+  background: var(--tint);
 }
 .status-running {
-  background: var(--survey);
+  background: var(--survey-fill);
   color: #fff;
 }
 .status-completed {
-  background: #d6e7dc;
-  color: #1f5a37;
+  background: var(--status-ok-bg);
+  color: var(--status-ok-fg);
 }
 .status-failed {
-  background: #f3d9d5;
+  background: var(--status-fail-bg);
   color: var(--hazard);
 }
 
@@ -369,7 +433,7 @@ textarea {
 
 .progress {
   height: 8px;
-  background: #dfe4dc;
+  background: var(--tint);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -448,7 +512,7 @@ textarea {
   display: grid;
   padding: 8px 10px;
   border-left: 4px solid;
-  background: #eef1eb;
+  background: var(--tint-soft);
   font-size: 12.5px;
   color: var(--ink-2);
 }
@@ -488,7 +552,7 @@ textarea {
   cursor: pointer;
 }
 .det-list button:hover {
-  background: #eef1eb;
+  background: var(--tint-soft);
 }
 .det-name {
   flex: 1;
@@ -594,7 +658,7 @@ textarea {
   white-space: nowrap;
 }
 .map-banner {
-  background: var(--hazard);
+  background: var(--hazard-fill);
 }
 
 .toast {
@@ -610,7 +674,7 @@ textarea {
   border: 0;
   border-left: 5px solid var(--hazard);
   border-radius: 4px;
-  background: #fff;
+  background: var(--raised);
   color: var(--ink);
   font: inherit;
   text-align: left;
@@ -666,6 +730,41 @@ textarea {
   transition: transform 0.2s linear;
 }
 
+/* Leaflet's zoom buttons and attribution follow the theme. */
+.leaflet-container .leaflet-bar a {
+  background: var(--raised);
+  color: var(--ink);
+  border-bottom-color: var(--rule);
+}
+.leaflet-container .leaflet-bar a:hover {
+  background: var(--tint-soft);
+}
+.leaflet-container .leaflet-bar a.leaflet-disabled {
+  background: var(--tint);
+  color: var(--ink-2);
+}
+.leaflet-container .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--ink-2);
+}
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--survey);
+}
+
+/* ---------- theme toggle ---------- */
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.theme-toggle svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
 /* ---------- detection detail ---------- */
 
 .detail {
@@ -692,14 +791,6 @@ textarea {
   color: var(--ink-2);
   font-size: 14px;
 }
-.notice {
-  margin: 0;
-  padding: 10px 12px;
-  background: #fbf3dc;
-  border-left: 4px solid var(--amber);
-  font-size: 14px;
-}
-
 .facts {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -728,7 +819,7 @@ textarea {
   position: relative;
   height: 10px;
   margin-top: 4px;
-  background: #dfe4dc;
+  background: var(--tint);
   border-radius: 2px;
 }
 .evidence-fill {
@@ -765,7 +856,7 @@ textarea {
   padding: 6px 8px;
   border: 0;
   border-left: 1.5px solid var(--ink);
-  background: #fff;
+  background: var(--raised);
   color: var(--ink);
   font: 500 13.5px var(--font-cond);
   cursor: pointer;
@@ -774,8 +865,8 @@ textarea {
   border-left: 0;
 }
 .segmented button.is-on {
-  background: var(--ink);
-  color: #fff;
+  background: var(--button-bg);
+  color: var(--button-fg);
 }
 
 /* ---------- login ---------- */
@@ -828,6 +919,15 @@ textarea {
   }
   .nav a,
   .who .link-button {
+    white-space: nowrap;
+  }
+  /* Icon only in the narrow top bar; the label stays available to screen readers. */
+  .topbar .theme-toggle-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
     white-space: nowrap;
   }
   .mission-layout {
@@ -889,7 +989,7 @@ textarea {
   display: grid;
   gap: 2px;
   padding: 12px 16px;
-  background: #fbf3dc;
+  background: var(--notice-bg);
   border-left: 5px solid var(--amber);
 }
 .simulated-banner p {
@@ -951,10 +1051,10 @@ h2 .ar {
   vertical-align: -1px;
 }
 .series-dot.baseline {
-  background: #b5651d;
+  background: var(--series-baseline);
 }
 .series-dot.adaptive {
-  background: #1f5fad;
+  background: var(--series-adaptive);
 }
 .chart-plot {
   position: relative;
@@ -965,7 +1065,7 @@ h2 .ar {
   display: block;
 }
 .chart-grid {
-  stroke: #dde3db;
+  stroke: var(--chart-grid);
   stroke-width: 1;
 }
 .chart-axis {
@@ -991,8 +1091,8 @@ h2 .ar {
   display: grid;
   gap: 2px;
   padding: 7px 10px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--button-bg);
+  color: var(--button-fg);
   border-radius: 4px;
   font-size: 13px;
   pointer-events: none;
@@ -1014,7 +1114,7 @@ h2 .ar {
 .num-table tr.total td,
 .num-table tr.total th {
   font-weight: 600;
-  background: #eef1eb;
+  background: var(--tint-soft);
 }
 .limitations ul {
   margin: 0;
@@ -1062,7 +1162,8 @@ td.miss {
 
 .field-top {
   z-index: 20;
-  background: var(--ink);
+  background: var(--chrome);
+  box-shadow: inset 0 -1px 0 var(--chrome-edge);
   padding-top: env(safe-area-inset-top);
 }
 .field-alert,
@@ -1078,7 +1179,7 @@ td.miss {
   text-align: left;
 }
 .field-alert {
-  background: var(--hazard);
+  background: var(--hazard-fill);
   color: #fff;
   cursor: pointer;
 }
@@ -1086,7 +1187,7 @@ td.miss {
   background: #fff;
 }
 .field-quiet {
-  color: #c9d1c8;
+  color: var(--on-chrome-2);
   font-weight: 500;
 }
 
@@ -1098,7 +1199,7 @@ td.miss {
   display: inline-block;
   padding: 1px 8px;
   background: var(--amber);
-  color: var(--ink);
+  color: #1d2a24; /* dark text on amber in both themes */
   font: 600 12px var(--font-cond);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1237,7 +1338,8 @@ td.miss {
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  background: var(--ink);
+  background: var(--chrome);
+  box-shadow: inset 0 1px 0 var(--chrome-edge);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .field-nav button {
@@ -1250,7 +1352,7 @@ td.miss {
   border: 0;
   border-top: 3px solid transparent;
   background: none;
-  color: #b7c1b8;
+  color: var(--on-chrome-3);
   font: 500 13px var(--font);
   cursor: pointer;
 }
@@ -1259,7 +1361,7 @@ td.miss {
   height: 24px;
 }
 .field-nav button[aria-current='page'] {
-  color: #fff;
+  color: var(--on-chrome);
   border-top-color: var(--amber);
 }
 .badge {
@@ -1270,7 +1372,7 @@ td.miss {
   height: 20px;
   padding: 0 5px;
   border-radius: 10px;
-  background: var(--hazard);
+  background: var(--hazard-fill);
   color: #fff;
   font-style: normal;
   font-size: 12.5px;
@@ -1348,7 +1450,7 @@ td.miss {
 .history-table thead th:first-child {
   font: 600 14px var(--font-cond);
   color: var(--ink-2);
-  background: #dfe4dc;
+  background: var(--tint);
 }
 .history-table .status {
   margin-left: 8px;
