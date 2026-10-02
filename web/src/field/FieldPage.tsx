@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Circle, CircleMarker } from 'react-leaflet'
+import { Circle, CircleMarker, Tooltip } from 'react-leaflet'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -17,8 +17,8 @@ import {
   type LatLon,
   type Mission,
 } from '../types'
-import { bearing, centre, distanceM, formatDistance } from './geo'
-import { useDeviceLocation, type LocationState } from './useLocation'
+import { bearing, centre, distanceM, FAR_FROM_AREA_M, formatDistance, testPosition } from './geo'
+import { useDeviceLocation } from './useLocation'
 
 type Tab = 'map' | 'alerts' | 'status'
 
@@ -73,17 +73,47 @@ function DetectionRow({ item, onOpen }: { item: Ranked; onOpen: (id: number) => 
   )
 }
 
-function locationNote(location: LocationState): string {
-  if (location.status === 'ok') return `Distances from your location (±${Math.round(location.accuracyM)} m).`
-  if (location.status === 'pending') return 'Finding your location. Distances are from the centre of the survey area for now.'
-  return `${location.reason}. Distances are from the centre of the survey area.`
+/** Where distances are measured from, and why. */
+type LocationInfo =
+  | { kind: 'real'; accuracyM: number }
+  | { kind: 'test'; why: string }
+  | { kind: 'centre'; why: string }
+
+function LocationNote({ info, canUseReal, canUseTest, onChoose }: {
+  info: LocationInfo
+  canUseReal: boolean
+  canUseTest: boolean
+  onChoose: (choice: 'test' | 'real') => void
+}) {
+  return (
+    <div className="location-note">
+      <p className="small">
+        {info.kind === 'test' && <span className="test-badge">Test location</span>}{' '}
+        {info.kind === 'real' && `Distances from your location (±${Math.round(info.accuracyM)} m).`}
+        {info.kind === 'test' &&
+          `Distances are measured from a fixed point inside the survey area, not from your real position. ${info.why}`}
+        {info.kind === 'centre' && info.why}
+      </p>
+      {info.kind === 'test' && canUseReal && (
+        <button type="button" className="link-button" onClick={() => onChoose('real')}>
+          Use my real location
+        </button>
+      )}
+      {info.kind === 'real' && canUseTest && (
+        <button type="button" className="link-button" onClick={() => onChoose('test')}>
+          Use test location
+        </button>
+      )}
+    </div>
+  )
 }
 
 function FieldMission({ missionId, missions }: { missionId: number; missions: Mission[] }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { state, replaceDetection, reconnect } = useMissionLive(missionId)
-  const location = useDeviceLocation()
+  const device = useDeviceLocation()
+  const [choice, setChoice] = useState<'test' | 'real' | null>(null)
   const [tab, setTab] = useState<Tab>('map')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [toast, setToast] = useState<Detection | null>(null)
@@ -101,8 +131,26 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
     () => Object.values(state.detections).filter((d) => d.method === 'adaptive' && d.category !== 'clutter'),
     [state.detections],
   )
-  const origin: LatLon | null =
-    location.status === 'ok' ? location.position : mission ? centre(mission.area) : null
+  // Test location: a fixed point inside the survey area. It is the default when the real position cannot be
+  // used (permission refused, no GPS, or the device is far from the area), and can be switched by the user.
+  const testPos = mission ? testPosition(mission.area) : null
+  const farM = device.status === 'ok' && mission ? distanceM(device.position, centre(mission.area)) : 0
+  const deviceFar = farM > FAR_FROM_AREA_M
+  const useTest = testPos !== null && (choice ? choice === 'test' : device.status === 'unavailable' || deviceFar)
+  const info: LocationInfo = useTest
+    ? {
+        kind: 'test',
+        why:
+          choice === 'test'
+            ? 'You chose the test location.'
+            : device.status === 'unavailable'
+              ? `${device.reason}.`
+              : `Your real location is ${formatDistance(farM)} from the survey area.`,
+      }
+    : device.status === 'ok'
+      ? { kind: 'real', accuracyM: device.accuracyM }
+      : { kind: 'centre', why: 'Finding your location. Distances are from the centre of the survey area for now.' }
+  const origin: LatLon | null = useTest ? testPos : device.status === 'ok' ? device.position : mission ? centre(mission.area) : null
   const [originLat, originLon] = origin ?? [null, null]
   const ranked = useMemo<Ranked[]>(() => {
     if (originLat === null || originLon === null) return []
@@ -160,13 +208,22 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           selectedId={selectedId}
           onSelect={setSelectedId}
         >
-          {location.status === 'ok' && (
+          {info.kind === 'real' && device.status === 'ok' && (
             <>
-              <Circle center={location.position} radius={location.accuracyM} interactive={false} pathOptions={{ color: COLORS.survey, weight: 1, fillOpacity: 0.08 }} />
-              <CircleMarker center={location.position} radius={7} interactive={false} pathOptions={{ color: '#ffffff', weight: 2.5, fillColor: COLORS.survey, fillOpacity: 1 }} />
+              <Circle center={device.position} radius={device.accuracyM} interactive={false} pathOptions={{ color: COLORS.survey, weight: 1, fillOpacity: 0.08 }} />
+              <CircleMarker center={device.position} radius={7} interactive={false} pathOptions={{ color: '#ffffff', weight: 2.5, fillColor: COLORS.survey, fillOpacity: 1 }} />
             </>
           )}
+          {info.kind === 'test' && testPos && (
+            <CircleMarker center={testPos} radius={8} interactive={false} pathOptions={{ color: '#ffffff', weight: 2.5, fillColor: COLORS.amber, fillOpacity: 1 }}>
+              <Tooltip permanent direction="top" offset={[0, -8]}>
+                Test location
+              </Tooltip>
+            </CircleMarker>
+          )}
         </SurveyMap>
+
+        {tab === 'map' && info.kind === 'test' && <span className="test-badge test-badge-float">Test location</span>}
 
         {tab === 'map' && (
           <section className="drone-card" aria-label="UAV status">
@@ -209,7 +266,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
               </ul>
             )}
             <h2>Nearest potential detections</h2>
-            <p className="small">{locationNote(location)}</p>
+            <LocationNote info={info} canUseReal={device.status === 'ok'} canUseTest={testPos !== null} onChoose={setChoice} />
             {ranked.length === 0 ? (
               <p className="small">Nothing reported yet.</p>
             ) : (
@@ -268,7 +325,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
                 </dd>
               </div>
             </dl>
-            <p className="small">{locationNote(location)}</p>
+            <LocationNote info={info} canUseReal={device.status === 'ok'} canUseTest={testPos !== null} onChoose={setChoice} />
 
             <label className="field">
               <span>Mission</span>

@@ -27,3 +27,12 @@ export function formatDistance(m: number): string {
 export function centre(area: LatLon[]): LatLon {
   return [area.reduce((s, p) => s + p[0], 0) / area.length, area.reduce((s, p) => s + p[1], 0) / area.length]
 }
+
+/** A real position farther than this from the survey area is useless for judging distances to detections. */
+export const FAR_FROM_AREA_M = 2000
+
+/** A fixed test position inside the survey area: halfway between the centre and the first corner. */
+export function testPosition(area: LatLon[]): LatLon {
+  const c = centre(area)
+  return [(c[0] + area[0][0]) / 2, (c[1] + area[0][1]) / 2]
+}
