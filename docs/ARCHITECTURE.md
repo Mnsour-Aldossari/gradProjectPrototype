@@ -267,4 +267,46 @@ None of the items below is implemented in the prototype.
 - **Real sensor data.** Calibrate the sensor models and the classifier against real MD/GPR measurements; the
   current parameters are tuned on simulated data only.
 - **Production hardening.** Managed user accounts, secrets management, HTTPS, and deployment beyond a single
-  development machine.
+  development machine. The security items are listed in
+  [Security Hardening (Not Implemented)](#security-hardening-not-implemented).
+
+### Security Hardening (Not Implemented)
+
+The current version is a prototype and is not ready for public deployment. None of the following is implemented:
+
+- **Login rate limiting and username timing.** There is no limit on failed login attempts. A login with an unknown
+  username returns without hashing a password, so response time can reveal which usernames exist.
+- **WebSocket Origin check.** `/ws/missions/{id}` does not check the `Origin` header (CORS does not apply to
+  WebSockets).
+- **API docs.** `/docs` and `/openapi.json` are open to anyone who can reach the server; they should be disabled or
+  protected outside development.
+- **HttpOnly cookie and HTTPS.** The web app keeps the access token in browser storage, readable by page scripts.
+  An HttpOnly, Secure cookie served over HTTPS would replace it. The prototype runs over plain HTTP.
+- **Security headers.** No Content-Security-Policy, Strict-Transport-Security or X-Frame-Options headers are sent.
+- **Stronger password hashing.** Raise the PBKDF2 iteration count or move to Argon2.
+- **Token revocation.** A token stays valid until it expires; there is no logout on the server, no revocation list
+  and no way to end a user's sessions early.
+- **Audit log.** Logins, mission starts and verification changes are not recorded in an audit trail
+  (a detection keeps only its latest verifier).
+- **Exception text in `Mission.error`.** When a mission run fails, the exception type and message are stored in
+  `Mission.error` and sent to clients. They should be logged on the server and replaced with a generic message.
+- **WebSocket token in the URL.** The token is passed as `?token=...`, so it can appear in server and proxy logs. It
+  should move to a cookie or a first message after the connection opens.
+
+### Verified Security Properties
+
+These properties are implemented and were checked:
+
+- **Roles are enforced on the server.** A field operator receives `403` on supervisor routes (create mission, start
+  mission, run demo scenario). Covered by `test_field_operator_cannot_create_missions` and checked against the running
+  backend for the other two routes.
+- **Tampered or expired tokens are rejected.** Tokens are HMAC-SHA256 signed and carry an expiry time. A forged
+  token gets `401` on the REST API and is refused by the WebSocket (`test_endpoints_require_a_token`,
+  `test_websocket_rejects_bad_token`, `test_token_signed_with_the_old_default_secret_is_rejected`). Rejection of a
+  modified payload and of an expired token was checked directly against `decode_token`; there is no PyTest test for
+  the expired case.
+- **Passwords are hashed with PBKDF2-HMAC-SHA256 and a random 16-byte salt per password** (200,000 iterations),
+  compared in constant time.
+- **No built-in signing key.** Commit `761ed7b` removed the default secret: if `SECRET_KEY` is not set, a random key
+  is generated on first start and saved in `backend/.secret_key` (git-ignored). Tokens signed with the old default
+  value are rejected (`backend/tests/test_secret_key.py`).
