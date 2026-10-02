@@ -1748,6 +1748,10 @@ td.miss {
   box-shadow: var(--shadow-lg);
   font-weight: 500;
 }
+/* Above Leaflet's zoom buttons (z-index 1000), which used to draw over it on narrow maps. */
+.map-card .toast {
+  z-index: 1001;
+}
 .map-card .swatch-swath {
   background: color-mix(in srgb, var(--survey) 25%, transparent);
 }
@@ -1819,6 +1823,11 @@ td.miss {
   }
   .map-card {
     height: 58vh;
+  }
+  .map-card .toast {
+    left: 56px;
+    right: 12px;
+    max-width: none;
   }
   .mp-col {
     overflow: visible;

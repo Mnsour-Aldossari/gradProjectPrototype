@@ -48,6 +48,10 @@ export function MissionPage() {
 
   useEffect(() => {
     sideRef.current?.scrollTo({ top: 0 })
+    // On a phone the cards sit below the map, so bring the opened detection into view.
+    if (selectedId !== null && window.matchMedia('(max-width: 860px)').matches) {
+      sideRef.current?.scrollIntoView({ block: 'start' })
+    }
   }, [selectedId])
 
   useEffect(() => {
