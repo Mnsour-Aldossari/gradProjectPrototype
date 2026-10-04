@@ -119,5 +119,8 @@ export async function api<T>(path: string, options: { method?: string; body?: un
 
 export function liveUrl(missionId: number): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${scheme}://${window.location.host}/ws/missions/${missionId}?token=${encodeURIComponent(getToken() ?? '')}`
+  // A static host (Netlify) can forward /api but not WebSockets, so a deployed build names the backend host here.
+  // Unset (local development, Docker), the socket goes to the page's own host as before.
+  const host = (import.meta.env.VITE_WS_HOST as string | undefined) || window.location.host
+  return `${scheme}://${host}/ws/missions/${missionId}?token=${encodeURIComponent(getToken() ?? '')}`
 }

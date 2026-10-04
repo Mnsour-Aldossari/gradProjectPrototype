@@ -1,0 +1,3 @@
+# Netlify: every app path (/missions/1, /field, ...) loads the single-page app.
+# The /api line that forwards to the backend is added above this once the backend URL is known.
+/*  /index.html  200
