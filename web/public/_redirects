@@ -1,3 +1,4 @@
-# Netlify: every app path (/missions/1, /field, ...) loads the single-page app.
-# The /api line that forwards to the backend is added above this once the backend URL is known.
+# Netlify: API calls go to the backend on Render; WebSockets go there directly (VITE_WS_HOST).
+/api/*  https://gradprojectprototype.onrender.com/api/:splat  200
+# Every app path (/missions/1, /field, ...) loads the single-page app.
 /*  /index.html  200
