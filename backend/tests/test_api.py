@@ -1,3 +1,8 @@
+from fastapi.testclient import TestClient
+
+from app.config import Settings
+from app.main import create_app
+from app.seed import DEMO_USERS
 from conftest import auth_headers, mission_body, wait_until_finished
 
 
@@ -206,3 +211,15 @@ def test_history_counts_potential_detections_per_category(client):
     assert item["verification"]["false_alarm"] == 1
     assert item["verification"]["pending"] == len(reported) - 1
     assert history["completed"] == 1 and history["totals_adaptive"] == item["adaptive"]
+
+
+def test_seed_passwords_can_be_replaced_by_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("SUPERVISOR_PASSWORD", "deployment-only-password")
+    settings = Settings(database_url=f"sqlite:///{(tmp_path / 'env.db').as_posix()}", secret_key="test-secret")
+    with TestClient(create_app(settings)) as c:
+        demo = next(u["password"] for u in DEMO_USERS if u["username"] == "supervisor")
+        assert c.post("/api/auth/login", json={"username": "supervisor", "password": demo}).status_code == 401
+        assert c.post("/api/auth/login", json={"username": "supervisor", "password": "deployment-only-password"}).status_code == 200
+        # Unset variable: the demo password still works.
+        field = next(u["password"] for u in DEMO_USERS if u["username"] == "field")
+        assert c.post("/api/auth/login", json={"username": "field", "password": field}).status_code == 200

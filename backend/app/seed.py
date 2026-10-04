@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
@@ -13,6 +15,13 @@ DEMO_USERS = (
     {"username": "field", "password": "Field#2026", "full_name": "Field Operator", "role": "field_operator"},
 )
 
+# On a machine others can reach, set these so the demo passwords above (which are in the repository) do not work.
+PASSWORD_ENV = {"supervisor": "SUPERVISOR_PASSWORD", "field": "FIELD_PASSWORD"}
+
+
+def demo_password(user: dict) -> str:
+    return os.environ.get(PASSWORD_ENV[user["username"]]) or user["password"]
+
 
 def seed_users(engine: Engine) -> None:
     with Session(engine) as session:
@@ -23,7 +32,7 @@ def seed_users(engine: Engine) -> None:
                         username=u["username"],
                         full_name=u["full_name"],
                         role=u["role"],
-                        password_hash=hash_password(u["password"]),
+                        password_hash=hash_password(demo_password(u)),
                     )
                 )
         session.commit()
