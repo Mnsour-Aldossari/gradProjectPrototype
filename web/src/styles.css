@@ -856,12 +856,33 @@ textarea {
   background: var(--tint);
   color: var(--ink-2);
 }
-.leaflet-container .leaflet-control-attribution {
+/* One class more than Leaflet's own rule: leaflet.css loads after this file (SurveyMap.tsx) and would win a tie. */
+.leaflet-container .leaflet-control-container .leaflet-control-attribution {
   background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--ink-2);
 }
 .leaflet-container .leaflet-control-attribution a {
   color: var(--survey);
+}
+/* Map labels ("Test location") in the dark theme. :where() keeps the specificity low, so labels with their own look
+   still set it. */
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip {
+  background: var(--raised);
+  border-color: var(--rule);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-top::before {
+  border-top-color: var(--raised);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-bottom::before {
+  border-bottom-color: var(--raised);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-left::before {
+  border-left-color: var(--raised);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-right::before {
+  border-right-color: var(--raised);
 }
 
 /* ---------- detection detail ---------- */
