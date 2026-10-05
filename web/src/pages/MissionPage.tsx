@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
-import { CARD_ICONS, CardFrame, Glyph } from '../components/CardFrame'
+import { CARD_ICONS, CardFrame, Glyph, type CardDrag } from '../components/CardFrame'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { SensorTrace } from '../components/SensorTrace'
 import { formatDuration } from '../format'
@@ -63,6 +63,8 @@ export function MissionPage() {
   const sideRef = useRef<HTMLElement>(null)
   // Customize mode: move and hide buttons on the cards. The layout itself is saved per user (prefs.ts).
   const [editing, setEditing] = useState(false)
+  const [dragId, setDragId] = useState<MissionCard | null>(null)
+  const [dropAt, setDropAt] = useState<{ id: MissionCard; where: 'before' | 'after' } | null>(null)
   const { prefs, setMissionLayout } = usePrefs()
   const layout = prefs.layout.mission
 
@@ -174,6 +176,32 @@ export function MissionPage() {
       target?.focus()
     })
   }
+  /** Puts the dragged card before or after the one it was dropped on. */
+  function drop() {
+    if (dragId && dropAt && dragId !== dropAt.id) {
+      const order = layout.order.filter((c) => c !== dragId)
+      order.splice(order.indexOf(dropAt.id) + (dropAt.where === 'after' ? 1 : 0), 0, dragId)
+      setMissionLayout({ order })
+    }
+    setDragId(null)
+    setDropAt(null)
+  }
+  const dragFor = (id: MissionCard): CardDrag | undefined =>
+    editing
+      ? {
+          dragging: dragId === id,
+          hint: dragId && dragId !== id && dropAt?.id === id ? dropAt.where : null,
+          onStart: () => setDragId(id),
+          onEnd: () => {
+            setDragId(null)
+            setDropAt(null)
+          },
+          onOver: (where) => {
+            if (dropAt?.id !== id || dropAt.where !== where) setDropAt({ id, where })
+          },
+          onDrop: drop,
+        }
+      : undefined
   const hide = (id: MissionHideable) => setMissionLayout({ hidden: [...layout.hidden, id] })
   const show = (id: MissionHideable) => setMissionLayout({ hidden: layout.hidden.filter((h) => h !== id) })
   const fold = (id: MissionCard) =>
@@ -192,6 +220,7 @@ export function MissionPage() {
     onMove: (step: -1 | 1) => move(id, step),
     // Flight holds Start survey and the errors, so it can fold but never hide.
     onHide: id === 'flight' ? undefined : () => hide(id),
+    drag: dragFor(id),
   })
   const summaryShown = !layout.hidden.includes('summary')
 
@@ -347,7 +376,8 @@ export function MissionPage() {
         {editing && (
           <div className="cfg-bar" role="region" aria-label="Customize this page">
             <p className="small">
-              Move cards with the arrows, fold or hide what you do not need. Saved on this device for your account.
+              Drag cards by their handle or move them with the arrows; fold or hide what you do not need. Saved on this
+              device for your account.
             </p>
             {hidden.length > 0 && (
               <div className="cfg-hidden">

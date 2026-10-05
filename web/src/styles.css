@@ -2202,3 +2202,48 @@ td.miss {
 .mission-page.no-summary {
   grid-template-rows: auto minmax(0, 1fr);
 }
+
+/* Drag and drop: a handle in the heading, a line where the card will land. */
+.cfg-card {
+  position: relative;
+}
+.cfg-card .card-head h2 {
+  flex: 1;
+  min-width: 0;
+}
+.cfg-grip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 30px;
+  margin: -5px 2px -5px -8px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  cursor: grab;
+}
+.cfg-grip svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 3;
+}
+.cfg-grip:hover {
+  background: var(--tint-soft);
+  color: var(--ink);
+}
+.cfg-card.is-dragging {
+  opacity: 0.45;
+}
+/* Drawn inside the card: the scrolling column would clip a line above the first card. */
+.cfg-card.drop-before {
+  box-shadow: inset 0 3px 0 var(--survey), var(--shadow);
+}
+.cfg-card.drop-after {
+  box-shadow: inset 0 -3px 0 var(--survey), var(--shadow);
+}
+/* Touch screens move cards with the arrows; the drag handle is for a mouse. */
+@media (pointer: coarse) {
+  .cfg-grip {
+    display: none;
+  }
+}

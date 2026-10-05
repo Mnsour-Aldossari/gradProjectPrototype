@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 
 export const CARD_ICONS = {
   fold: 'M6 9l6 6 6-6',
+  grip: 'M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01',
   up: 'M12 19V5 M6 11l6-6 6 6',
   down: 'M12 5v14 M6 13l6 6 6-6',
   customize: 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
@@ -33,16 +34,73 @@ export interface CardFrameProps {
   onMove: (step: -1 | 1) => void
   /** Missing for a card that cannot be hidden. */
   onHide?: () => void
+  /** Drag and drop in Customize mode (mouse); the arrows do the same by touch and keyboard. */
+  drag?: CardDrag
   /** Content that stays when the card is folded (Flight keeps its status and Start survey). */
   keep?: ReactNode
   children: ReactNode
 }
 
+export interface CardDrag {
+  /** This card is the one being dragged. */
+  dragging: boolean
+  /** Where a dropped card would land, next to this one. */
+  hint: 'before' | 'after' | null
+  onStart: () => void
+  onEnd: () => void
+  onOver: (where: 'before' | 'after') => void
+  onDrop: () => void
+}
+
 /** A card in the mission page's column that can be folded, and moved or hidden in Customize mode. */
-export function CardFrame({ cardId, title, headingId, aside, folded, onFold, editing, first, last, onMove, onHide, keep, children }: CardFrameProps) {
+export function CardFrame({ cardId, title, headingId, aside, folded, onFold, editing, first, last, onMove, onHide, drag, keep, children }: CardFrameProps) {
+  const over = (e: DragEvent<HTMLElement>) => {
+    if (!drag) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const box = e.currentTarget.getBoundingClientRect()
+    drag.onOver(e.clientY < box.top + box.height / 2 ? 'before' : 'after')
+  }
+  const cls = [
+    'card card-pad block cfg-card',
+    folded && 'is-folded',
+    editing && 'is-editing',
+    drag?.dragging && 'is-dragging',
+    drag?.hint && `drop-${drag.hint}`,
+  ]
   return (
-    <section className={`card card-pad block cfg-card${folded ? ' is-folded' : ''}${editing ? ' is-editing' : ''}`} aria-labelledby={headingId} data-card={cardId}>
+    <section
+      className={cls.filter(Boolean).join(' ')}
+      aria-labelledby={headingId}
+      data-card={cardId}
+      onDragOver={drag && over}
+      onDrop={
+        drag &&
+        ((e) => {
+          e.preventDefault()
+          drag.onDrop()
+        })
+      }
+    >
       <div className="card-head">
+        {drag && (
+          <span
+            className="cfg-grip"
+            draggable
+            title="Drag to move"
+            aria-hidden="true"
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('text/plain', cardId)
+              const card = e.currentTarget.closest('section')
+              if (card) e.dataTransfer.setDragImage(card, 24, 20)
+              drag.onStart()
+            }}
+            onDragEnd={drag.onEnd}
+          >
+            <Glyph d={CARD_ICONS.grip} />
+          </span>
+        )}
         <h2 id={headingId}>{title}</h2>
         <div className="cfg-right">
           {aside}
