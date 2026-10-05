@@ -79,6 +79,7 @@ class MissionRead(BaseModel):
     soil_type: str
     scenario_seed: int
     status: str
+    uav_source: str
     progress: float
     battery_pct: float | None
     error: str | None

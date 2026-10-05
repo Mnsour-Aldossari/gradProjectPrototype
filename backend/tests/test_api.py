@@ -25,6 +25,7 @@ def test_create_mission_plans_the_survey_path(client):
     assert r.status_code == 201, r.text
     mission = r.json()
     assert mission["status"] == "planned"
+    assert mission["uav_source"] == "simulated"
     assert len(mission["path"]) >= 4
     assert mission["path_length_m"] > 0
     assert mission["estimated_duration_s"] == round(mission["path_length_m"] / mission["speed_mps"], 1)
