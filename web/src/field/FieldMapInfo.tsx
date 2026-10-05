@@ -157,20 +157,42 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
 
   return (
     <div className="field-hud" ref={hudRef}>
-      {(hidden.length > 0 || testLocation) && (
-        <div className="hud-status" data-dock>
-          {hidden.length > 0 && (
-            <button type="button" className="hud-restore" onClick={() => setPrefs({ fieldHidden: [] })}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              Show info ({hidden.length})
-            </button>
-          )}
-          {testLocation && <span className="test-badge">Test location</span>}
+      <div className="hud-status" data-dock>
+        {hidden.length > 0 && (
+          <button type="button" className="hud-restore" onClick={() => setPrefs({ fieldHidden: [] })}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            Show info ({hidden.length})
+          </button>
+        )}
+        <div className="hud-layers" role="group" aria-label="Map layers">
+          <button
+            type="button"
+            className="hud-layer"
+            aria-pressed={prefs.fieldLayers.labels}
+            title="Detection numbers"
+            onClick={() => setPrefs({ fieldLayers: { ...prefs.fieldLayers, labels: !prefs.fieldLayers.labels } })}
+          >
+            <span className="hud-layer-sample" aria-hidden="true">
+              #6
+            </span>
+            <span className="hud-layer-name">Detection numbers</span>
+          </button>
+          <button
+            type="button"
+            className="hud-layer"
+            aria-pressed={prefs.fieldLayers.guide}
+            title="Line to nearest"
+            onClick={() => setPrefs({ fieldLayers: { ...prefs.fieldLayers, guide: !prefs.fieldLayers.guide } })}
+          >
+            <i className="hud-guide" aria-hidden="true" />
+            <span className="hud-layer-name">Line to nearest</span>
+          </button>
         </div>
-      )}
+        {testLocation && <span className="test-badge">Test location</span>}
+      </div>
 
       {shown('mission') && (
         <section className={`hud-card hud-mission${firstTop === 'mission' ? ' hud-clear-zoom' : ''}`} data-dock aria-label="Mission">
@@ -308,28 +330,6 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
             </li>
             <li>
               <i className="hud-area" aria-hidden="true" /> Survey area
-            </li>
-          </ul>
-          <ul className="hud-legend hud-layers" aria-label="Map layers">
-            <li>
-              <button
-                type="button"
-                className="hud-layer"
-                aria-pressed={prefs.fieldLayers.labels}
-                onClick={() => setPrefs({ fieldLayers: { ...prefs.fieldLayers, labels: !prefs.fieldLayers.labels } })}
-              >
-                <span className="hud-layer-sample">#6</span> Detection numbers
-              </button>
-            </li>
-            <li>
-              <button
-                type="button"
-                className="hud-layer"
-                aria-pressed={prefs.fieldLayers.guide}
-                onClick={() => setPrefs({ fieldLayers: { ...prefs.fieldLayers, guide: !prefs.fieldLayers.guide } })}
-              >
-                <i className="hud-guide" aria-hidden="true" /> Line to nearest
-              </button>
             </li>
           </ul>
           <p className="hud-safety">Potential detections only. Do not enter the area based on this screen.</p>

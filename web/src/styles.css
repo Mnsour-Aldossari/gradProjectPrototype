@@ -2008,13 +2008,13 @@ td.miss {
 .hud-mission,
 .hud-detections {
   --dock: top;
-  margin-bottom: 6px;
+  margin-bottom: calc(6px * var(--density));
 }
 .hud-nearest,
 .hud-key,
 .field-hud .drone-card {
   --dock: bottom;
-  margin-top: 6px;
+  margin-top: calc(6px * var(--density));
 }
 .hud-status {
   grid-area: status;
@@ -2022,6 +2022,7 @@ td.miss {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 .hud-mission {
   grid-area: mission;
@@ -2047,8 +2048,8 @@ td.miss {
 .hud-card {
   position: relative;
   display: grid;
-  gap: 5px;
-  padding: 7px 10px 9px;
+  gap: calc(5px * var(--density));
+  padding: calc(7px * var(--density)) 10px calc(9px * var(--density));
   border-radius: 10px;
   background: rgb(29 42 36 / 0.92);
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
@@ -2357,20 +2358,21 @@ td.miss {
   font-weight: 600;
 }
 
-/* map layers: their toggles sit in the map key, drawn like the layer they switch */
+/* map layers: two switches in the top row, each drawn like the layer it shows */
 .hud-layers {
-  gap: 4px 6px;
+  display: flex;
+  gap: 6px;
 }
 .hud-layer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 28px;
-  padding: 2px 9px 2px 6px;
+  min-height: 32px;
+  padding: 2px 10px 2px 8px;
   border: 0;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25);
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25), 0 4px 14px rgb(0 0 0 / 0.25);
   color: #b7c1b8;
   font: 600 calc(11.5px * var(--text-scale)) var(--font);
   cursor: pointer;
@@ -2383,8 +2385,8 @@ td.miss {
   box-shadow: inset 0 0 0 1.5px #b7c1b8;
 }
 .hud-layer[aria-pressed='true'] {
-  background: rgb(143 184 238 / 0.18);
-  box-shadow: inset 0 0 0 1px #8fb8ee;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: inset 0 0 0 1.5px #8fb8ee, 0 4px 14px rgb(0 0 0 / 0.25);
   color: #fff;
 }
 .hud-layer[aria-pressed='true']::before {
@@ -2426,8 +2428,8 @@ td.miss {
   .hud-detections,
   .hud-nearest,
   .hud-key {
-    padding-top: 6px;
-    padding-bottom: 6px;
+    padding-top: calc(6px * var(--density));
+    padding-bottom: calc(6px * var(--density));
     padding-right: 38px;
   }
   .hud-detections .hud-head,
@@ -2443,6 +2445,7 @@ td.miss {
   .hud-key .hud-head .hud-hide {
     margin: 0;
   }
+  .hud-layer-name,
   .hud-detections .hud-title,
   .hud-nearest .hud-title,
   .hud-key .hud-title {
@@ -2560,9 +2563,10 @@ td.miss {
     grid-column: 1;
     grid-row: 4;
   }
+  /* The top row may reach over the middle column; it is short, so it counts against the top edge. */
   .hud-status {
-    --dock: right;
-    grid-column: 3;
+    --dock: top;
+    grid-column: 2 / 4;
     grid-row: 1;
   }
   .hud-detections {
