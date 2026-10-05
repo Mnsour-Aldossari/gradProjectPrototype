@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Circle, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
@@ -218,7 +218,8 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
             </>
           )}
           {tab === 'map' && prefs.fieldLayers.guide && info.kind !== 'centre' && origin && ranked[0] && (
-            <>
+            // Redrawn when the nearest detection or the position changes: Leaflet leaves an open label where it was.
+            <Fragment key={`${ranked[0].detection.id}:${origin[0].toFixed(6)},${origin[1].toFixed(6)}`}>
               {/* Line from where the user stands to the nearest potential detection, with the distance below it
                   (the Test location label sits above the starting point). */}
               <Polyline
@@ -235,7 +236,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
                   {formatDistance(ranked[0].distance)} {ranked[0].direction}
                 </Tooltip>
               </Polyline>
-            </>
+            </Fragment>
           )}
           {info.kind === 'test' && testPos && (
             <CircleMarker center={testPos} radius={8} interactive={false} pathOptions={{ color: '#ffffff', weight: 2.5, fillColor: COLORS.amber, fillOpacity: 1 }}>
