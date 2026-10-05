@@ -2462,11 +2462,126 @@ td.miss {
   .field-hud .hud-narrow {
     display: none;
   }
-  /* Wider screens: one column of cards on the left until the tablet layouts are added. */
+  /* Tablet, upright: cards in pairs above and below the survey area; the UAV card keeps its place bottom right. */
   .field-hud {
-    grid-template-columns: minmax(0, 440px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'status status'
+      'mission detections'
+      '. .'
+      'nearest key'
+      '. drone';
+    column-gap: 8px;
+  }
+  .field-hud > .hud-card,
+  .field-hud .drone-card {
+    align-self: start;
+  }
+  .field-hud > .hud-nearest,
+  .field-hud > .hud-key,
+  .field-hud > .drone-card {
+    align-self: end;
   }
   .field-hud .drone-card {
     width: auto;
+  }
+  .hud-mission {
+    margin-left: 44px;
+  }
+  .hud-clear-zoom:not(.hud-mission) {
+    margin-left: 0;
+  }
+  /* Nearest detections as a list with category and verification status. */
+  .hud-near {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .hud-near button {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id dist'
+      'status dist';
+    row-gap: 0;
+    padding: 5px 10px;
+  }
+  .hud-near-id {
+    grid-area: id;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hud-near-cat {
+    display: inline;
+    font-weight: 600;
+  }
+  .hud-near-status {
+    display: block;
+    grid-area: status;
+    color: #b7c1b8;
+    font-size: calc(11.5px * var(--text-scale));
+  }
+  .hud-near-dist {
+    grid-area: dist;
+    align-self: center;
+    font-size: calc(15px * var(--text-scale));
+  }
+  .hud-tile {
+    display: grid;
+    gap: 2px;
+    padding: 6px 9px;
+  }
+  .hud-tile b {
+    font-size: calc(22px * var(--text-scale));
+  }
+  .hud-tile span {
+    font-size: calc(11.5px * var(--text-scale));
+  }
+}
+
+/* Tablet on its side, laptop: like a control room. Mission and map key on the left, detections on the right, the
+   UAV card bottom centre; the survey area sits in the middle. */
+@media (min-width: 1024px) and (min-height: 600px) {
+  .field-hud {
+    grid-template-columns: 344px minmax(0, 1fr) 320px;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: none;
+  }
+  .hud-mission {
+    --dock: left;
+    grid-column: 1;
+    grid-row: 1 / 4;
+    align-self: start;
+    margin-bottom: 0;
+  }
+  .hud-key {
+    --dock: left;
+    grid-column: 1;
+    grid-row: 4;
+  }
+  .hud-status {
+    --dock: right;
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .hud-detections {
+    --dock: right;
+    grid-column: 3;
+    grid-row: 2;
+  }
+  .field-hud > .hud-nearest {
+    --dock: right;
+    grid-column: 3;
+    grid-row: 3;
+    align-self: start;
+    margin-top: 0;
+  }
+  .field-hud .drone-card {
+    --dock: bottom;
+    grid-column: 2;
+    grid-row: 4;
+    justify-self: center;
+    width: min(380px, 100%);
   }
 }
