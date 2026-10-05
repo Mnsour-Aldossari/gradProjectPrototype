@@ -8,18 +8,33 @@ import { useAuth } from './auth'
 export type ThemePref = 'light' | 'dark' | 'system'
 export type FontSizePref = 'small' | 'normal' | 'large'
 export type DensityPref = 'comfortable' | 'compact'
+/** Cards on the field map (the Map tab of /field) that the user can hide. */
+export type FieldPanel = 'mission' | 'detections' | 'nearest' | 'key' | 'drone'
+export interface FieldLayers {
+  labels: boolean // detection numbers next to their markers
+  guide: boolean // line from the user's position to the nearest detection
+}
 
 export interface Prefs {
   theme: ThemePref
   fontSize: FontSizePref
   density: DensityPref
+  fieldHidden: FieldPanel[]
+  fieldLayers: FieldLayers
 }
 
-export const DEFAULT_PREFS: Prefs = { theme: 'light', fontSize: 'normal', density: 'comfortable' }
+export const DEFAULT_PREFS: Prefs = {
+  theme: 'light',
+  fontSize: 'normal',
+  density: 'comfortable',
+  fieldHidden: [],
+  fieldLayers: { labels: true, guide: true },
+}
 
 const THEMES: ThemePref[] = ['light', 'dark', 'system']
 const FONT_SIZES: FontSizePref[] = ['small', 'normal', 'large']
 const DENSITIES: DensityPref[] = ['comfortable', 'compact']
+export const FIELD_PANELS: FieldPanel[] = ['mission', 'detections', 'nearest', 'key', 'drone']
 
 function pick<T extends string>(value: unknown, allowed: T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback
@@ -55,10 +70,18 @@ function parse(raw: string | null): Prefs {
   } catch {
     // unreadable entry: defaults
   }
+  const hidden = Array.isArray(stored.fieldHidden) ? (stored.fieldHidden as unknown[]) : []
+  const layers =
+    stored.fieldLayers && typeof stored.fieldLayers === 'object' ? (stored.fieldLayers as Record<string, unknown>) : {}
   return {
     theme: pick(stored.theme, THEMES, DEFAULT_PREFS.theme),
     fontSize: pick(stored.fontSize, FONT_SIZES, DEFAULT_PREFS.fontSize),
     density: pick(stored.density, DENSITIES, DEFAULT_PREFS.density),
+    fieldHidden: FIELD_PANELS.filter((p) => hidden.includes(p)),
+    fieldLayers: {
+      labels: typeof layers.labels === 'boolean' ? layers.labels : DEFAULT_PREFS.fieldLayers.labels,
+      guide: typeof layers.guide === 'boolean' ? layers.guide : DEFAULT_PREFS.fieldLayers.guide,
+    },
   }
 }
 
