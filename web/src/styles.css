@@ -344,6 +344,14 @@ textarea {
 .brand-mark svg {
   width: 18px;
 }
+/* The name stays on one line: at large text it shrinks to what the sidebar holds (about 10.6 px of width per px of
+   font size, plus the 44 px logo and gap) instead of wrapping. Browsers without container units keep the size above. */
+.brand {
+  container-type: inline-size;
+}
+.brand-text {
+  font-size: min(calc(15px * var(--text-scale)), calc((100cqi - 44px) / 10.6));
+}
 .brand-text small {
   display: block;
   font-weight: 500;
