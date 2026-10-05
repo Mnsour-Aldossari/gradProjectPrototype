@@ -88,6 +88,10 @@ class Simulation:
         for fs in flight:
             yield fs, self._sensors.sample(fs.x, fs.y, fs.alt_m)
 
+    def sensor_sample(self, x: float, y: float, height_m: float) -> SensorSample:
+        """Payload readings at a position flown by something else (PX4), over this scenario's buried objects."""
+        return self._sensors.sample(x, y, height_m)
+
 
 def build_simulation(config: SimulationConfig) -> Simulation:
     plan = plan_survey(config.area, config.line_spacing_m)
