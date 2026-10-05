@@ -2073,3 +2073,132 @@ td.miss {
     color: var(--ink);
   }
 }
+
+/* ---------- customize: mission page cards (CardFrame.tsx, MissionPage.tsx) ---------- */
+
+.cfg-card .card-head {
+  align-items: center;
+}
+.cfg-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.cfg-right > .small {
+  margin-right: 4px;
+  white-space: nowrap;
+}
+/* While customizing, the move and hide buttons take the place of the small status text. */
+.cfg-card.is-editing .cfg-right > .small {
+  display: none;
+}
+/* Small to look at; the negative margin keeps the heading as tall as before. */
+.cfg-tool {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: -5px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.cfg-tool svg {
+  width: 16px;
+  height: 16px;
+}
+.cfg-tool:hover:not(:disabled),
+.cfg-tool:focus-visible {
+  background: var(--tint-soft);
+  color: var(--ink);
+}
+.cfg-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cfg-fold svg {
+  transition: transform 0.15s;
+}
+.cfg-card.is-folded .cfg-fold svg {
+  transform: rotate(-90deg);
+}
+.cfg-open {
+  border: 0;
+  color: var(--ink);
+  font-family: var(--font);
+}
+.cfg-open svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+}
+.cfg-open[aria-pressed='true'] {
+  background: var(--nav-active-bg);
+  box-shadow: inset 0 0 0 1px var(--survey);
+  color: var(--survey);
+}
+.cfg-open[aria-pressed='true'] svg {
+  color: var(--survey);
+}
+.cfg-bar {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: calc(10px * var(--density)) 14px;
+  border: 1px dashed var(--survey);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--survey) 6%, var(--surface));
+}
+.cfg-bar > .small {
+  flex: 1 1 260px;
+  margin: 0;
+}
+.cfg-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cfg-chip {
+  padding: 5px 10px;
+  border: 1px solid var(--input-rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 calc(13px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.cfg-chip:hover {
+  border-color: var(--survey);
+  color: var(--survey);
+}
+.cfg-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.mp-summary {
+  display: grid;
+  gap: 6px;
+}
+.cfg-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+.cfg-row-head .small {
+  margin: 0;
+  font-weight: 600;
+}
+.mission-page.no-summary {
+  grid-template-rows: auto minmax(0, 1fr);
+}
