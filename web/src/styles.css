@@ -2884,7 +2884,8 @@ td.miss {
   .field-hud .hud-narrow {
     display: none;
   }
-  /* Tablet, upright: cards in pairs above and below the survey area; the UAV card keeps its place bottom right. */
+  /* Tablet, upright: cards in pairs above and below the survey area; the UAV card keeps its place bottom right.
+     Nearest spans both bottom rows, so it sits on the bottom edge next to the map key and the UAV card. */
   .field-hud {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto auto minmax(0, 1fr) auto auto;
@@ -2893,7 +2894,7 @@ td.miss {
       'mission detections'
       '. .'
       'nearest key'
-      '. drone';
+      'nearest drone';
     column-gap: 8px;
   }
   .field-hud > .hud-card,
