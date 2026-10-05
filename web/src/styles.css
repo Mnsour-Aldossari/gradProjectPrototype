@@ -3211,3 +3211,15 @@ td.miss {
     color: #fff;
   }
 }
+
+/* Taps: no wait for a possible double-tap zoom on controls, and no grey or blue flash; the pressed look is the
+   controls' own. Pinch zoom still works everywhere. */
+a,
+button,
+label,
+select,
+summary,
+[role='button'] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
