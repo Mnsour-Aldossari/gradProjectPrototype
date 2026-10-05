@@ -1,14 +1,15 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { CARD_ICONS, CardFrame, Glyph, type CardDrag } from '../components/CardFrame'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { SensorTrace } from '../components/SensorTrace'
+import { Splitter } from '../components/Splitter'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
 import { SurveyMap } from '../map/SurveyMap'
-import { DEFAULT_MISSION_LAYOUT, usePrefs, type MissionCard, type MissionHideable } from '../prefs'
+import { DEFAULT_MISSION_LAYOUT, MAP_HEIGHT, SIDE_WIDTH, usePrefs, type MissionCard, type MissionHideable } from '../prefs'
 import {
   CATEGORY_LABELS,
   SOIL_LABELS,
@@ -65,6 +66,9 @@ export function MissionPage() {
   const [editing, setEditing] = useState(false)
   const [dragId, setDragId] = useState<MissionCard | null>(null)
   const [dropAt, setDropAt] = useState<{ id: MissionCard; where: 'before' | 'after' } | null>(null)
+  // Sizes while a splitter is dragged; saved when the drag ends.
+  const [draftSize, setDraftSize] = useState<{ sideWidth?: number; mapHeight?: number }>({})
+  const gridRef = useRef<HTMLDivElement>(null)
   const { prefs, setMissionLayout } = usePrefs()
   const layout = prefs.layout.mission
 
@@ -224,6 +228,24 @@ export function MissionPage() {
   })
   const summaryShown = !layout.hidden.includes('summary')
 
+  const sideWidth = draftSize.sideWidth ?? layout.sideWidth ?? SIDE_WIDTH.initial
+  const mapHeight = draftSize.mapHeight ?? layout.mapHeight ?? MAP_HEIGHT.initial
+  // The map keeps at least 40% of the row, however wide the column is set.
+  const sideMax = Math.max(SIDE_WIDTH.min, Math.min(SIDE_WIDTH.max, Math.floor((gridRef.current?.clientWidth ?? 1e4) * 0.6)))
+  const sizeVars: Record<string, string> = {}
+  if (draftSize.sideWidth !== undefined || layout.sideWidth !== null) sizeVars['--side'] = `min(${sideWidth}px, 60%)`
+  if (draftSize.mapHeight !== undefined || layout.mapHeight !== null) sizeVars['--map-h'] = `${mapHeight}vh`
+  const resize = (key: 'sideWidth' | 'mapHeight') => ({
+    onChange: (value: number, done: boolean) => {
+      if (done) setMissionLayout({ [key]: value })
+      setDraftSize((d) => ({ ...d, [key]: done ? undefined : value }))
+    },
+    onReset: () => {
+      setMissionLayout({ [key]: null })
+      setDraftSize((d) => ({ ...d, [key]: undefined }))
+    },
+  })
+
   const cards: Record<MissionCard, ReactNode> = {
     flight: (
       <CardFrame
@@ -376,8 +398,8 @@ export function MissionPage() {
         {editing && (
           <div className="cfg-bar" role="region" aria-label="Customize this page">
             <p className="small">
-              Drag cards by their handle or move them with the arrows; fold or hide what you do not need. Saved on this
-              device for your account.
+              Drag cards by their handle or move them with the arrows; fold or hide what you do not need. Drag the blue
+              bar to resize. Saved on this device for your account.
             </p>
             {hidden.length > 0 && (
               <div className="cfg-hidden">
@@ -438,7 +460,31 @@ export function MissionPage() {
         </div>
       )}
 
-      <div className="mp-grid">
+      <div className="mp-grid" ref={gridRef} style={sizeVars as CSSProperties}>
+        {editing && (
+          <>
+            <Splitter
+              axis="columns"
+              label="Width of the cards column"
+              value={Math.min(sideWidth, sideMax)}
+              min={SIDE_WIDTH.min}
+              max={sideMax}
+              step={20}
+              pxPerUnit={() => 1}
+              {...resize('sideWidth')}
+            />
+            <Splitter
+              axis="rows"
+              label="Height of the map"
+              value={mapHeight}
+              min={MAP_HEIGHT.min}
+              max={MAP_HEIGHT.max}
+              step={5}
+              pxPerUnit={() => window.innerHeight / 100}
+              {...resize('mapHeight')}
+            />
+          </>
+        )}
         <div className="card map-card">
           <SurveyMap
             area={mission.area}

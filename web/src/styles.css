@@ -2247,3 +2247,65 @@ td.miss {
     display: none;
   }
 }
+
+/* Splitter (Splitter.tsx): column width on a laptop, map height on a phone. Shown in Customize mode. */
+.mp-grid {
+  position: relative;
+}
+.splitter {
+  position: absolute;
+  z-index: 1002; /* over the map's own controls */
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  border-radius: 8px;
+}
+.splitter-grip {
+  border-radius: 3px;
+  background: var(--survey);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--survey) 25%, transparent);
+  transition: transform 0.12s;
+}
+.splitter:hover .splitter-grip,
+.splitter:focus-visible .splitter-grip {
+  transform: scale(1.35);
+}
+.splitter:focus-visible {
+  outline: 2px solid var(--survey);
+  outline-offset: 2px;
+}
+/* Centred in the gap between the map and the column. */
+.splitter-columns {
+  top: 0;
+  bottom: 0;
+  right: calc(var(--side) + 8px * var(--density) - 9px);
+  width: 18px;
+  cursor: col-resize;
+}
+.splitter-columns .splitter-grip {
+  width: 5px;
+  height: 56px;
+}
+.splitter-rows {
+  display: none;
+  left: 0;
+  right: 0;
+  top: calc(var(--map-h, 58vh) + 8px * var(--density) - 11px);
+  height: 22px;
+  cursor: row-resize;
+}
+.splitter-rows .splitter-grip {
+  width: 64px;
+  height: 5px;
+}
+@media (max-width: 860px) {
+  .map-card {
+    height: var(--map-h, 58vh);
+  }
+  .splitter-columns {
+    display: none;
+  }
+  .splitter-rows {
+    display: grid;
+  }
+}
