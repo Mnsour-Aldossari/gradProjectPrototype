@@ -23,6 +23,7 @@ from .px4_plan import (
     PathProgress,
     Px4State,
     Waypoint,
+    WaypointTracker,
     build_frame,
     home_check,
     survey_waypoints,
@@ -31,6 +32,7 @@ from .source import TelemetryFrame
 
 DISCOVERY_TIMEOUT_S = 10.0  # how long to listen for PX4's heartbeat
 READY_TIMEOUT_S = 60.0  # GPS fix and home position, a few seconds after PX4 SITL starts
+ARMABLE_TIMEOUT_S = 15.0  # after switching to Hold
 LINK_TIMEOUT_S = 5.0  # no position from PX4 for this long ends the run
 FRAME_PERIOD_S = 0.2  # the simulator's dt_s, which the detector expects between readings
 RATE_HZ = 1 / FRAME_PERIOD_S
@@ -106,7 +108,7 @@ def _number(value: float | None, fallback: float) -> float:
 class Px4MavlinkSource:
     """Flies one mission on PX4. Call connect() first: it fails with Px4Unavailable before anything changes."""
 
-    def __init__(self, config: SimulationConfig, url: str = "udp://:14540") -> None:
+    def __init__(self, config: SimulationConfig, url: str = "udpin://0.0.0.0:14540") -> None:
         self.url = url
         self._sim = build_simulation(config)
         self._waypoints = survey_waypoints(self._sim)
@@ -116,13 +118,16 @@ class Px4MavlinkSource:
         """Find PX4, wait until it can fly, check the area is in reach and upload the survey."""
         if not mavsdk_installed():
             raise Px4Unavailable("PX4 support is not installed on the server: pip install -r requirements-px4.txt")
+        from mavsdk.asyncio.plugins.action import ActionAsync, ActionError
         from mavsdk.asyncio.plugins.mission import MissionAsync, MissionError, MissionPlan
         from mavsdk.asyncio.plugins.telemetry import TelemetryAsync
 
         system = await _connect(self.url)
         telemetry = TelemetryAsync(system)
         try:
-            await asyncio.wait_for(self._ready(telemetry), READY_TIMEOUT_S)
+            await asyncio.wait_for(
+                self._until(telemetry, lambda h: h.is_global_position_ok and h.is_home_position_ok), READY_TIMEOUT_S
+            )
         except TimeoutError as e:
             raise Px4Unavailable(
                 "PX4 has no GPS fix or home position yet. Wait until it has started, then try again."
@@ -137,13 +142,25 @@ class Px4MavlinkSource:
             await mission.upload_mission(MissionPlan([_mission_item(w) for w in self._waypoints]))
         except MissionError as e:
             raise Px4Unavailable(f"PX4 did not accept the survey: {e}") from e
+        # After a flight PX4 stays in Return (or Land) mode, where it refuses to arm; Hold mode can arm.
+        if (await telemetry.health()).is_armable is False:
+            with contextlib.suppress(ActionError):
+                await ActionAsync(system).hold()
+            try:
+                await asyncio.wait_for(self._until(telemetry, lambda h: h.is_armable is not False), ARMABLE_TIMEOUT_S)
+            except TimeoutError as e:
+                raise Px4Unavailable(
+                    "PX4 is not ready to arm: one of its preflight checks fails (see the PX4 console). Try again "
+                    "once it is fixed."
+                ) from e
         self._system = system
 
     @staticmethod
-    async def _ready(telemetry) -> None:
+    async def _until(telemetry, ok) -> None:
+        """Wait for a health report that passes ok()."""
         async with contextlib.aclosing(telemetry.subscribe_health()) as health:
             async for h in health:
-                if h.is_global_position_ok and h.is_home_position_ok and h.is_armable is not False:
+                if ok(h):
                     return
 
     async def frames(self) -> AsyncIterator[TelemetryFrame]:
@@ -170,7 +187,6 @@ class Px4MavlinkSource:
             "heading": telemetry.subscribe_heading(),
             "battery": telemetry.subscribe_battery(),
             "armed": telemetry.subscribe_armed(),
-            "progress": mission.subscribe_mission_progress(),
         }
         tasks = [asyncio.create_task(follow(name, stream)) for name, stream in streams.items()]
         for set_rate in (telemetry.set_rate_position, telemetry.set_rate_velocity_ned, telemetry.set_rate_battery):
@@ -186,7 +202,7 @@ class Px4MavlinkSource:
                 raise RuntimeError(f"PX4 did not start the survey: {e}") from e
 
             progress = PathProgress(self._sim.plan)
-            total_items = len(self._waypoints)
+            tracker = WaypointTracker(self._sim.plan)
             loop = asyncio.get_running_loop()
             start = loop.time()
             was_armed = False
@@ -197,7 +213,7 @@ class Px4MavlinkSource:
                     if pos is not None or loop.time() - start > LINK_TIMEOUT_S:
                         raise RuntimeError(f"Lost the link to PX4: no position for {LINK_TIMEOUT_S:.0f} s")
                     continue
-                vel, hdg, bat, mp = (latest.get(k) for k in ("velocity", "heading", "battery", "progress"))
+                vel, hdg, bat = (latest.get(k) for k in ("velocity", "heading", "battery"))
                 v_n = _number(getattr(vel, "north_m_s", None), 0.0)
                 v_e = _number(getattr(vel, "east_m_s", None), 0.0)
                 state = Px4State(
@@ -210,8 +226,8 @@ class Px4MavlinkSource:
                     v_down_m_s=_number(getattr(vel, "down_m_s", None), 0.0),
                     heading_deg=_number(getattr(hdg, "heading_deg", None), math.degrees(math.atan2(v_e, v_n)) % 360),
                     battery_pct=_number(getattr(bat, "remaining_percent", None), 100.0),
-                    current=mp.current if mp is not None else 0,
-                    total=mp.total if mp is not None and mp.total > 0 else total_items,
+                    current=tracker.update(*self._sim.frame.to_xy(pos.latitude_deg, pos.longitude_deg)),
+                    total=tracker.total,
                 )
                 yield build_frame(state, loop.time() - start, self._sim, progress)
                 if state.current >= state.total:

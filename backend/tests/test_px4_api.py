@@ -29,7 +29,7 @@ class FakePx4(SimulatedSource):
 
 class AbsentPx4(FakePx4):
     async def connect(self) -> None:
-        raise Px4Unavailable("No PX4 answered on udp://:14540 within 10 s. Start PX4 SITL and try again.")
+        raise Px4Unavailable("No PX4 answered on udpin://0.0.0.0:14540 within 10 s. Start PX4 SITL and try again.")
 
 
 def create(client, headers) -> int:
@@ -102,6 +102,6 @@ def test_real_mavsdk_reports_no_px4_quickly(monkeypatch):
         area=((24.13968, 47.26170), (24.13968, 47.26230), (24.13932, 47.26230), (24.13932, 47.26170)),
         altitude_m=1.5, speed_mps=2.0, line_spacing_m=2.0, soil_type="dry_sand", seed=1,
     )
-    source = Px4MavlinkSource(config, url="udp://:14597")
+    source = Px4MavlinkSource(config, url="udpin://0.0.0.0:14597")
     with pytest.raises(Px4Unavailable, match="No PX4 answered"):
         asyncio.run(source.connect())

@@ -70,6 +70,29 @@ class PathProgress:
         return along / self._total
 
 
+class WaypointTracker:
+    """Which waypoint PX4 is flying to, from its position: the mission is flown in order and PX4 stops within the
+    acceptance radius of each waypoint before the next. MAVSDK's mission progress came back empty from PX4 1.17
+    SITL (current -1, total 0), so this does not depend on it."""
+
+    def __init__(self, plan: SurveyPlan) -> None:
+        self._points = plan.waypoints_xy
+        shortest = min((math.dist(a, b) for a, b in zip(self._points, self._points[1:])), default=1.0)
+        # Wider than the acceptance radius, narrower than half the gap to the next waypoint.
+        self.arrival_m = min(ACCEPTANCE_RADIUS_M + 0.3, 0.45 * shortest)
+        self.current = 0
+
+    @property
+    def total(self) -> int:
+        return len(self._points)
+
+    def update(self, x: float, y: float) -> int:
+        """Advance past the waypoint being flown to once PX4 reaches it; one waypoint per position report."""
+        if self.current < self.total and math.dist((x, y), self._points[self.current]) <= self.arrival_m:
+            self.current += 1
+        return self.current
+
+
 @dataclass(frozen=True)
 class Px4State:
     """The latest values PX4 reported, one per telemetry stream."""

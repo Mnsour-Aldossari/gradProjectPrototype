@@ -11,6 +11,7 @@ from app.uav.px4_plan import (
     ACCEPTANCE_RADIUS_M,
     PathProgress,
     Px4State,
+    WaypointTracker,
     build_frame,
     distance_m,
     home_check,
@@ -97,3 +98,38 @@ def test_sensors_see_the_buried_objects_at_px4_position(sim):
     over = build_frame(state(sim, metal.x, metal.y, 1), 1, sim, progress).sensor.md
     away = [build_frame(state(sim, metal.x + 15, metal.y, 1), 1, sim, progress).sensor.md for _ in range(5)]
     assert over > 3 * max(away)
+
+
+def walk(points, step_m=0.2):
+    """Positions every step_m along the waypoints, as PX4 would report them flying the path."""
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        n = max(1, int(math.dist((x0, y0), (x1, y1)) / step_m))
+        for k in range(n):
+            yield x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n
+    yield points[-1]
+
+
+def test_tracker_follows_the_waypoints_in_order(sim):
+    tracker = WaypointTracker(sim.plan)
+    seen = [tracker.update(x, y) for x, y in walk(sim.plan.waypoints_xy)]
+    assert seen == sorted(seen)  # never goes back
+    assert set(seen) == set(range(1, tracker.total + 1))  # every waypoint, none skipped
+    assert seen[-1] == tracker.total  # the last one reached: finished
+
+
+def test_tracker_waits_for_the_vehicle_to_arrive(sim):
+    tracker = WaypointTracker(sim.plan)
+    x0, y0 = sim.plan.waypoints_xy[0]
+    assert tracker.update(x0 - 5, y0) == 0  # taking off away from the first waypoint
+    assert tracker.update(x0 - 0.3, y0) == 1  # within the acceptance radius
+    assert tracker.update(x0 - 0.3, y0) == 1  # hovering there does not skip the lane
+
+
+def test_tracker_on_closely_spaced_lanes():
+    tight = build_simulation(
+        SimulationConfig(area=DEMO_AREA, altitude_m=1.5, speed_mps=2.0, line_spacing_m=0.5, soil_type="dry_sand", seed=1)
+    )
+    tracker = WaypointTracker(tight.plan)
+    assert tracker.arrival_m < 0.25  # less than half the 0.5 m gap between lane ends
+    seen = [tracker.update(x, y) for x, y in walk(tight.plan.waypoints_xy, step_m=0.1)]
+    assert set(seen) == set(range(1, tracker.total + 1))
