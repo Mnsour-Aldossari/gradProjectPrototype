@@ -7,7 +7,7 @@ import { DetectionDetail } from '../components/DetectionDetail'
 import { DisplayMenu } from '../components/DisplayMenu'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
-import { SurveyMap } from '../map/SurveyMap'
+import { SurveyMap, type FitPadding } from '../map/SurveyMap'
 import { COLORS } from '../theme'
 import {
   CATEGORY_LABELS,
@@ -18,16 +18,12 @@ import {
   type LatLon,
   type Mission,
 } from '../types'
+import { FieldMapInfo } from './FieldMapInfo'
 import { bearing, centre, distanceM, FAR_FROM_AREA_M, formatDistance, testPosition } from './geo'
+import type { Ranked } from './mapInfo'
 import { useDeviceLocation } from './useLocation'
 
 type Tab = 'map' | 'alerts' | 'status'
-
-interface Ranked {
-  detection: Detection
-  distance: number
-  direction: string
-}
 
 function NavIcon({ tab }: { tab: Tab }) {
   if (tab === 'map')
@@ -118,6 +114,8 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
   const [tab, setTab] = useState<Tab>('map')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [toast, setToast] = useState<Detection | null>(null)
+  // What the cards over the map cover, so the survey area is fitted into the free part.
+  const [insets, setInsets] = useState<FitPadding | undefined>(undefined)
 
   const latestAlert = state.alerts[0]
   useEffect(() => {
@@ -208,6 +206,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           detections={reported}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          fitPadding={insets}
         >
           {info.kind === 'real' && device.status === 'ok' && (
             <>
@@ -224,32 +223,18 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           )}
         </SurveyMap>
 
-        {tab === 'map' && info.kind === 'test' && <span className="test-badge test-badge-float">Test location</span>}
-
         {tab === 'map' && (
-          <section className="drone-card" aria-label="UAV status">
-            <div className="drone-card-head">
-              <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
-              <span className="num">{progress}% of path</span>
-            </div>
-            <div className="progress dark" aria-hidden="true">
-              <div style={{ width: `${progress}%` }} />
-            </div>
-            <dl>
-              <div>
-                <dt>Battery</dt>
-                <dd className={`num${t && t.battery_pct < 25 ? ' warn' : ''}`}>{t ? `${t.battery_pct}%` : '–'}</dd>
-              </div>
-              <div>
-                <dt>Height</dt>
-                <dd className="num">{t ? `${t.relative_alt_m.toFixed(1)} m` : '–'}</dd>
-              </div>
-              <div>
-                <dt>Nearest</dt>
-                <dd className="num">{ranked[0] ? `${formatDistance(ranked[0].distance)} ${ranked[0].direction}` : '–'}</dd>
-              </div>
-            </dl>
-          </section>
+          <FieldMapInfo
+            mission={mission}
+            telemetry={t}
+            connection={state.connection}
+            reported={reported}
+            ranked={ranked}
+            testLocation={info.kind === 'test'}
+            onOpen={setSelectedId}
+            onSeeAll={() => setTab('alerts')}
+            onInsets={setInsets}
+          />
         )}
 
         {tab === 'alerts' && (
