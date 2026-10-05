@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { usePrefs, type Prefs } from '../prefs'
 
-// The menu's settings; the page layout in Prefs is set on the pages themselves.
+// The menu's settings; the page layout and the field-map cards in Prefs are set on the pages themselves.
 type ChoiceKey = 'theme' | 'fontSize' | 'density'
 
 interface Group<K extends ChoiceKey> {
