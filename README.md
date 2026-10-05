@@ -166,6 +166,10 @@ Works (implemented and tested with PyTest and/or in the browser):
 - Display settings: light, dark or device theme, small / normal / large text and comfortable / compact density,
   chosen under **Display** (in the sidebar, or on the Status tab of `/field`) and saved per user in the browser on
   that device; **Reset to default** restores them. They change the look only, never what a user can see.
+- Page layout, saved the same way: **Collapse menu** folds the sidebar to icons; on a mission page **Customize**
+  reorders (drag or arrows), folds and hides the cards and resizes the column or the map, and **Expand map** gives the
+  map the whole page. Flight cannot be hidden, so Start survey stays reachable; **Reset this page** and
+  **Reset to default** undo it.
 
 Not working, not run, or only partly checked:
 
