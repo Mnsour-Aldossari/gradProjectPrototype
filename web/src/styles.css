@@ -2048,6 +2048,7 @@ td.miss {
 .hud-card {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* a long name shortens with "…" instead of widening the card */
   gap: calc(5px * var(--density));
   padding: calc(7px * var(--density)) 10px calc(9px * var(--density));
   border-radius: 10px;
@@ -2078,10 +2079,13 @@ td.miss {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: normal;
 }
 .hud-name {
   font-size: calc(14.5px * var(--text-scale));
   font-weight: 700;
+  white-space: normal; /* the full mission name, on two lines if the text is large */
+  overflow-wrap: anywhere;
 }
 /* Small to look at, 32 px to press. */
 .hud-hide {
