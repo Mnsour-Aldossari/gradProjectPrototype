@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { formatDuration } from '../format'
 import type { LiveState } from '../live'
 import type { FitPadding } from '../map/SurveyMap'
@@ -16,8 +16,11 @@ const PANEL_NAMES: Record<FieldPanel, string> = {
   drone: 'UAV status card',
 }
 
-// Cards at the top of the phone layout; the first one shown steps aside for the map's zoom buttons.
+// Cards at the top of the tablet and laptop layouts; the first one shown steps aside for the map's zoom buttons.
+// On a phone the summary line takes that place (styles.css).
 const TOP_PANELS: FieldPanel[] = ['mission', 'detections']
+
+const SAFETY = 'Potential detections only. Do not enter the area based on this screen.'
 
 // Space kept around the survey area inside the part of the map the cards leave free.
 const FIT_MARGIN = 12
@@ -113,6 +116,10 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
   const firstTop = TOP_PANELS.find(shown)
   const hudRef = useRef<HTMLDivElement>(null)
   const onInsetsRef = useRef(onInsets)
+  // Phone only: the full mission and count cards under the summary line, and the map key. Not saved; a phone
+  // starts with the map as clear as possible.
+  const [open, setOpen] = useState(false)
+  const [keyOpen, setKeyOpen] = useState(false)
 
   useLayoutEffect(() => {
     onInsetsRef.current = onInsets
@@ -148,7 +155,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
     observer.observe(hud)
     for (const el of hud.querySelectorAll<HTMLElement>('[data-dock]')) observer.observe(el)
     return () => observer.disconnect()
-  }, [hidden.join(','), testLocation])
+  }, [hidden.join(','), testLocation, open, keyOpen])
 
   const progress = Math.round(mission.progress * 100)
   const { lane, lanes } = laneProgress(mission, t)
@@ -156,7 +163,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
   const nearest = ranked[0]
 
   return (
-    <div className="field-hud" ref={hudRef}>
+    <div className={`field-hud${open ? ' is-open' : ''}${keyOpen ? ' key-open' : ''}`} ref={hudRef}>
       <div className="hud-status" data-dock>
         {hidden.length > 0 && (
           <button type="button" className="hud-restore" onClick={() => setPrefs({ fieldHidden: [] })}>
@@ -191,8 +198,61 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
             <span className="hud-layer-name">Line to nearest</span>
           </button>
         </div>
+        {shown('key') && (
+          <button
+            type="button"
+            className="hud-keybtn"
+            aria-expanded={keyOpen}
+            aria-controls="hud-key"
+            onClick={() => setKeyOpen((o) => !o)}
+          >
+            Key
+          </button>
+        )}
         {testLocation && <span className="test-badge">Test location</span>}
       </div>
+
+      {(shown('mission') || shown('detections')) && (
+        <button type="button" className="hud-card hud-summary hud-clear-zoom" data-dock aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <span className="hud-sum-text">
+            {shown('mission') && (
+              <>
+                <b className="hud-sum-name">{mission.name}</b>
+                <span className="hud-sum-line num">
+                  {lanes > 0 && (lane === null ? `${lanes} lanes` : `Lane ${lane}/${lanes}`)}
+                  {lanes > 0 && ' · '}
+                  {formatDuration(remainingS(mission, t))} left
+                  {/* The link chip is in the folded mission card, so the summary says when the link is not live. */}
+                  {connection !== 'open' && <span className={`hud-sum-link hud-link-${connection}`}> · {LINK_LABELS[connection]}</span>}
+                </span>
+              </>
+            )}
+          </span>
+          {shown('detections') && (
+            <span className="hud-sum-counts num">
+              <span>
+                <MarkerGlyph category="high" />
+                {counts.high}
+                <span className="hud-sr"> {CATEGORY_LABELS.high}</span>
+              </span>
+              <span>
+                <MarkerGlyph category="suspect" />
+                {counts.suspect}
+                <span className="hud-sr"> {CATEGORY_LABELS.suspect}</span>
+              </span>
+              <span>
+                <span aria-hidden="true">✓</span>
+                {counts.verified}/{counts.total}
+                <span className="hud-sr"> verified</span>
+              </span>
+            </span>
+          )}
+          <span className="hud-sr">{open ? 'Hide details' : 'Show details'}</span>
+          <svg className="hud-sum-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      )}
 
       {shown('mission') && (
         <section className={`hud-card hud-mission${firstTop === 'mission' ? ' hud-clear-zoom' : ''}`} data-dock aria-label="Mission">
@@ -303,7 +363,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
       )}
 
       {shown('key') && (
-        <section className="hud-card hud-key" data-dock aria-label="Map key">
+        <section className="hud-card hud-key" id="hud-key" data-dock aria-label="Map key">
           <div className="hud-head">
             <h2 className="hud-title">Map key</h2>
             <HideButton panel="key" />
@@ -332,7 +392,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
               <i className="hud-area" aria-hidden="true" /> Survey area
             </li>
           </ul>
-          <p className="hud-safety">Potential detections only. Do not enter the area based on this screen.</p>
+          <p className="hud-safety">{SAFETY}</p>
         </section>
       )}
 
@@ -360,6 +420,10 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
               <dd className="num">{nearest ? `${formatDistance(nearest.distance)} ${nearest.direction}` : '–'}</dd>
             </div>
           </dl>
+          {/* On a phone the map key is closed at first, so the safety line shows here instead. */}
+          <p className="hud-safety hud-safety-drone">
+            <span className="hud-chip hud-sim">Simulated data</span> {SAFETY}
+          </p>
         </section>
       )}
     </div>

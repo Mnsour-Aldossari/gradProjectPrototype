@@ -2607,3 +2607,133 @@ td.miss {
     grid-template-columns: 290px minmax(0, 1fr) 270px;
   }
 }
+
+/* ---------- field map info, phone: summary line, Key button (FieldMapInfo.tsx) ---------- */
+
+/* The summary line is the phone's folded form of the mission and count cards; tapping it opens them below. */
+.hud-summary {
+  --dock: top;
+  grid-area: summary;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: calc(6px * var(--density));
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hud-sum-text {
+  display: grid;
+  min-width: 0;
+}
+.hud-sum-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(14px * var(--text-scale));
+}
+.hud-sum-line {
+  color: #b7c1b8;
+  font-size: calc(12px * var(--text-scale));
+  white-space: nowrap;
+}
+.hud-sum-counts {
+  display: flex;
+  gap: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hud-sum-counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.hud-sum-chevron {
+  width: 18px;
+  height: 18px;
+  color: #b7c1b8;
+  transition: transform 0.15s;
+}
+.hud-summary[aria-expanded='true'] .hud-sum-chevron {
+  transform: rotate(180deg);
+}
+.hud-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.hud-keybtn {
+  min-height: 32px;
+  padding: 2px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25), 0 4px 14px rgb(0 0 0 / 0.25);
+  color: #fff;
+  font: 600 calc(11.5px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.hud-keybtn[aria-expanded='true'] {
+  box-shadow: inset 0 0 0 1.5px #8fb8ee, 0 4px 14px rgb(0 0 0 / 0.25);
+}
+.hud-safety-drone {
+  margin-top: 6px;
+}
+@media (max-width: 699px) {
+  .field-hud {
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'status'
+      'summary'
+      'mission'
+      'detections'
+      '.'
+      'nearest'
+      'key'
+      'drone';
+  }
+  /* Folded: the summary line stands for these two; the map key waits for its button. */
+  .field-hud:not(.is-open) .hud-mission,
+  .field-hud:not(.is-open) .hud-detections,
+  .field-hud:not(.key-open) .hud-key {
+    display: none;
+  }
+  /* The summary line steps aside for the zoom buttons; the cards that open under it are already below them. */
+  .field-hud .hud-mission.hud-clear-zoom,
+  .field-hud .hud-detections.hud-clear-zoom {
+    margin-left: 0;
+  }
+  /* The safety line shows once: in the map key when it is open, otherwise in the UAV card. */
+  .field-hud.key-open .hud-safety-drone {
+    display: none;
+  }
+  /* Number above distance in all three: on one line they need about 110 px each, more than most phones give them. */
+  .hud-near button {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+  }
+}
+.hud-sum-link {
+  color: #fdb022;
+  font-weight: 600;
+}
+.hud-sum-link.hud-link-failed {
+  color: #ff9d92;
+}
+.hud-safety-drone .hud-chip {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+@media (min-width: 700px) {
+  .hud-summary,
+  .hud-keybtn,
+  .hud-safety-drone {
+    display: none;
+  }
+}
