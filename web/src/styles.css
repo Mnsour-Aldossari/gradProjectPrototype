@@ -1146,16 +1146,6 @@ textarea {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .toast {
-    animation: none;
-  }
-  .progress > div,
-  .uav-icon svg {
-    transition: none;
-  }
-}
-
 /* ---------- evaluation ---------- */
 
 .evaluation {
@@ -3166,4 +3156,17 @@ td.miss {
 .toggle:has(input:focus-visible) {
   outline: 2px solid var(--survey);
   outline-offset: 2px;
+}
+
+/* Reduced motion, for everything above and Leaflet's zoom: last in the file, so no later rule undoes it. Durations
+   become near zero rather than none, so code waiting for a transition's end still gets it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
