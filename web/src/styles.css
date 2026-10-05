@@ -1565,7 +1565,8 @@ td.miss {
   inset: 0;
   z-index: 2000;
   overflow-y: auto;
-  padding: calc(16px + env(safe-area-inset-top)) 16px 28px;
+  overscroll-behavior: contain; /* scrolling the sheet never drags the page behind it */
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
   background: var(--surface);
 }
 .field-toast {
