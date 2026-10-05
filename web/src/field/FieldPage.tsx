@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Circle, CircleMarker, Tooltip } from 'react-leaflet'
+import { Circle, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -8,6 +8,7 @@ import { DisplayMenu } from '../components/DisplayMenu'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
 import { SurveyMap, type FitPadding } from '../map/SurveyMap'
+import { usePrefs } from '../prefs'
 import { COLORS } from '../theme'
 import {
   CATEGORY_LABELS,
@@ -107,6 +108,7 @@ function LocationNote({ info, canUseReal, canUseTest, onChoose }: {
 
 function FieldMission({ missionId, missions }: { missionId: number; missions: Mission[] }) {
   const { user, logout } = useAuth()
+  const { prefs } = usePrefs()
   const navigate = useNavigate()
   const { state, replaceDetection, reconnect } = useMissionLive(missionId)
   const device = useDeviceLocation()
@@ -207,11 +209,32 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           selectedId={selectedId}
           onSelect={setSelectedId}
           fitPadding={insets}
+          labelDetections={tab === 'map' && prefs.fieldLayers.labels}
         >
           {info.kind === 'real' && device.status === 'ok' && (
             <>
               <Circle center={device.position} radius={device.accuracyM} interactive={false} pathOptions={{ color: COLORS.survey, weight: 1, fillOpacity: 0.08 }} />
               <CircleMarker center={device.position} radius={7} interactive={false} pathOptions={{ color: '#ffffff', weight: 2.5, fillColor: COLORS.survey, fillOpacity: 1 }} />
+            </>
+          )}
+          {tab === 'map' && prefs.fieldLayers.guide && info.kind !== 'centre' && origin && ranked[0] && (
+            <>
+              {/* Line from where the user stands to the nearest potential detection, with the distance below it
+                  (the Test location label sits above the starting point). */}
+              <Polyline
+                positions={[origin, [ranked[0].detection.lat, ranked[0].detection.lon]]}
+                interactive={false}
+                pathOptions={{ color: COLORS.ink, weight: 5, opacity: 0.45, lineCap: 'round' }}
+              />
+              <Polyline
+                positions={[origin, [ranked[0].detection.lat, ranked[0].detection.lon]]}
+                interactive={false}
+                pathOptions={{ color: COLORS.white, weight: 2.5, opacity: 0.95, dashArray: '1 7', lineCap: 'round' }}
+              >
+                <Tooltip permanent direction="bottom" offset={[0, 6]} className="guide-label" interactive={false}>
+                  {formatDistance(ranked[0].distance)} {ranked[0].direction}
+                </Tooltip>
+              </Polyline>
             </>
           )}
           {info.kind === 'test' && testPos && (

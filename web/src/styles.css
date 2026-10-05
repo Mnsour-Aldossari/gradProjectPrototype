@@ -2357,6 +2357,70 @@ td.miss {
   font-weight: 600;
 }
 
+/* map layers: their toggles sit in the map key, drawn like the layer they switch */
+.hud-layers {
+  gap: 4px 6px;
+}
+.hud-layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 9px 2px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25);
+  color: #b7c1b8;
+  font: 600 calc(11.5px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.hud-layer::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px #b7c1b8;
+}
+.hud-layer[aria-pressed='true'] {
+  background: rgb(143 184 238 / 0.18);
+  box-shadow: inset 0 0 0 1px #8fb8ee;
+  color: #fff;
+}
+.hud-layer[aria-pressed='true']::before {
+  background: #8fb8ee
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%231d2a24' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+  box-shadow: none;
+}
+.hud-layer-sample {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgb(29 42 36 / 0.95);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+  color: #fff;
+  font-size: calc(10.5px * var(--text-scale));
+}
+.hud-guide {
+  width: 18px;
+  border-top: 2.5px dotted #fff;
+}
+/* Labels drawn on the map: detection numbers and the distance on the guide line. */
+.leaflet-tooltip.det-label,
+.leaflet-tooltip.guide-label {
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  color: #fff;
+  font: 700 12px/1.5 var(--font);
+}
+.leaflet-tooltip.det-label::before,
+.leaflet-tooltip.guide-label::before {
+  display: none;
+}
+
 /* Phones: titles stay for screen readers, the hide button moves to the corner and the mission card is shorter. */
 @media (max-width: 699px) {
   .hud-detections,

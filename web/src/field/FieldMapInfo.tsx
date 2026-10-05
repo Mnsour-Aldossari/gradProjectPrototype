@@ -310,6 +310,28 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
               <i className="hud-area" aria-hidden="true" /> Survey area
             </li>
           </ul>
+          <ul className="hud-legend hud-layers" aria-label="Map layers">
+            <li>
+              <button
+                type="button"
+                className="hud-layer"
+                aria-pressed={prefs.fieldLayers.labels}
+                onClick={() => setPrefs({ fieldLayers: { ...prefs.fieldLayers, labels: !prefs.fieldLayers.labels } })}
+              >
+                <span className="hud-layer-sample">#6</span> Detection numbers
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                className="hud-layer"
+                aria-pressed={prefs.fieldLayers.guide}
+                onClick={() => setPrefs({ fieldLayers: { ...prefs.fieldLayers, guide: !prefs.fieldLayers.guide } })}
+              >
+                <i className="hud-guide" aria-hidden="true" /> Line to nearest
+              </button>
+            </li>
+          </ul>
           <p className="hud-safety">Potential detections only. Do not enter the area based on this screen.</p>
         </section>
       )}
