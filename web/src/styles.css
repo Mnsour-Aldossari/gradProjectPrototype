@@ -266,6 +266,7 @@ textarea {
 .field-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  align-items: end; /* a label on two lines ("Lane spacing (m)") keeps its box level with the others */
   gap: 10px;
 }
 
