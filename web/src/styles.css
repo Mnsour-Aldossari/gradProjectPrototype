@@ -3152,3 +3152,18 @@ td.miss {
     display: none;
   }
 }
+
+/* ---------- interface guidelines review: focus, motion, hover, touch ---------- */
+
+/* Focus on the dark map cards: the theme blue is too dark there (under 3:1); the cards' light blue is about 7:1. */
+.field-hud :focus-visible {
+  outline-color: #8fb8ee;
+}
+/* A labelled checkbox pill rings as a whole, not just its small box. */
+.toggle input:focus-visible {
+  outline: none;
+}
+.toggle:has(input:focus-visible) {
+  outline: 2px solid var(--survey);
+  outline-offset: 2px;
+}
