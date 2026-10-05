@@ -2549,7 +2549,7 @@ td.miss {
 
 /* Tablet on its side, laptop: like a control room. Mission and map key on the left, detections on the right, the
    UAV card bottom centre; the survey area sits in the middle. */
-@media (min-width: 1024px) and (min-height: 600px) {
+@media (min-width: 1024px) and (min-height: 650px), (min-width: 700px) and (max-height: 649px) {
   .field-hud {
     grid-template-columns: 344px minmax(0, 1fr) 320px;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -2591,5 +2591,18 @@ td.miss {
     grid-row: 4;
     justify-self: center;
     width: min(380px, 100%);
+  }
+  .field-hud .drone-card {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .field-hud .drone-card dd {
+    font-size: calc(17px * var(--text-scale));
+  }
+}
+@media (min-width: 700px) and (max-width: 1023px) and (max-height: 649px) {
+  .field-hud {
+    grid-template-columns: 290px minmax(0, 1fr) 270px;
   }
 }
