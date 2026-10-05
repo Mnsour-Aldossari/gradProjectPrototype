@@ -713,11 +713,16 @@ textarea {
 .swatch-baseline {
   border: 2px dashed var(--ink);
 }
+/* As drawn on the map: a pale band (white at 45%) over the ground, with the blue flight line through it. The sand
+   colour stands in for the satellite image, so the band shows on a white or a dark legend too. */
 .swatch-swath {
   width: 18px;
   height: 10px;
-  background: rgb(255 255 255 / 0.6);
-  border-top: 2px solid var(--survey);
+  border-radius: 2px;
+  background:
+    linear-gradient(#1f5fad, #1f5fad) center / 100% 2px no-repeat, /* the map's line colour (COLORS.survey), same in both themes */
+    linear-gradient(rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.45)),
+    #a39065;
 }
 
 /* ---------- map overlays ---------- */
@@ -1789,9 +1794,6 @@ td.miss {
 /* Above Leaflet's zoom buttons (z-index 1000), which used to draw over it on narrow maps. */
 .map-card .toast {
   z-index: 1001;
-}
-.map-card .swatch-swath {
-  background: color-mix(in srgb, var(--survey) 25%, transparent);
 }
 .mp-col {
   min-height: 0;
