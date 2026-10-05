@@ -544,10 +544,12 @@ textarea {
   border-radius: 4px;
   overflow: hidden;
 }
+/* The fill is scaled, not resized: the browser moves it without laying the page out again. */
 .progress > div {
   height: 100%;
   background: var(--survey);
-  transition: width 0.3s linear;
+  transform-origin: left;
+  transition: transform 0.3s linear;
 }
 
 .start {

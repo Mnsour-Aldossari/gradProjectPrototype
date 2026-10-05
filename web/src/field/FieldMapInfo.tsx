@@ -267,7 +267,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
             <span className="hud-narrow num">{formatDuration(remainingS(mission, t))} left</span>
           </div>
           <div className="progress dark" aria-hidden="true">
-            <div style={{ width: `${progress}%` }} />
+            <div style={{ transform: `scaleX(${progress / 100})` }} />
           </div>
           <dl className="hud-facts">
             <div className="hud-wide">
@@ -404,7 +404,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
             <HideButton panel="drone" />
           </div>
           <div className="progress dark" aria-hidden="true">
-            <div style={{ width: `${progress}%` }} />
+            <div style={{ transform: `scaleX(${progress / 100})` }} />
           </div>
           <dl>
             <div>

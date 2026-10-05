@@ -276,7 +276,7 @@ export function MissionPage() {
               <span className="num">{progress}% of path</span>
             </div>
             <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
-              <div style={{ width: `${mission.progress * 100}%` }} />
+              <div style={{ transform: `scaleX(${mission.progress})` }} />
             </div>
             {mission.error && <p className="error">{mission.error}</p>}
             {canStart && (
