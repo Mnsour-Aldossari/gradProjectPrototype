@@ -561,6 +561,10 @@ textarea {
   flex-wrap: wrap;
   margin-top: calc(4px * var(--density));
 }
+.start-note {
+  flex: 1 1 160px;
+  margin: 0;
+}
 
 .telemetry {
   display: grid;

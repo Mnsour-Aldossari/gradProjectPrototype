@@ -18,6 +18,7 @@ import {
   type Category,
   type ConditionProfile,
   type Detection,
+  type UavSource,
 } from '../types'
 
 const SPEEDS = [1, 5, 10, 20]
@@ -58,6 +59,9 @@ export function MissionPage() {
   const [showClutter, setShowClutter] = useState(false)
   const [showBaseline, setShowBaseline] = useState(false)
   const [speedFactor, setSpeedFactor] = useState(10)
+  const [flyWith, setFlyWith] = useState<UavSource>('simulated')
+  // Whether the server can talk to PX4 at all (MAVSDK installed); whether PX4 runs shows when the survey starts.
+  const [px4Available, setPx4Available] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [toast, setToast] = useState<Detection | null>(null)
@@ -92,6 +96,12 @@ export function MissionPage() {
     document.addEventListener('keydown', escape)
     return () => document.removeEventListener('keydown', escape)
   }, [expanded])
+
+  useEffect(() => {
+    api<{ px4_available?: boolean }>('/api/health')
+      .then((h) => setPx4Available(h.px4_available === true))
+      .catch(() => setPx4Available(false))
+  }, [])
 
   useEffect(() => {
     api<ConditionProfile>(`/api/missions/${missionId}/profile`).then(setProfile).catch(() => setProfile(null))
@@ -153,7 +163,9 @@ export function MissionPage() {
     setStarting(true)
     setStartError(null)
     try {
-      await api(`/api/missions/${missionId}/start`, { method: 'POST', body: { speed_factor: speedFactor } })
+      // PX4 flies in real time; the playback speed is the simulator's.
+      const body = flyWith === 'px4' ? { uav_source: flyWith } : { uav_source: flyWith, speed_factor: speedFactor }
+      await api(`/api/missions/${missionId}/start`, { method: 'POST', body })
     } catch (e) {
       setStartError(e instanceof Error ? e.message : 'Could not start the survey')
     } finally {
@@ -268,7 +280,7 @@ export function MissionPage() {
     flight: (
       <CardFrame
         {...frame('flight')}
-        aside={<span className="small">{linkLabel}</span>}
+        aside={<span className="small">{mission.uav_source === 'px4' ? `PX4 SITL · ${linkLabel}` : linkLabel}</span>}
         keep={
           <>
             <div className="row spread">
@@ -282,17 +294,33 @@ export function MissionPage() {
             {canStart && (
               <div className="start">
                 <label className="field inline">
-                  <span>Playback speed</span>
-                  <select value={speedFactor} onChange={(e) => setSpeedFactor(Number(e.target.value))}>
-                    {SPEEDS.map((s) => (
-                      <option key={s} value={s}>
-                        {s === 1 ? 'Real time' : `${s}× faster`}
-                      </option>
-                    ))}
+                  <span>Fly with</span>
+                  <select value={flyWith} onChange={(e) => setFlyWith(e.target.value as UavSource)}>
+                    <option value="simulated">Built-in simulator</option>
+                    <option value="px4" disabled={!px4Available}>
+                      {px4Available ? 'PX4 SITL' : 'PX4 SITL (not installed on the server)'}
+                    </option>
                   </select>
                 </label>
+                {flyWith === 'simulated' ? (
+                  <label className="field inline">
+                    <span>Playback speed</span>
+                    <select value={speedFactor} onChange={(e) => setSpeedFactor(Number(e.target.value))}>
+                      {SPEEDS.map((s) => (
+                        <option key={s} value={s}>
+                          {s === 1 ? 'Real time' : `${s}× faster`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="small start-note">
+                    PX4 flies in real time: about {Math.max(1, Math.round(mission.estimated_duration_s / 60))} min for
+                    this survey.
+                  </p>
+                )}
                 <button type="button" className="button" disabled={starting} onClick={start}>
-                  {starting ? 'Starting' : 'Start survey'}
+                  {starting ? (flyWith === 'px4' ? 'Connecting to PX4…' : 'Starting') : 'Start survey'}
                 </button>
               </div>
             )}

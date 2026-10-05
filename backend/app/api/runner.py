@@ -61,6 +61,7 @@ def mission_event(mission: Mission) -> dict:
     return {
         "type": "mission",
         "status": mission.status,
+        "uav_source": mission.uav_source,
         "progress": mission.progress,
         "battery_pct": mission.battery_pct,
         "error": mission.error,

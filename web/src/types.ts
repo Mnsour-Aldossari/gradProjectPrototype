@@ -18,6 +18,9 @@ export interface MissionStats {
   detections: number
 }
 
+/** What flies a survey: the built-in simulator, or PX4 (SITL + Gazebo) over MAVLink. */
+export type UavSource = 'simulated' | 'px4'
+
 export interface Mission {
   id: number
   name: string
@@ -30,6 +33,7 @@ export interface Mission {
   soil_type: SoilType
   scenario_seed: number
   status: MissionStatus
+  uav_source: UavSource
   progress: number
   battery_pct: number | null
   error: string | null
