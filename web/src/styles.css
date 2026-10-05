@@ -2309,3 +2309,48 @@ td.miss {
     display: grid;
   }
 }
+
+/* Expand map (MissionPage.tsx): a button under the zoom buttons; the map takes the summary's and the column's room. */
+.map-expand {
+  position: absolute;
+  top: 86px;
+  left: 10px;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid rgb(0 0 0 / 0.2);
+  border-radius: 4px;
+  background: var(--raised);
+  background-clip: padding-box;
+  color: var(--ink);
+  cursor: pointer;
+}
+.map-expand svg {
+  width: 16px;
+  height: 16px;
+}
+.map-expand:hover {
+  background-color: var(--tint-soft);
+}
+.map-expand[aria-pressed='true'] {
+  background-color: var(--survey-fill);
+  color: #fff;
+}
+.mission-page.map-expanded {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.map-expanded .mp-summary,
+.map-expanded .mp-col {
+  display: none;
+}
+.map-expanded .mp-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 860px) {
+  .map-expanded .map-card {
+    height: 82vh;
+  }
+}

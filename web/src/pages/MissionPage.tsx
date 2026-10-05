@@ -69,6 +69,8 @@ export function MissionPage() {
   // Sizes while a splitter is dragged; saved when the drag ends.
   const [draftSize, setDraftSize] = useState<{ sideWidth?: number; mapHeight?: number }>({})
   const gridRef = useRef<HTMLDivElement>(null)
+  // The map over the whole page; not saved, a reload shows the page as customized.
+  const [expanded, setExpanded] = useState(false)
   const { prefs, setMissionLayout } = usePrefs()
   const layout = prefs.layout.mission
 
@@ -79,6 +81,17 @@ export function MissionPage() {
       sideRef.current?.scrollIntoView({ block: 'start' })
     }
   }, [selectedId])
+
+  useEffect(() => {
+    if (!expanded) return
+    // On a phone the page scrolls, so bring the bigger map into view.
+    if (window.matchMedia('(max-width: 860px)').matches) gridRef.current?.scrollIntoView({ block: 'start' })
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false)
+    }
+    document.addEventListener('keydown', escape)
+    return () => document.removeEventListener('keydown', escape)
+  }, [expanded])
 
   useEffect(() => {
     api<ConditionProfile>(`/api/missions/${missionId}/profile`).then(setProfile).catch(() => setProfile(null))
@@ -227,6 +240,11 @@ export function MissionPage() {
     drag: dragFor(id),
   })
   const summaryShown = !layout.hidden.includes('summary')
+  // Opening a detection brings the page back, so its details show in the column.
+  const select = (id: number) => {
+    setSelectedId(id)
+    setExpanded(false)
+  }
 
   const sideWidth = draftSize.sideWidth ?? layout.sideWidth ?? SIDE_WIDTH.initial
   const mapHeight = draftSize.mapHeight ?? layout.mapHeight ?? MAP_HEIGHT.initial
@@ -356,7 +374,7 @@ export function MissionPage() {
   }
 
   return (
-    <main className={`mission-page${summaryShown ? '' : ' no-summary'}`}>
+    <main className={`mission-page${summaryShown ? '' : ' no-summary'}${expanded ? ' map-expanded' : ''}`}>
       <header className="mp-head">
         <div className="mp-title">
           <nav className="crumb" aria-label="Breadcrumb">
@@ -389,6 +407,7 @@ export function MissionPage() {
             onClick={() => {
               setEditing((e) => !e)
               setSelectedId(null)
+              setExpanded(false)
             }}
           >
             <Glyph d={CARD_ICONS.customize} />
@@ -494,9 +513,22 @@ export function MissionPage() {
             uav={mission.status === 'running' || mission.status === 'completed' ? t : null}
             detections={visible}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={select}
           />
           <Legend showBaseline={showBaseline} />
+          <button
+            type="button"
+            className="map-expand"
+            aria-pressed={expanded}
+            aria-label="Expand map"
+            title={expanded ? 'Back to the page (Esc)' : 'Expand map'}
+            onClick={() => {
+              setExpanded((x) => !x)
+              setEditing(false)
+            }}
+          >
+            <Glyph d={expanded ? CARD_ICONS.shrink : CARD_ICONS.expand} />
+          </button>
           {state.connection === 'failed' ? (
             <div className="map-banner">
               Live connection lost.{' '}
@@ -508,7 +540,7 @@ export function MissionPage() {
             state.connection !== 'open' && <div className="map-banner">Live connection lost. Reconnecting.</div>
           )}
           {toast && (
-            <button type="button" className="toast" onClick={() => setSelectedId(toast.id)}>
+            <button type="button" className="toast" onClick={() => select(toast.id)}>
               <span className="swatch swatch-high" aria-hidden="true" />
               <span>
                 <strong>New high-priority potential detection</strong>

@@ -2,6 +2,8 @@ import type { DragEvent, ReactNode } from 'react'
 
 export const CARD_ICONS = {
   fold: 'M6 9l6 6 6-6',
+  expand: 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7',
+  shrink: 'M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7',
   grip: 'M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01',
   up: 'M12 19V5 M6 11l6-6 6 6',
   down: 'M12 5v14 M6 13l6 6 6-6',
