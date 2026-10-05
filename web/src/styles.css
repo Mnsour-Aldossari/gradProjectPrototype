@@ -1971,3 +1971,105 @@ td.miss {
   margin-top: 10px;
   box-shadow: none;
 }
+
+/* ---------- customize: folded sidebar (Layout.tsx) ---------- */
+
+.sim-mini,
+.sign-out svg {
+  display: none;
+}
+.side-fold {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: calc(9px * var(--density)) 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: 500 calc(14px * var(--text-scale)) var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+.side-fold svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--ink-2);
+}
+.side-fold:hover {
+  background: var(--tint-soft);
+}
+/* The phone header has no room to fold; the setting waits for a wider screen. */
+@media (max-width: 860px) {
+  .side-fold {
+    display: none;
+  }
+}
+@media (min-width: 861px) {
+  .app.is-folded {
+    --sidebar: 68px;
+  }
+  .is-folded .sidebar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .is-folded .brand {
+    justify-content: center;
+    padding: 0 0 20px;
+  }
+  /* Names stay for screen readers; tooltips (title) show them on hover. */
+  .is-folded .brand-text,
+  .is-folded .nav-label,
+  .is-folded .side-fold-label,
+  .is-folded .display-label,
+  .is-folded .who-name,
+  .is-folded .sign-out-label,
+  .is-folded .sim-note > :not(.sim-mini) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .is-folded .nav a,
+  .is-folded .side-fold,
+  .is-folded .display-button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .is-folded .sim-note {
+    padding: 6px 0;
+    text-align: center;
+  }
+  .is-folded .sim-mini {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+  .is-folded .who {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0 2px;
+  }
+  .is-folded .sign-out {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+  }
+  .is-folded .sign-out svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+  }
+  .is-folded .sign-out:hover {
+    background: var(--tint-soft);
+    color: var(--ink);
+  }
+}
