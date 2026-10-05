@@ -1,7 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { usePrefs, type Prefs } from '../prefs'
 
-interface Group<K extends keyof Prefs> {
+// The menu's settings; the page layout and the field-map cards in Prefs are set on the pages themselves.
+type ChoiceKey = 'theme' | 'fontSize' | 'density'
+
+interface Group<K extends ChoiceKey> {
   key: K
   label: string
   choices: [Prefs[K], string][]
@@ -34,7 +37,7 @@ const DENSITY: Group<'density'> = {
   ],
 }
 
-function Choices<K extends keyof Prefs>({ group }: { group: Group<K> }) {
+function Choices<K extends ChoiceKey>({ group }: { group: Group<K> }) {
   const { prefs, setPrefs } = usePrefs()
   const labelId = useId()
   return (

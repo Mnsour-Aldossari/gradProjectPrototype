@@ -113,6 +113,7 @@ body {
 h1,
 h2,
 h3 {
+  text-wrap: balance; /* a long mission name breaks into even lines, not one word on its own */
   font-family: var(--font);
   font-weight: 700;
   line-height: 1.2;
@@ -266,6 +267,7 @@ textarea {
 .field-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  align-items: end; /* a label on two lines ("Lane spacing (m)") keeps its box level with the others */
   gap: 10px;
 }
 
@@ -343,6 +345,14 @@ textarea {
 }
 .brand-mark svg {
   width: 18px;
+}
+/* The name stays on one line: at large text it shrinks to what the sidebar holds (about 10.6 px of width per px of
+   font size, plus the 44 px logo and gap) instead of wrapping. Browsers without container units keep the size above. */
+.brand {
+  container-type: inline-size;
+}
+.brand-text {
+  font-size: min(calc(15px * var(--text-scale)), calc((100cqi - 44px) / 10.6));
 }
 .brand-text small {
   display: block;
@@ -535,10 +545,12 @@ textarea {
   border-radius: 4px;
   overflow: hidden;
 }
+/* The fill is scaled, not resized: the browser moves it without laying the page out again. */
 .progress > div {
   height: 100%;
   background: var(--survey);
-  transition: width 0.3s linear;
+  transform-origin: left;
+  transition: transform 0.3s linear;
 }
 
 .start {
@@ -713,11 +725,16 @@ textarea {
 .swatch-baseline {
   border: 2px dashed var(--ink);
 }
+/* As drawn on the map: a pale band (white at 45%) over the ground, with the blue flight line through it. The sand
+   colour stands in for the satellite image, so the band shows on a white or a dark legend too. */
 .swatch-swath {
   width: 18px;
   height: 10px;
-  background: rgb(255 255 255 / 0.6);
-  border-top: 2px solid var(--survey);
+  border-radius: 2px;
+  background:
+    linear-gradient(#1f5fad, #1f5fad) center / 100% 2px no-repeat, /* the map's line colour (COLORS.survey), same in both themes */
+    linear-gradient(rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.45)),
+    #a39065;
 }
 
 /* ---------- map overlays ---------- */
@@ -842,12 +859,33 @@ textarea {
   background: var(--tint);
   color: var(--ink-2);
 }
-.leaflet-container .leaflet-control-attribution {
+/* One class more than Leaflet's own rule: leaflet.css loads after this file (SurveyMap.tsx) and would win a tie. */
+.leaflet-container .leaflet-control-container .leaflet-control-attribution {
   background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--ink-2);
 }
 .leaflet-container .leaflet-control-attribution a {
   color: var(--survey);
+}
+/* Map labels ("Test location") in the dark theme. :where() keeps the specificity low, so labels with their own look
+   still set it. */
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip {
+  background: var(--raised);
+  border-color: var(--rule);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-top::before {
+  border-top-color: var(--raised);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-bottom::before {
+  border-bottom-color: var(--raised);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-left::before {
+  border-left-color: var(--raised);
+}
+:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-right::before {
+  border-right-color: var(--raised);
 }
 
 /* ---------- detection detail ---------- */
@@ -1108,16 +1146,6 @@ textarea {
   .table th:nth-child(5),
   .table td:nth-child(5) {
     display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .toast {
-    animation: none;
-  }
-  .progress > div,
-  .uav-icon svg {
-    transition: none;
   }
 }
 
@@ -1538,7 +1566,8 @@ td.miss {
   inset: 0;
   z-index: 2000;
   overflow-y: auto;
-  padding: calc(16px + env(safe-area-inset-top)) 16px 28px;
+  overscroll-behavior: contain; /* scrolling the sheet never drags the page behind it */
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
   background: var(--surface);
 }
 .field-toast {
@@ -1790,9 +1819,6 @@ td.miss {
 .map-card .toast {
   z-index: 1001;
 }
-.map-card .swatch-swath {
-  background: color-mix(in srgb, var(--survey) 25%, transparent);
-}
 .mp-col {
   min-height: 0;
   overflow-y: auto;
@@ -1970,4 +1996,1230 @@ td.miss {
   width: auto;
   margin-top: 10px;
   box-shadow: none;
+}
+
+/* ---------- customize: folded sidebar (Layout.tsx) ---------- */
+
+.sim-mini,
+.sign-out svg {
+  display: none;
+}
+.side-fold {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: calc(9px * var(--density)) 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: 500 calc(14px * var(--text-scale)) var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+.side-fold svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--ink-2);
+}
+.side-fold:hover {
+  background: var(--tint-soft);
+}
+/* The phone header has no room to fold; the setting waits for a wider screen. */
+@media (max-width: 860px) {
+  .side-fold {
+    display: none;
+  }
+}
+@media (min-width: 861px) {
+  .app.is-folded {
+    --sidebar: 68px;
+  }
+  .is-folded .sidebar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .is-folded .brand {
+    justify-content: center;
+    padding: 0 0 20px;
+  }
+  /* Names stay for screen readers; tooltips (title) show them on hover. */
+  .is-folded .brand-text,
+  .is-folded .nav-label,
+  .is-folded .side-fold-label,
+  .is-folded .display-label,
+  .is-folded .who-name,
+  .is-folded .sign-out-label,
+  .is-folded .sim-note > :not(.sim-mini) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .is-folded .nav a,
+  .is-folded .side-fold,
+  .is-folded .display-button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .is-folded .sim-note {
+    padding: 6px 0;
+    text-align: center;
+  }
+  .is-folded .sim-mini {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+  .is-folded .who {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0 2px;
+  }
+  .is-folded .sign-out {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+  }
+  .is-folded .sign-out svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+  }
+  .is-folded .sign-out:hover {
+    background: var(--tint-soft);
+    color: var(--ink);
+  }
+}
+
+/* ---------- customize: mission page cards (CardFrame.tsx, MissionPage.tsx) ---------- */
+
+.cfg-card .card-head {
+  align-items: center;
+}
+.cfg-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.cfg-right > .small {
+  margin-right: 4px;
+  white-space: nowrap;
+}
+/* While customizing, the move and hide buttons take the place of the small status text. */
+.cfg-card.is-editing .cfg-right > .small {
+  display: none;
+}
+/* Small to look at; the negative margin keeps the heading as tall as before. */
+.cfg-tool {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: -5px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.cfg-tool svg {
+  width: 16px;
+  height: 16px;
+}
+.cfg-tool:hover:not(:disabled),
+.cfg-tool:focus-visible {
+  background: var(--tint-soft);
+  color: var(--ink);
+}
+.cfg-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cfg-fold svg {
+  transition: transform 0.15s;
+}
+.cfg-card.is-folded .cfg-fold svg {
+  transform: rotate(-90deg);
+}
+.cfg-open {
+  border: 0;
+  color: var(--ink);
+  font-family: var(--font);
+}
+.cfg-open svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+}
+.cfg-open[aria-pressed='true'] {
+  background: var(--nav-active-bg);
+  box-shadow: inset 0 0 0 1px var(--survey);
+  color: var(--survey);
+}
+.cfg-open[aria-pressed='true'] svg {
+  color: var(--survey);
+}
+.cfg-bar {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: calc(10px * var(--density)) 14px;
+  border: 1px dashed var(--survey);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--survey) 6%, var(--surface));
+}
+.cfg-bar > .small {
+  flex: 1 1 260px;
+  margin: 0;
+}
+.cfg-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cfg-chip {
+  padding: 5px 10px;
+  border: 1px solid var(--input-rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 calc(13px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.cfg-chip:hover {
+  border-color: var(--survey);
+  color: var(--survey);
+}
+.cfg-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.mp-summary {
+  display: grid;
+  gap: 6px;
+}
+.cfg-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+.cfg-row-head .small {
+  margin: 0;
+  font-weight: 600;
+}
+.mission-page.no-summary {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* Drag and drop: a handle in the heading, a line where the card will land. */
+.cfg-card {
+  position: relative;
+}
+.cfg-card .card-head h2 {
+  flex: 1;
+  min-width: 0;
+}
+.cfg-grip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 30px;
+  margin: -5px 2px -5px -8px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  cursor: grab;
+}
+.cfg-grip svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 3;
+}
+.cfg-grip:hover {
+  background: var(--tint-soft);
+  color: var(--ink);
+}
+.cfg-card.is-dragging {
+  opacity: 0.45;
+}
+/* Drawn inside the card: the scrolling column would clip a line above the first card. */
+.cfg-card.drop-before {
+  box-shadow: inset 0 3px 0 var(--survey), var(--shadow);
+}
+.cfg-card.drop-after {
+  box-shadow: inset 0 -3px 0 var(--survey), var(--shadow);
+}
+/* Touch screens move cards with the arrows; the drag handle is for a mouse. */
+@media (pointer: coarse) {
+  .cfg-grip {
+    display: none;
+  }
+}
+
+/* Splitter (Splitter.tsx): column width on a laptop, map height on a phone. Shown in Customize mode. */
+.mp-grid {
+  position: relative;
+}
+.splitter {
+  position: absolute;
+  z-index: 1002; /* over the map's own controls */
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  border-radius: 8px;
+}
+.splitter-grip {
+  border-radius: 3px;
+  background: var(--survey);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--survey) 25%, transparent);
+  transition: transform 0.12s;
+}
+.splitter:hover .splitter-grip,
+.splitter:focus-visible .splitter-grip {
+  transform: scale(1.35);
+}
+.splitter:focus-visible {
+  outline: 2px solid var(--survey);
+  outline-offset: 2px;
+}
+/* Centred in the gap between the map and the column. */
+.splitter-columns {
+  top: 0;
+  bottom: 0;
+  right: calc(var(--side) + 8px * var(--density) - 9px);
+  width: 18px;
+  cursor: col-resize;
+}
+.splitter-columns .splitter-grip {
+  width: 5px;
+  height: 56px;
+}
+.splitter-rows {
+  display: none;
+  left: 0;
+  right: 0;
+  top: calc(var(--map-h, 58vh) + 8px * var(--density) - 11px);
+  height: 22px;
+  cursor: row-resize;
+}
+.splitter-rows .splitter-grip {
+  width: 64px;
+  height: 5px;
+}
+@media (max-width: 860px) {
+  .map-card {
+    height: var(--map-h, 58vh);
+  }
+  .splitter-columns {
+    display: none;
+  }
+  .splitter-rows {
+    display: grid;
+  }
+}
+
+/* Expand map (MissionPage.tsx): a button under the zoom buttons; the map takes the summary's and the column's room. */
+.map-expand {
+  position: absolute;
+  top: 86px;
+  left: 10px;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid rgb(0 0 0 / 0.2);
+  border-radius: 4px;
+  background: var(--raised);
+  background-clip: padding-box;
+  color: var(--ink);
+  cursor: pointer;
+}
+.map-expand svg {
+  width: 16px;
+  height: 16px;
+}
+.map-expand:hover {
+  background-color: var(--tint-soft);
+}
+.map-expand[aria-pressed='true'] {
+  background-color: var(--survey-fill);
+  color: #fff;
+}
+.mission-page.map-expanded {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.map-expanded .mp-summary,
+.map-expanded .mp-col {
+  display: none;
+}
+.map-expanded .mp-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 860px) {
+  .map-expanded .map-card {
+    height: 82vh;
+  }
+}
+
+/* ---------- field map info: cards over the field map (FieldMapInfo.tsx) ---------- */
+
+/*
+ * The cards share the UAV status card's dark glass, so they read the same over satellite imagery in both themes.
+ * --dock tells FieldMapInfo which map edge a card covers in the current layout, so the survey area is fitted into
+ * the space the cards leave free. Phones get a compact form; wider screens show titles and more detail.
+ */
+.field-main {
+  overflow: hidden; /* cards never spill over the bottom navigation */
+}
+.field-hud {
+  position: absolute;
+  inset: 10px;
+  z-index: 500;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    'status'
+    'mission'
+    'detections'
+    '.'
+    'nearest'
+    'key'
+    'drone';
+  pointer-events: none; /* the map stays draggable between the cards */
+}
+.field-hud > * {
+  min-width: 0;
+  pointer-events: auto;
+}
+/* Margins instead of a grid gap, so a hidden card leaves no empty gap behind. */
+.hud-status,
+.hud-mission,
+.hud-detections {
+  --dock: top;
+  margin-bottom: calc(6px * var(--density));
+}
+.hud-nearest,
+.hud-key,
+.field-hud .drone-card {
+  --dock: bottom;
+  margin-top: calc(6px * var(--density));
+}
+.hud-status {
+  grid-area: status;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.hud-mission {
+  grid-area: mission;
+}
+.hud-detections {
+  grid-area: detections;
+}
+.hud-nearest {
+  grid-area: nearest;
+}
+.hud-key {
+  grid-area: key;
+}
+.field-hud .drone-card {
+  grid-area: drone;
+  position: static;
+}
+/* The first card at the top steps aside for the map's zoom buttons (top left). */
+.hud-clear-zoom {
+  margin-left: 44px;
+}
+
+.hud-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); /* a long name shortens with "…" instead of widening the card */
+  gap: calc(5px * var(--density));
+  padding: calc(7px * var(--density)) 10px calc(9px * var(--density));
+  border-radius: 10px;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  color: #fff;
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.3;
+}
+.hud-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+.hud-title,
+.hud-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hud-title {
+  color: #b7c1b8;
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: normal;
+}
+.hud-name {
+  font-size: calc(14.5px * var(--text-scale));
+  font-weight: 700;
+  white-space: normal; /* the full mission name, on two lines if the text is large */
+  overflow-wrap: anywhere;
+}
+/* Small to look at, 32 px to press. */
+.hud-hide {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px -8px -6px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #b7c1b8;
+  cursor: pointer;
+}
+.hud-hide svg {
+  width: 16px;
+  height: 16px;
+}
+.hud-hide:hover,
+.hud-hide:focus-visible {
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+}
+.drone-card-head .num {
+  margin-left: auto;
+}
+.drone-card-head .hud-hide {
+  margin: -8px -10px -8px 0;
+}
+.hud-restore {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  color: #fff;
+  font: 600 calc(12.5px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.hud-restore svg {
+  width: 16px;
+  height: 16px;
+}
+.hud-more {
+  flex: none;
+  padding: 4px 2px;
+  margin: -4px 0;
+  border: 0;
+  background: none;
+  color: #8fb8ee;
+  font: 600 calc(12px * var(--text-scale)) var(--font);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.hud-glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+/* mission */
+.hud-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 10px;
+}
+.hud-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+}
+.hud-facts > div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.hud-facts dt {
+  color: #b7c1b8;
+  font-size: calc(11.5px * var(--text-scale));
+}
+.hud-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+.hud-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  font-size: calc(11px * var(--text-scale));
+}
+.hud-chip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b7c1b8;
+}
+.hud-link-open i {
+  background: #32d583;
+}
+.hud-link-failed i {
+  background: #f97066;
+}
+.hud-sim {
+  background: none;
+  box-shadow: inset 0 0 0 1px rgb(253 176 34 / 0.7);
+  color: #fdb022;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* detection counts */
+.hud-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.hud-tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.08);
+}
+.hud-tile b {
+  flex: none;
+  font-size: calc(19px * var(--text-scale));
+  line-height: 1.1;
+}
+.hud-tile b small {
+  color: #b7c1b8;
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 600;
+}
+.hud-tile span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: #d7ddd8;
+  font-size: calc(10.5px * var(--text-scale));
+  line-height: 1.2;
+}
+.hud-tile .hud-glyph {
+  width: 12px;
+  height: 12px;
+}
+.hud-tile-high {
+  background: rgb(217 45 32 / 0.3);
+}
+.hud-tile-high b {
+  color: #ffb4ab;
+}
+.hud-tile-suspect b {
+  color: #fdb022;
+}
+
+/* nearest detections: three buttons side by side on a phone */
+.hud-near {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hud-near button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hud-near button:hover,
+.hud-near button:focus-visible {
+  background: rgb(255 255 255 / 0.18);
+}
+.hud-near-id {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hud-near-cat,
+.hud-near-status {
+  display: none;
+}
+.hud-near-dist {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hud-near-dist small {
+  color: #b7c1b8;
+}
+.hud-empty {
+  margin: 0;
+  color: #b7c1b8;
+}
+
+/* map key */
+.hud-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: calc(11.5px * var(--text-scale));
+}
+.hud-legend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hud-dot {
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+.hud-dot-you {
+  background: #2563eb;
+}
+.hud-dot-test {
+  background: #f59e0b;
+}
+.hud-planned {
+  width: 18px;
+  border-top: 2px dashed #fff;
+}
+.hud-legend .swatch-swath {
+  width: 18px;
+  height: 9px;
+  background: rgb(255 255 255 / 0.55);
+  border-top: 0;
+}
+.hud-area {
+  width: 16px;
+  height: 11px;
+  border: 2px dashed #e5484d;
+  outline: 1px solid rgb(255 255 255 / 0.8);
+}
+.hud-safety {
+  margin: 0;
+  color: #fdb022;
+  font-size: calc(11.5px * var(--text-scale));
+  font-weight: 600;
+}
+
+/* map layers: two switches in the top row, each drawn like the layer it shows */
+.hud-layers {
+  display: flex;
+  gap: 6px;
+}
+.hud-layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 2px 10px 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25), 0 4px 14px rgb(0 0 0 / 0.25);
+  color: #b7c1b8;
+  font: 600 calc(11.5px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.hud-layer::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px #b7c1b8;
+}
+.hud-layer[aria-pressed='true'] {
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: inset 0 0 0 1.5px #8fb8ee, 0 4px 14px rgb(0 0 0 / 0.25);
+  color: #fff;
+}
+.hud-layer[aria-pressed='true']::before {
+  background: #8fb8ee
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%231d2a24' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+  box-shadow: none;
+}
+.hud-layer-sample {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgb(29 42 36 / 0.95);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+  color: #fff;
+  font-size: calc(10.5px * var(--text-scale));
+}
+.hud-guide {
+  width: 18px;
+  border-top: 2.5px dotted #fff;
+}
+/* Labels drawn on the map: detection numbers and the distance on the guide line. */
+.leaflet-tooltip.det-label,
+.leaflet-tooltip.guide-label {
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  color: #fff;
+  font: 700 12px/1.5 var(--font);
+}
+.leaflet-tooltip.det-label::before,
+.leaflet-tooltip.guide-label::before {
+  display: none;
+}
+
+/* Phones: titles stay for screen readers, the hide button moves to the corner and the mission card is shorter. */
+@media (max-width: 699px) {
+  .hud-detections,
+  .hud-nearest,
+  .hud-key {
+    padding-top: calc(6px * var(--density));
+    padding-bottom: calc(6px * var(--density));
+    padding-right: 38px;
+  }
+  .hud-detections .hud-head,
+  .hud-nearest .hud-head,
+  .hud-key .hud-head {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    min-height: 0;
+  }
+  .hud-detections .hud-head .hud-hide,
+  .hud-nearest .hud-head .hud-hide,
+  .hud-key .hud-head .hud-hide {
+    margin: 0;
+  }
+  .hud-layer-name,
+  .hud-detections .hud-title,
+  .hud-nearest .hud-title,
+  .hud-key .hud-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .field-hud .hud-more,
+  .field-hud .hud-wide,
+  .hud-mission .progress {
+    display: none;
+  }
+}
+@media (min-width: 700px) {
+  .field-hud .hud-narrow {
+    display: none;
+  }
+  /* Tablet, upright: cards in pairs above and below the survey area; the UAV card keeps its place bottom right.
+     Nearest spans both bottom rows, so it sits on the bottom edge next to the map key and the UAV card. */
+  .field-hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'status status'
+      'mission detections'
+      '. .'
+      'nearest key'
+      'nearest drone';
+    column-gap: 8px;
+  }
+  .field-hud > .hud-card,
+  .field-hud .drone-card {
+    align-self: start;
+  }
+  .field-hud > .hud-nearest,
+  .field-hud > .hud-key,
+  .field-hud > .drone-card {
+    align-self: end;
+  }
+  .field-hud .drone-card {
+    width: auto;
+  }
+  .hud-mission {
+    margin-left: 44px;
+  }
+  .hud-clear-zoom:not(.hud-mission) {
+    margin-left: 0;
+  }
+  /* Nearest detections as a list with category and verification status. */
+  .hud-near {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .hud-near button {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id dist'
+      'status dist';
+    row-gap: 0;
+    padding: 5px 10px;
+  }
+  .hud-near-id {
+    grid-area: id;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hud-near-cat {
+    display: inline;
+    font-weight: 600;
+  }
+  .hud-near-status {
+    display: block;
+    grid-area: status;
+    color: #b7c1b8;
+    font-size: calc(11.5px * var(--text-scale));
+  }
+  .hud-near-dist {
+    grid-area: dist;
+    align-self: center;
+    font-size: calc(15px * var(--text-scale));
+  }
+  .hud-tile {
+    display: grid;
+    gap: 2px;
+    padding: 6px 9px;
+  }
+  .hud-tile b {
+    font-size: calc(22px * var(--text-scale));
+  }
+  .hud-tile span {
+    font-size: calc(11.5px * var(--text-scale));
+  }
+}
+
+/* Tablet on its side, laptop: like a control room. Mission and map key on the left, detections on the right, the
+   UAV card bottom centre; the survey area sits in the middle. */
+@media (min-width: 1024px) and (min-height: 650px), (min-width: 700px) and (max-height: 649px) {
+  .field-hud {
+    grid-template-columns: 344px minmax(0, 1fr) 320px;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: none;
+  }
+  .hud-mission {
+    --dock: left;
+    grid-column: 1;
+    grid-row: 1 / 4;
+    align-self: start;
+    margin-bottom: 0;
+  }
+  .hud-key {
+    --dock: left;
+    grid-column: 1;
+    grid-row: 4;
+  }
+  /* The top row may reach over the middle column; it is short, so it counts against the top edge. */
+  .hud-status {
+    --dock: top;
+    grid-column: 2 / 4;
+    grid-row: 1;
+  }
+  .hud-detections {
+    --dock: right;
+    grid-column: 3;
+    grid-row: 2;
+  }
+  .field-hud > .hud-nearest {
+    --dock: right;
+    grid-column: 3;
+    grid-row: 3;
+    align-self: start;
+    margin-top: 0;
+  }
+  .field-hud .drone-card {
+    --dock: bottom;
+    grid-column: 2;
+    grid-row: 4;
+    justify-self: center;
+    width: min(380px, 100%);
+  }
+  .field-hud .drone-card {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .field-hud .drone-card dd {
+    font-size: calc(17px * var(--text-scale));
+  }
+}
+@media (min-width: 700px) and (max-width: 1023px) and (max-height: 649px) {
+  .field-hud {
+    grid-template-columns: 290px minmax(0, 1fr) 270px;
+  }
+}
+
+/* ---------- field map info, phone: summary line, Key button (FieldMapInfo.tsx) ---------- */
+
+/* The summary line is the phone's folded form of the mission and count cards; tapping it opens them below. */
+.hud-summary {
+  --dock: top;
+  grid-area: summary;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: calc(6px * var(--density));
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hud-sum-text {
+  display: grid;
+  min-width: 0;
+}
+.hud-sum-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(14px * var(--text-scale));
+}
+.hud-sum-line {
+  color: #b7c1b8;
+  font-size: calc(12px * var(--text-scale));
+  white-space: nowrap;
+}
+.hud-sum-counts {
+  display: flex;
+  gap: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hud-sum-counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.hud-sum-chevron {
+  width: 18px;
+  height: 18px;
+  color: #b7c1b8;
+  transition: transform 0.15s;
+}
+.hud-summary[aria-expanded='true'] .hud-sum-chevron {
+  transform: rotate(180deg);
+}
+.hud-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.hud-keybtn {
+  min-height: 32px;
+  padding: 2px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(29 42 36 / 0.92);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25), 0 4px 14px rgb(0 0 0 / 0.25);
+  color: #fff;
+  font: 600 calc(11.5px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.hud-keybtn[aria-expanded='true'] {
+  box-shadow: inset 0 0 0 1.5px #8fb8ee, 0 4px 14px rgb(0 0 0 / 0.25);
+}
+.hud-safety-drone {
+  margin-top: 6px;
+}
+@media (max-width: 699px) {
+  .field-hud {
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'status'
+      'summary'
+      'mission'
+      'detections'
+      '.'
+      'nearest'
+      'key'
+      'drone';
+  }
+  /* Folded: the summary line stands for these two; the map key waits for its button. */
+  .field-hud:not(.is-open) .hud-mission,
+  .field-hud:not(.is-open) .hud-detections,
+  .field-hud:not(.key-open) .hud-key {
+    display: none;
+  }
+  /* The summary line steps aside for the zoom buttons; the cards that open under it are already below them. */
+  .field-hud .hud-mission.hud-clear-zoom,
+  .field-hud .hud-detections.hud-clear-zoom {
+    margin-left: 0;
+  }
+  /* The safety line shows once: in the map key when it is open, otherwise in the UAV card. */
+  .field-hud.key-open .hud-safety-drone {
+    display: none;
+  }
+  /* Number above distance in all three: on one line they need about 110 px each, more than most phones give them. */
+  .hud-near button {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+  }
+}
+.hud-sum-link {
+  color: #fdb022;
+  font-weight: 600;
+}
+.hud-sum-link.hud-link-failed {
+  color: #ff9d92;
+}
+.hud-safety-drone .hud-chip {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+@media (min-width: 700px) {
+  .hud-summary,
+  .hud-keybtn,
+  .hud-safety-drone {
+    display: none;
+  }
+}
+
+/* ---------- interface guidelines review: focus, motion, hover, touch ---------- */
+
+/* Focus on the dark map cards: the theme blue is too dark there (under 3:1); the cards' light blue is about 7:1. */
+.field-hud :focus-visible {
+  outline-color: #8fb8ee;
+}
+/* A labelled checkbox pill rings as a whole, not just its small box. */
+.toggle input:focus-visible {
+  outline: none;
+}
+.toggle:has(input:focus-visible) {
+  outline: 2px solid var(--survey);
+  outline-offset: 2px;
+}
+
+/* Reduced motion, for everything above and Leaflet's zoom: last in the file, so no later rule undoes it. Durations
+   become near zero rather than none, so code waiting for a transition's end still gets it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hover feedback for buttons that had none. Only where a pointer can hover, so a tap does not leave it stuck. */
+@media (hover: hover) {
+  .link-button:hover,
+  .hud-more:hover {
+    text-decoration-thickness: 2px;
+  }
+  .link-button:hover {
+    color: var(--button-hover);
+  }
+  .toast:hover {
+    box-shadow: 0 8px 28px rgb(0 0 0 / 0.36);
+  }
+  .segmented button:not(.is-on):hover,
+  .fd-list button:hover {
+    background: var(--tint-soft);
+  }
+  .field-nav button:not([aria-current='page']):hover {
+    color: var(--ink);
+  }
+  .field-alert:hover {
+    background: color-mix(in srgb, var(--hazard-fill) 88%, #000);
+  }
+  .toggle:not(:has(input:checked)):hover {
+    box-shadow: inset 0 0 0 1px var(--ink-2), 0 1px 2px rgb(16 24 40 / 0.05);
+  }
+  .hud-more:hover {
+    color: #b9d3f5;
+  }
+  .hud-restore:hover,
+  .hud-layer:hover,
+  .hud-keybtn:hover,
+  .hud-summary:hover {
+    background: rgb(44 60 52 / 0.96);
+    color: #fff;
+  }
+}
+
+/* Taps: no wait for a possible double-tap zoom on controls, and no grey or blue flash; the pressed look is the
+   controls' own. Pinch zoom still works everywhere. */
+a,
+button,
+label,
+select,
+summary,
+[role='button'] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
