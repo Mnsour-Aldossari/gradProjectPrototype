@@ -4,6 +4,7 @@ updates adaptive detections while the UAV flies, and pushes live events."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 import time
@@ -50,8 +51,9 @@ def survey_context_for(mission: Mission) -> SurveyContext:
 
 
 def make_source(mission: Mission, settings: Settings, speed_factor: float) -> TelemetrySource:
-    if settings.uav_source == "px4":
-        return Px4MavlinkSource()
+    """PX4 flies in real time, so speed_factor only applies to the simulator."""
+    if mission.uav_source == "px4":
+        return Px4MavlinkSource(simulation_config_for(mission), settings.px4_url)
     return SimulatedSource(simulation_config_for(mission), speed_factor=speed_factor)
 
 
@@ -221,47 +223,49 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
     frames_since_detect = 0
     last_telemetry_event = 0.0
     try:
-        async for f in source.frames():
-            rows.append(_telemetry_row(mission_id, f))
-            if f.sensor is not None:
-                lat, lon = f.position.lat / 1e7, f.position.lon / 1e7
-                t_s = f.position.time_boot_ms / 1000
-                alt = f.position.relative_alt / 1000
-                rows.append(
-                    SensorReading(
-                        mission_id=mission_id,
-                        t_s=t_s,
-                        lat=lat,
-                        lon=lon,
-                        relative_alt_m=alt,
-                        md=f.sensor.md,
-                        gpr_amp=f.sensor.gpr_amp,
-                        gpr_twt_ns=f.sensor.gpr_twt_ns,
+        # aclosing: a cancelled run still lets the source finish (PX4 returns to launch).
+        async with contextlib.aclosing(source.frames()) as frames:
+            async for f in frames:
+                rows.append(_telemetry_row(mission_id, f))
+                if f.sensor is not None:
+                    lat, lon = f.position.lat / 1e7, f.position.lon / 1e7
+                    t_s = f.position.time_boot_ms / 1000
+                    alt = f.position.relative_alt / 1000
+                    rows.append(
+                        SensorReading(
+                            mission_id=mission_id,
+                            t_s=t_s,
+                            lat=lat,
+                            lon=lon,
+                            relative_alt_m=alt,
+                            md=f.sensor.md,
+                            gpr_amp=f.sensor.gpr_amp,
+                            gpr_twt_ns=f.sensor.gpr_twt_ns,
+                        )
                     )
-                )
-                x, y = frame.to_xy(lat, lon)
-                reading = Reading(t_s, x, y, alt, f.sensor.md, f.sensor.gpr_amp, f.sensor.gpr_twt_ns)
-                all_readings.append(reading)
-                pending_readings.append(reading)
-            last = f
+                    x, y = frame.to_xy(lat, lon)
+                    reading = Reading(t_s, x, y, alt, f.sensor.md, f.sensor.gpr_amp, f.sensor.gpr_twt_ns)
+                    all_readings.append(reading)
+                    pending_readings.append(reading)
+                last = f
 
-            now = time.monotonic()
-            if now - last_telemetry_event >= TELEMETRY_EVENT_INTERVAL_S:
-                hub.publish(mission_id, _telemetry_event(f))
-                last_telemetry_event = now
+                now = time.monotonic()
+                if now - last_telemetry_event >= TELEMETRY_EVENT_INTERVAL_S:
+                    hub.publish(mission_id, _telemetry_event(f))
+                    last_telemetry_event = now
 
-            if len(rows) >= FLUSH_ROWS:
-                mission = _flush(engine, mission_id, rows, last)
-                rows = []
-                hub.publish(mission_id, mission_event(mission))
+                if len(rows) >= FLUSH_ROWS:
+                    mission = _flush(engine, mission_id, rows, last)
+                    rows = []
+                    hub.publish(mission_id, mission_event(mission))
 
-            frames_since_detect += 1
-            if frames_since_detect >= DETECT_EVERY_FRAMES:
-                frames_since_detect = 0
-                detector.add(pending_readings)
-                pending_readings = []
-                for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
-                    hub.publish(mission_id, event)
+                frames_since_detect += 1
+                if frames_since_detect >= DETECT_EVERY_FRAMES:
+                    frames_since_detect = 0
+                    detector.add(pending_readings)
+                    pending_readings = []
+                    for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
+                        hub.publish(mission_id, event)
 
         _flush(engine, mission_id, rows, last)
         if last is not None:
@@ -299,16 +303,28 @@ class MissionRunner:
         self._engine = engine
         self._hub = hub
         self._tasks: dict[int, asyncio.Task] = {}
+        self._px4: set[int] = set()
 
     def is_running(self, mission_id: int) -> bool:
         return mission_id in self._tasks
 
-    def start(self, mission_id: int, source: TelemetrySource) -> None:
+    def px4_mission(self) -> int | None:
+        """The mission PX4 is flying, if any: there is one vehicle."""
+        return next(iter(self._px4), None)
+
+    def start(self, mission_id: int, source: TelemetrySource, *, px4: bool = False) -> None:
         task = asyncio.create_task(
             run_mission(self._engine, self._hub, mission_id, source), name=f"mission-{mission_id}"
         )
         self._tasks[mission_id] = task
-        task.add_done_callback(lambda _: self._tasks.pop(mission_id, None))
+        if px4:
+            self._px4.add(mission_id)
+
+        def done(_: asyncio.Task) -> None:
+            self._tasks.pop(mission_id, None)
+            self._px4.discard(mission_id)
+
+        task.add_done_callback(done)
 
     async def shutdown(self) -> None:
         tasks = list(self._tasks.values())

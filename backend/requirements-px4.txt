@@ -1,0 +1,3 @@
+# Only for flying missions with PX4 (SITL + Gazebo, or a vehicle): pip install -r requirements-px4.txt
+# MAVSDK 4 bundles its C library (Windows, Linux, macOS wheels); nothing else to install.
+mavsdk==4.0.3

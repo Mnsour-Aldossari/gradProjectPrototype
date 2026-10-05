@@ -38,7 +38,8 @@ class Settings:
     # e.g. postgresql+psycopg://uav:uav@localhost:5432/uav - no code changes needed to switch.
     database_url: str = DEFAULT_DATABASE_URL
     default_speed_factor: float = 10.0
-    uav_source: str = "simulated"  # "simulated" | "px4" (future phase)
+    # Where PX4 (SITL or a vehicle) sends MAVLink, for missions flown with PX4. MAVSDK listens here.
+    px4_url: str = "udp://:14540"
     token_ttl_s: int = 12 * 3600
     cors_origins: tuple[str, ...] = ("http://localhost:5180", "http://127.0.0.1:5180")
 
@@ -48,5 +49,5 @@ class Settings:
             database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),
             secret_key=os.environ.get("SECRET_KEY") or load_or_create_secret_key(),
             default_speed_factor=float(os.environ.get("SIM_SPEED_FACTOR", "10")),
-            uav_source=os.environ.get("UAV_SOURCE", "simulated"),
+            px4_url=os.environ.get("PX4_URL", "udp://:14540"),
         )

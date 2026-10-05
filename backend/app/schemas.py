@@ -128,6 +128,9 @@ class StartRequest(BaseModel):
     speed_factor: float | None = Field(
         None, ge=0, le=100, description="1 = real time, 10 = ten times faster, 0 = as fast as possible"
     )
+    uav_source: Literal["simulated", "px4"] | None = Field(
+        None, description="What flies the survey: the built-in simulator, or PX4 over MAVLink (real time)"
+    )
 
 
 class TelemetryRead(BaseModel):
