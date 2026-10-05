@@ -2003,3 +2003,386 @@ td.miss {
   margin-top: 10px;
   box-shadow: none;
 }
+
+/* ---------- customize: folded sidebar (Layout.tsx) ---------- */
+
+.sim-mini,
+.sign-out svg {
+  display: none;
+}
+.side-fold {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: calc(9px * var(--density)) 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: 500 calc(14px * var(--text-scale)) var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+.side-fold svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--ink-2);
+}
+.side-fold:hover {
+  background: var(--tint-soft);
+}
+/* The phone header has no room to fold; the setting waits for a wider screen. */
+@media (max-width: 860px) {
+  .side-fold {
+    display: none;
+  }
+}
+@media (min-width: 861px) {
+  .app.is-folded {
+    --sidebar: 68px;
+  }
+  .is-folded .sidebar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .is-folded .brand {
+    justify-content: center;
+    padding: 0 0 20px;
+  }
+  /* Names stay for screen readers; tooltips (title) show them on hover. */
+  .is-folded .brand-text,
+  .is-folded .nav-label,
+  .is-folded .side-fold-label,
+  .is-folded .display-label,
+  .is-folded .who-name,
+  .is-folded .sign-out-label,
+  .is-folded .sim-note > :not(.sim-mini) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .is-folded .nav a,
+  .is-folded .side-fold,
+  .is-folded .display-button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .is-folded .sim-note {
+    padding: 6px 0;
+    text-align: center;
+  }
+  .is-folded .sim-mini {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+  .is-folded .who {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0 2px;
+  }
+  .is-folded .sign-out {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+  }
+  .is-folded .sign-out svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+  }
+  .is-folded .sign-out:hover {
+    background: var(--tint-soft);
+    color: var(--ink);
+  }
+}
+
+/* ---------- customize: mission page cards (CardFrame.tsx, MissionPage.tsx) ---------- */
+
+.cfg-card .card-head {
+  align-items: center;
+}
+.cfg-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.cfg-right > .small {
+  margin-right: 4px;
+  white-space: nowrap;
+}
+/* While customizing, the move and hide buttons take the place of the small status text. */
+.cfg-card.is-editing .cfg-right > .small {
+  display: none;
+}
+/* Small to look at; the negative margin keeps the heading as tall as before. */
+.cfg-tool {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: -5px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.cfg-tool svg {
+  width: 16px;
+  height: 16px;
+}
+.cfg-tool:hover:not(:disabled),
+.cfg-tool:focus-visible {
+  background: var(--tint-soft);
+  color: var(--ink);
+}
+.cfg-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cfg-fold svg {
+  transition: transform 0.15s;
+}
+.cfg-card.is-folded .cfg-fold svg {
+  transform: rotate(-90deg);
+}
+.cfg-open {
+  border: 0;
+  color: var(--ink);
+  font-family: var(--font);
+}
+.cfg-open svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+}
+.cfg-open[aria-pressed='true'] {
+  background: var(--nav-active-bg);
+  box-shadow: inset 0 0 0 1px var(--survey);
+  color: var(--survey);
+}
+.cfg-open[aria-pressed='true'] svg {
+  color: var(--survey);
+}
+.cfg-bar {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: calc(10px * var(--density)) 14px;
+  border: 1px dashed var(--survey);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--survey) 6%, var(--surface));
+}
+.cfg-bar > .small {
+  flex: 1 1 260px;
+  margin: 0;
+}
+.cfg-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cfg-chip {
+  padding: 5px 10px;
+  border: 1px solid var(--input-rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 calc(13px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.cfg-chip:hover {
+  border-color: var(--survey);
+  color: var(--survey);
+}
+.cfg-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.mp-summary {
+  display: grid;
+  gap: 6px;
+}
+.cfg-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+.cfg-row-head .small {
+  margin: 0;
+  font-weight: 600;
+}
+.mission-page.no-summary {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* Drag and drop: a handle in the heading, a line where the card will land. */
+.cfg-card {
+  position: relative;
+}
+.cfg-card .card-head h2 {
+  flex: 1;
+  min-width: 0;
+}
+.cfg-grip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 30px;
+  margin: -5px 2px -5px -8px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  cursor: grab;
+}
+.cfg-grip svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 3;
+}
+.cfg-grip:hover {
+  background: var(--tint-soft);
+  color: var(--ink);
+}
+.cfg-card.is-dragging {
+  opacity: 0.45;
+}
+/* Drawn inside the card: the scrolling column would clip a line above the first card. */
+.cfg-card.drop-before {
+  box-shadow: inset 0 3px 0 var(--survey), var(--shadow);
+}
+.cfg-card.drop-after {
+  box-shadow: inset 0 -3px 0 var(--survey), var(--shadow);
+}
+/* Touch screens move cards with the arrows; the drag handle is for a mouse. */
+@media (pointer: coarse) {
+  .cfg-grip {
+    display: none;
+  }
+}
+
+/* Splitter (Splitter.tsx): column width on a laptop, map height on a phone. Shown in Customize mode. */
+.mp-grid {
+  position: relative;
+}
+.splitter {
+  position: absolute;
+  z-index: 1002; /* over the map's own controls */
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  border-radius: 8px;
+}
+.splitter-grip {
+  border-radius: 3px;
+  background: var(--survey);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--survey) 25%, transparent);
+  transition: transform 0.12s;
+}
+.splitter:hover .splitter-grip,
+.splitter:focus-visible .splitter-grip {
+  transform: scale(1.35);
+}
+.splitter:focus-visible {
+  outline: 2px solid var(--survey);
+  outline-offset: 2px;
+}
+/* Centred in the gap between the map and the column. */
+.splitter-columns {
+  top: 0;
+  bottom: 0;
+  right: calc(var(--side) + 8px * var(--density) - 9px);
+  width: 18px;
+  cursor: col-resize;
+}
+.splitter-columns .splitter-grip {
+  width: 5px;
+  height: 56px;
+}
+.splitter-rows {
+  display: none;
+  left: 0;
+  right: 0;
+  top: calc(var(--map-h, 58vh) + 8px * var(--density) - 11px);
+  height: 22px;
+  cursor: row-resize;
+}
+.splitter-rows .splitter-grip {
+  width: 64px;
+  height: 5px;
+}
+@media (max-width: 860px) {
+  .map-card {
+    height: var(--map-h, 58vh);
+  }
+  .splitter-columns {
+    display: none;
+  }
+  .splitter-rows {
+    display: grid;
+  }
+}
+
+/* Expand map (MissionPage.tsx): a button under the zoom buttons; the map takes the summary's and the column's room. */
+.map-expand {
+  position: absolute;
+  top: 86px;
+  left: 10px;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid rgb(0 0 0 / 0.2);
+  border-radius: 4px;
+  background: var(--raised);
+  background-clip: padding-box;
+  color: var(--ink);
+  cursor: pointer;
+}
+.map-expand svg {
+  width: 16px;
+  height: 16px;
+}
+.map-expand:hover {
+  background-color: var(--tint-soft);
+}
+.map-expand[aria-pressed='true'] {
+  background-color: var(--survey-fill);
+  color: #fff;
+}
+.mission-page.map-expanded {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.map-expanded .mp-summary,
+.map-expanded .mp-col {
+  display: none;
+}
+.map-expanded .mp-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 860px) {
+  .map-expanded .map-card {
+    height: 82vh;
+  }
+}

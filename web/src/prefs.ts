@@ -9,13 +9,52 @@ export type ThemePref = 'light' | 'dark' | 'system'
 export type FontSizePref = 'small' | 'normal' | 'large'
 export type DensityPref = 'comfortable' | 'compact'
 
+/** The cards in the right-hand column of the mission page, in their default order. */
+export type MissionCard = 'flight' | 'sensors' | 'detections' | 'profile'
+export const MISSION_CARDS: MissionCard[] = ['flight', 'sensors', 'detections', 'profile']
+/** What the mission page can hide: the column cards except Flight (it holds Start survey), and the summary row. */
+export type MissionHideable = Exclude<MissionCard, 'flight'> | 'summary'
+const MISSION_HIDEABLE: MissionHideable[] = ['sensors', 'detections', 'profile', 'summary']
+
+/** Limits for the sizes set with the splitter: column width in px (laptop), map height in % of the screen (phone). */
+export const SIDE_WIDTH = { min: 300, max: 640, initial: 380 }
+export const MAP_HEIGHT = { min: 40, max: 80, initial: 58 }
+
+export interface MissionLayout {
+  order: MissionCard[]
+  hidden: MissionHideable[]
+  collapsed: MissionCard[]
+  /** null keeps the stylesheet's size. */
+  sideWidth: number | null
+  mapHeight: number | null
+}
+
+export interface PageLayout {
+  sidebarCollapsed: boolean
+  mission: MissionLayout
+}
+
 export interface Prefs {
   theme: ThemePref
   fontSize: FontSizePref
   density: DensityPref
+  layout: PageLayout
 }
 
-export const DEFAULT_PREFS: Prefs = { theme: 'light', fontSize: 'normal', density: 'comfortable' }
+export const DEFAULT_MISSION_LAYOUT: MissionLayout = {
+  order: MISSION_CARDS,
+  hidden: [],
+  collapsed: [],
+  sideWidth: null,
+  mapHeight: null,
+}
+
+export const DEFAULT_PREFS: Prefs = {
+  theme: 'light',
+  fontSize: 'normal',
+  density: 'comfortable',
+  layout: { sidebarCollapsed: false, mission: DEFAULT_MISSION_LAYOUT },
+}
 
 const THEMES: ThemePref[] = ['light', 'dark', 'system']
 const FONT_SIZES: FontSizePref[] = ['small', 'normal', 'large']
@@ -23,6 +62,35 @@ const DENSITIES: DensityPref[] = ['comfortable', 'compact']
 
 function pick<T extends string>(value: unknown, allowed: T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback
+}
+
+/** Known names only, each once. */
+function pickList<T extends string>(value: unknown, allowed: T[]): T[] {
+  return Array.isArray(value) ? allowed.filter((a) => value.includes(a)) : []
+}
+
+function pickSize(value: unknown, limits: { min: number; max: number }): number | null {
+  return typeof value === 'number' && value >= limits.min && value <= limits.max ? Math.round(value) : null
+}
+
+function parseMissionLayout(value: unknown): MissionLayout {
+  const stored = (value && typeof value === 'object' ? value : {}) as Partial<Record<keyof MissionLayout, unknown>>
+  // The stored order first, then any card it does not name (an older entry), in the default order.
+  const order = Array.isArray(stored.order)
+    ? [...new Set(stored.order.filter((c): c is MissionCard => MISSION_CARDS.includes(c as MissionCard)))]
+    : []
+  return {
+    order: [...order, ...MISSION_CARDS.filter((c) => !order.includes(c))],
+    hidden: pickList(stored.hidden, MISSION_HIDEABLE),
+    collapsed: pickList(stored.collapsed, MISSION_CARDS),
+    sideWidth: pickSize(stored.sideWidth, SIDE_WIDTH),
+    mapHeight: pickSize(stored.mapHeight, MAP_HEIGHT),
+  }
+}
+
+function parseLayout(value: unknown): PageLayout {
+  const stored = (value && typeof value === 'object' ? value : {}) as Partial<Record<keyof PageLayout, unknown>>
+  return { sidebarCollapsed: stored.sidebarCollapsed === true, mission: parseMissionLayout(stored.mission) }
 }
 
 const userKey = (username: string) => `uav.prefs.v1.${username}`
@@ -59,6 +127,7 @@ function parse(raw: string | null): Prefs {
     theme: pick(stored.theme, THEMES, DEFAULT_PREFS.theme),
     fontSize: pick(stored.fontSize, FONT_SIZES, DEFAULT_PREFS.fontSize),
     density: pick(stored.density, DENSITIES, DEFAULT_PREFS.density),
+    layout: parseLayout(stored.layout),
   }
 }
 
@@ -76,6 +145,9 @@ function apply(prefs: Prefs): void {
 interface PrefsState {
   prefs: Prefs
   setPrefs: (change: Partial<Prefs>) => void
+  /** Changes part of the mission page layout; the rest of the preferences stay. */
+  setMissionLayout: (change: Partial<MissionLayout>) => void
+  /** Resets everything: display and page layouts ("Reset to default"). */
   reset: () => void
 }
 
@@ -109,12 +181,18 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     [prefs, username],
   )
 
+  const setMissionLayout = useCallback(
+    (change: Partial<MissionLayout>) =>
+      setPrefs({ layout: { ...prefs.layout, mission: { ...prefs.layout.mission, ...change } } }),
+    [prefs.layout, setPrefs],
+  )
+
   const reset = useCallback(() => {
     if (username) write(userKey(username), null)
     setPrefsState(DEFAULT_PREFS)
   }, [username])
 
-  const value = useMemo(() => ({ prefs, setPrefs, reset }), [prefs, setPrefs, reset])
+  const value = useMemo(() => ({ prefs, setPrefs, setMissionLayout, reset }), [prefs, setPrefs, setMissionLayout, reset])
   return createElement(PrefsContext.Provider, { value }, children)
 }
 
