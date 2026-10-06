@@ -307,7 +307,7 @@ None of the items below is implemented in the prototype.
 - **Flutter mobile app.** A native app could use the same REST and WebSocket API as the PWA.
 - **PostgreSQL + PostGIS.** The schema uses portable types, but the system has not been run on PostgreSQL, and no
   PostGIS spatial features are used yet.
-- **Containers (Docker).** Not built or run in the prototype.
+- **Containers (Docker).** Built and run on a developer PC (page and health check); sign-in and the demo inside the containers, and any hosted deployment of them, are not tried.
 - **Real sensor data.** Calibrate the sensor models and the classifier against real MD/GPR measurements; the
   current parameters are tuned on simulated data only.
 - **Production hardening.** Managed user accounts, secrets management, HTTPS, and deployment beyond a single
