@@ -40,6 +40,9 @@ DISCOVERY_TIMEOUT_S = 10.0  # how long to listen for PX4's heartbeat
 READY_TIMEOUT_S = 60.0  # GPS fix and home position, a few seconds after PX4 SITL starts
 ARMABLE_TIMEOUT_S = 15.0  # after switching to Hold
 RESTART_TIMEOUT_S = 150.0  # PX4 SITL + Gazebo starting in a new container, up to GPS fix and home
+HOME_AFTER_SURVEY_S = 300.0  # following PX4 home after the survey: stop waiting for it to land after this
+SETTLE_S = 10.0  # after a restart: PX4's position must hold still this long before takeoff
+SETTLE_M = 0.5
 LINK_TIMEOUT_S = 5.0  # no position from PX4 for this long ends the run
 FRAME_PERIOD_S = 0.2  # the simulator's dt_s, which the detector expects between readings
 RATE_HZ = 1 / FRAME_PERIOD_S
@@ -209,6 +212,7 @@ class Px4MavlinkSource:
                         new = (h.latitude_deg, h.longitude_deg)
                         if distance_m(new, wanted) <= TAKEOFF_MATCH_M:
                             await self._until(telemetry, lambda x: x.is_global_position_ok and x.is_home_position_ok)
+                            await self._settled(telemetry, wanted)
                             return new
                 except TimeoutError:
                     pass
@@ -221,6 +225,21 @@ class Px4MavlinkSource:
                 f"PX4 was restarted at the takeoff point but was not ready within {RESTART_TIMEOUT_S:.0f} s. "
                 "Try again in a moment."
             ) from e
+
+    @staticmethod
+    async def _settled(telemetry, wanted: tuple[float, float]) -> None:
+        """Wait until PX4's position holds still at the takeoff point. A new PX4 SITL starts at its default home
+        (Zurich) and then jumps to the takeoff point; flying before its position estimate has settled sent it 40 m
+        off course, fast and low, before it found the survey."""
+        anchor: tuple[float, float] | None = None
+        since = 0.0
+        async with contextlib.aclosing(telemetry.subscribe_position()) as positions:
+            async for p in positions:
+                here, now = (p.latitude_deg, p.longitude_deg), time.monotonic()
+                if distance_m(here, wanted) > TAKEOFF_MATCH_M or anchor is None or distance_m(here, anchor) > SETTLE_M:
+                    anchor, since = here, now
+                elif now - since >= SETTLE_S:
+                    return
 
     @staticmethod
     async def _until(telemetry, ok) -> None:
@@ -291,6 +310,7 @@ class Px4MavlinkSource:
             start = loop.time()
             was_armed = False
             stopped_at = 0.0  # survey progress when the supervisor ended it
+            survey_done_at = 0.0
             for i in range(1, 2**31):
                 await asyncio.sleep(max(0.0, start + i * FRAME_PERIOD_S - loop.time()))
                 pos = latest.get("position")
@@ -303,7 +323,8 @@ class Px4MavlinkSource:
                     await apply(applied)
                 if applied == "paused":
                     control.paused_s += FRAME_PERIOD_S
-                ending = control.stop_reason is not None
+                # Returning or landing: after the supervisor's command, or on its own after the last waypoint.
+                ending = control.phase in ("returning", "landing")
                 vel, hdg, bat = (latest.get(k) for k in ("velocity", "heading", "battery"))
                 x, y = self._sim.frame.to_xy(pos.latitude_deg, pos.longitude_deg)
                 v_n = _number(getattr(vel, "north_m_s", None), 0.0)
@@ -329,13 +350,18 @@ class Px4MavlinkSource:
                     stopped_at = frame.progress
                 yield frame
                 if state.current >= state.total and not ending:
-                    finished = True  # PX4 flies home on its own (return to launch after the mission)
+                    # PX4 flies home on its own (return to launch after the mission); follow it down.
+                    control.finish_survey()
+                    applied = control.phase
+                    survey_done_at = loop.time()
+                if control.survey_finished and loop.time() - survey_done_at > HOME_AFTER_SURVEY_S:
+                    finished = True  # the survey is complete; PX4 is still on its way home
                     return
                 armed = latest.get("armed")
                 was_armed = was_armed or armed is True
                 if was_armed and armed is False:
                     if ending:
-                        finished = True  # landed and disarmed after the supervisor's return home or land
+                        finished = True  # landed and disarmed: after the survey, or a return home or land
                         return
                     raise RuntimeError("PX4 disarmed before the survey was finished")
         finally:

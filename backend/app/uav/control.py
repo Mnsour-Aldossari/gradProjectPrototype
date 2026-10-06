@@ -24,6 +24,8 @@ class FlightControl:
         self.phase: Phase = "surveying"
         # Flight time spent paused, added by the source. Only PX4's clock runs while paused: the simulator stops.
         self.paused_s = 0.0
+        # The survey is complete and the UAV flies home on its own (PX4); no more commands apply.
+        self.survey_finished = False
         self._changed = asyncio.Event()
 
     @property
@@ -33,10 +35,18 @@ class FlightControl:
 
     @property
     def stop_reason(self) -> str | None:
-        """Why the survey ended early, or None while it may still finish."""
-        return STOP_REASONS.get(self.phase)
+        """Why the survey ended early, or None while it may still finish (or has finished)."""
+        return None if self.survey_finished else STOP_REASONS.get(self.phase)
+
+    def finish_survey(self) -> None:
+        """The last waypoint is reached; the UAV returns home and lands by itself."""
+        self.survey_finished = True
+        self.phase = "returning"
+        self._changed.set()
 
     def request(self, action: Action) -> Phase:
+        if self.survey_finished:
+            raise ControlRejected("The survey is complete; the UAV is returning home")
         if self.stop_reason is not None:
             raise ControlRejected(f"The UAV is already {self.phase}")
         if action == "pause":

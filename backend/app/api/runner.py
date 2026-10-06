@@ -238,11 +238,16 @@ async def run_mission(
     frames_since_detect = 0
     last_telemetry_event = 0.0
     survey_start_s: float | None = None
+    phase = control.phase
     try:
         # aclosing: a cancelled run still lets the source finish (PX4 returns to launch).
         async with contextlib.aclosing(source.frames()) as frames:
             async for f in frames:
                 rows.append(_telemetry_row(mission_id, f))
+                if control.phase != phase:
+                    phase = control.phase
+                    with Session(engine) as session:
+                        hub.publish(mission_id, mission_event(session.get(Mission, mission_id), phase))
                 if f.sensor is not None:
                     lat, lon = f.position.lat / 1e7, f.position.lon / 1e7
                     t_s = f.position.time_boot_ms / 1000

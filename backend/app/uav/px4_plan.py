@@ -102,9 +102,11 @@ class WaypointTracker:
         return len(self._points)
 
     def update(self, x: float, y: float) -> int:
-        """Advance past a waypoint once PX4 reaches it. Usually that is the next one; a later one counts too, in
-        case PX4 resumed a mission part-way (it does when the same mission was interrupted before)."""
-        for i in range(self.current, self.total):
+        """Advance past a waypoint once PX4 reaches it. Usually that is the next one; once the survey has begun a
+        later one counts too, in case PX4 skipped ahead. Before that only the first waypoint counts: the takeoff
+        point may lie next to a later lane end, and taking off there is not surveying."""
+        last = self.total if self.current > 0 else 1
+        for i in range(self.current, last):
             if math.dist((x, y), self._points[i]) <= self.arrival_m:
                 self.current = i + 1
                 break
