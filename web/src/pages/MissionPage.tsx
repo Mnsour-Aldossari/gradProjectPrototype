@@ -96,8 +96,9 @@ export function MissionPage() {
   const [px4Available, setPx4Available] = useState(false)
   // Whether the server starts PX4 SITL (Docker) at the takeoff point by itself.
   const [px4Restarts, setPx4Restarts] = useState(false)
-  // Whether the server can start PX4 SITL in Gazebo's window (WSL on its PC).
+  // Whether the server can start PX4 SITL in Gazebo's window (WSL on its PC), and whether that is turned off.
   const [px4Gazebo, setPx4Gazebo] = useState(false)
+  const [px4ManageOff, setPx4ManageOff] = useState(false)
   // A saved choice the server cannot fly (yet: its health comes after the first render) falls back to the simulator.
   const flyWith: FlyWith =
     (chosenFlyWith !== 'simulated' && !px4Available) || (chosenFlyWith === 'gazebo' && !px4Gazebo)
@@ -145,11 +146,14 @@ export function MissionPage() {
   }, [expanded])
 
   useEffect(() => {
-    api<{ px4_available?: boolean; px4_restarts?: boolean; px4_gazebo?: boolean }>('/api/health')
+    api<{ px4_available?: boolean; px4_restarts?: boolean; px4_gazebo?: boolean; px4_manage_off?: boolean }>(
+      '/api/health',
+    )
       .then((h) => {
         setPx4Available(h.px4_available === true)
         setPx4Restarts(h.px4_restarts === true)
         setPx4Gazebo(h.px4_gazebo === true)
+        setPx4ManageOff(h.px4_manage_off === true)
       })
       .catch(() => setPx4Available(false))
   }, [])
@@ -402,7 +406,9 @@ export function MissionPage() {
                           ? 'PX4 SITL + Gazebo window (not installed on the server)'
                           : px4Gazebo
                             ? 'PX4 SITL + Gazebo window'
-                            : 'PX4 SITL + Gazebo window (needs WSL on the server)',
+                            : px4ManageOff
+                              ? 'PX4 SITL + Gazebo window (off: PX4_MANAGE_DOCKER=0 on the server)'
+                              : 'PX4 SITL + Gazebo window (needs WSL on the server)',
                         disabled: !px4Available || !px4Gazebo,
                       },
                     ]}

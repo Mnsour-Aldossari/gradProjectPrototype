@@ -63,11 +63,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # px4_available: the server can talk to PX4 (MAVSDK installed); whether PX4 runs shows when a mission starts.
         # px4_restarts: PX4 SITL is started at a mission's takeoff point when needed (Docker on this machine).
         # px4_gazebo: PX4 SITL can also be started in Gazebo's window (WSL on this Windows PC).
+        # px4_manage_off: both are turned off with PX4_MANAGE_DOCKER=0.
         return {
             "status": "ok",
             "px4_available": mavsdk_installed(),
             "px4_restarts": settings.px4_manage_docker,
             "px4_gazebo": settings.px4_manage_gazebo,
+            "px4_manage_off": settings.px4_manage_off,
         }
 
     return app

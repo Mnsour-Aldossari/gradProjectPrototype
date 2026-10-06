@@ -46,6 +46,7 @@ class Settings:
     # in tests (the defaults here).
     px4_manage_docker: bool = False
     px4_manage_gazebo: bool = False
+    px4_manage_off: bool = False  # PX4_MANAGE_DOCKER=0: both off on purpose, whatever is installed
     # Where PX4-Autopilot is built in WSL (make px4_sitl gz_x500): the distribution, and the folder in its home.
     px4_gazebo_distro: str = "Ubuntu-22.04"
     px4_gazebo_dir: str = "PX4-Autopilot"
@@ -62,6 +63,7 @@ class Settings:
             px4_url=os.environ.get("PX4_URL", "udpin://0.0.0.0:14540"),
             px4_manage_docker=manage and shutil.which("docker") is not None,
             px4_manage_gazebo=manage and os.name == "nt" and shutil.which("wsl") is not None,
+            px4_manage_off=not manage,
             px4_gazebo_distro=os.environ.get("PX4_GAZEBO_DISTRO", "Ubuntu-22.04"),
             px4_gazebo_dir=os.environ.get("PX4_GAZEBO_DIR", "PX4-Autopilot"),
         )
