@@ -41,10 +41,11 @@ export function FlightControls({ mission }: { mission: Mission }) {
     }
   }
 
-  if (phase === 'returning' || phase === 'landing') {
+  if (phase === 'returning' || phase === 'landing' || phase === 'to_landing') {
+    const doing = { returning: 'Returning home.', landing: 'Landing.', to_landing: 'Flying to the landing point.' }[phase]
     return (
       <p className="small flight-ending" role="status">
-        {phase === 'returning' ? 'Returning home.' : 'Landing.'} The survey ends once the UAV is on the ground.
+        {doing} The mission ends once the UAV is on the ground.
       </p>
     )
   }

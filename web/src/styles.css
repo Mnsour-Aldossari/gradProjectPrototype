@@ -1019,12 +1019,40 @@ textarea {
 .picking-takeoff .leaflet-interactive {
   cursor: crosshair !important;
 }
+.takeoff-rows {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 100%;
+}
 .takeoff-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 10px;
-  flex: 1 1 100%;
+}
+.takeoff-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 82px;
+}
+.takeoff-letter {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1d2a24;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.takeoff-letter.landing,
+.landing-icon span {
+  background: #6b3fa0;
+}
+.takeoff-warn {
+  color: var(--hazard);
 }
 .takeoff-label {
   font-weight: 600;

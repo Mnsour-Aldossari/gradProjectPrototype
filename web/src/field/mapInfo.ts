@@ -27,7 +27,7 @@ export function laneProgress(mission: Mission, t: Telemetry | null): { lane: num
  */
 export function remainingS(mission: Mission, t: Telemetry | null): number {
   if (mission.status === 'completed' || mission.status === 'stopped') return 0
-  if (mission.phase === 'returning' || mission.phase === 'landing') return 0
+  if (mission.phase === 'returning' || mission.phase === 'landing' || mission.phase === 'to_landing') return 0
   const elapsed = t?.t_s ?? 0
   const done = t?.progress ?? mission.progress
   if (mission.uav_source === 'px4' && done >= 0.05 && done < 1) {

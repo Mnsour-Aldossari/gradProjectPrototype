@@ -16,12 +16,12 @@ const TRACK_COLOR = 0x38bdf8
 /** Scene position of a point in the area's metres (east, north) at a height. */
 const at = (x: number, y: number, h = 0) => new THREE.Vector3(x, h, -y)
 
-/** PX4's takeoff point: a dark pad with a white H, as on the map. */
-function takeoffPad(x: number, y: number): THREE.Mesh {
+/** PX4's takeoff point (a dark pad with a white H) or landing point (L), as on the map. */
+function takeoffPad(x: number, y: number, letter: 'H' | 'L' = 'H'): THREE.Mesh {
   const c = document.createElement('canvas')
   c.width = c.height = 128
   const g = c.getContext('2d')!
-  g.fillStyle = '#1d2a24'
+  g.fillStyle = letter === 'H' ? '#1d2a24' : '#6b3fa0'
   g.beginPath()
   g.arc(64, 64, 60, 0, Math.PI * 2)
   g.fill()
@@ -32,7 +32,7 @@ function takeoffPad(x: number, y: number): THREE.Mesh {
   g.font = 'bold 72px sans-serif'
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  g.fillText('H', 64, 68)
+  g.fillText(letter, 64, 68)
   const texture = new THREE.CanvasTexture(c)
   texture.colorSpace = THREE.SRGBColorSpace
   const pad = new THREE.Mesh(
@@ -105,6 +105,7 @@ export class World {
     path: LatLon[],
     private readonly swathWidthM: number,
     takeoff: LatLon | null = null,
+    landing: LatLon | null = null,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true }) // throws without WebGL; the page shows a message
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -168,6 +169,7 @@ export class World {
 
     this.scene.add(this.markers.group)
     if (takeoff) this.scene.add(takeoffPad(...toXY(this.frame, takeoff[0], takeoff[1])))
+    if (landing) this.scene.add(takeoffPad(...toXY(this.frame, landing[0], landing[1]), 'L'))
 
     this.drone = buildDrone()
     this.drone.group.visible = false

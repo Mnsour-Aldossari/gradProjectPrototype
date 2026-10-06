@@ -2,7 +2,7 @@ export type Role = 'supervisor' | 'field_operator'
 /** stopped: ended early by the supervisor (return home or land), with what was surveyed kept. */
 export type MissionStatus = 'planned' | 'running' | 'completed' | 'stopped' | 'failed'
 /** What the UAV is doing while the mission runs, after the supervisor's commands. */
-export type FlightPhase = 'surveying' | 'paused' | 'returning' | 'landing'
+export type FlightPhase = 'surveying' | 'paused' | 'returning' | 'landing' | 'to_landing'
 export type FlightAction = 'pause' | 'resume' | 'return' | 'land'
 export type SoilType = 'dry_sand' | 'wet_clay' | 'mineralized_rocky'
 export type Category = 'high' | 'suspect' | 'clutter'
@@ -41,6 +41,12 @@ export interface Mission {
   /** Where PX4 takes off; null: the first point of the survey path. */
   takeoff_lat: number | null
   takeoff_lon: number | null
+  /** Where PX4 lands; null: back at the takeoff point. */
+  landing_lat: number | null
+  landing_lon: number | null
+  /** The points PX4 will use: the chosen ones, or by default just outside the area and back there. */
+  takeoff_point?: LatLon | null
+  landing_point?: LatLon | null
   progress: number
   battery_pct: number | null
   error: string | null
@@ -144,6 +150,7 @@ export const PHASE_LABELS: Record<Exclude<FlightPhase, 'surveying'>, string> = {
   paused: 'Paused',
   returning: 'Returning home',
   landing: 'Landing',
+  to_landing: 'Flying to landing point',
 }
 
 export const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
