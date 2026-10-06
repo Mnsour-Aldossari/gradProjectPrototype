@@ -2,7 +2,7 @@
 
 Everything downstream (mission runner, storage, detection) consumes
 `TelemetryFrame`s from a `TelemetrySource` and does not know whether they come
-from the built-in simulator or, in a future phase, from PX4 over MAVLink.
+from the built-in simulator or from PX4 over MAVLink (px4_mavlink_source.py).
 
 Field names, units and scaling of the flight messages follow the MAVLink
 common message set so a MAVLink adapter can fill them without conversion:

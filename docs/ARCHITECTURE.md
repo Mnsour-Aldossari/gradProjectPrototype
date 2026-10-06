@@ -18,7 +18,8 @@ narrow interface. The prototype has five layers:
 2. **UAV interface layer.** A `TelemetrySource` protocol is the only boundary between the UAV and the rest of the
    system. Flight data follows the field names and units of the MAVLink common message set
    (`GLOBAL_POSITION_INT`, `BATTERY_STATUS`, `MISSION_CURRENT`). Sensor data is a project-defined `SensorSample`,
-   because GPR and MD readings are not MAVLink messages. The prototype implements `SimulatedSource`.
+   because GPR and MD readings are not MAVLink messages. The prototype implements `SimulatedSource` and
+   `Px4MavlinkSource` (PX4 SITL + Gazebo over MAVLink, through MAVSDK), chosen per mission.
 3. **Application layer (backend).** A FastAPI service with:
    - a REST API for authentication, missions, telemetry, detections, verification and evaluation;
    - a WebSocket hub that pushes live events to connected clients;
@@ -36,7 +37,7 @@ Two user interfaces sit on top and talk to the backend only through REST and Web
   verification), delivered as a Progressive Web App.
 
 The main reason for this structure is replaceability. The simulator can be swapped for a real or PX4-simulated
-UAV by adding another `TelemetrySource`. The detection engine can be tested on its own, or wrapped as a separate
+UAV by adding another `TelemetrySource`; `Px4MavlinkSource` does this for PX4 SITL + Gazebo. The detection engine can be tested on its own, or wrapped as a separate
 service, without touching the rest of the system.
 
 ### Component diagram
@@ -52,7 +53,7 @@ flowchart TB
     subgraph UAV["UAV interface layer"]
         TS["TelemetrySource protocol<br/>MAVLink-shaped frames + SensorSample"]
         SS["SimulatedSource (implemented)"]
-        PX["Px4MavlinkSource (stub only, not implemented)"]
+        PX["Px4MavlinkSource (implemented: PX4 SITL + Gazebo via MAVSDK)"]
     end
 
     subgraph BE["Backend: FastAPI"]
@@ -220,7 +221,7 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 
 | Decision | Rationale |
 |---|---|
-| `TelemetrySource` adapter between the UAV and the backend | The backend, engine, database and interfaces do not depend on where frames come from, so a PX4/MAVLink source can be added later without changing them. |
+| `TelemetrySource` adapter between the UAV and the backend | The backend, engine, database and interfaces do not depend on where frames come from. The PX4/MAVLink source was added later with no change to the detection engine; the backend only gained the source choice per mission. |
 | MAVLink-shaped flight data, without ROS 2 in the core | The backend only needs position, battery and mission progress, which MAVLink provides directly. ROS 2 stays optional for a later sensor pipeline. |
 | Detection engine as a pure library | It can be unit-tested and evaluated offline on thousands of simulated surveys, and could later be wrapped as a ROS 2 node or a separate service. |
 | **Mobile access as a Progressive Web App** (`/field`), not a native app | One code base and one API serve the supervisor dashboard and the field view. The field view is mobile-first and installable from the browser. This was enough for the prototype's goals and the available time. A native Flutter app remains a future option on the same API. |
@@ -241,15 +242,32 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
 | Mission history page (counts per category, verification progress) | Implemented and tested in the browser |
 | Evaluation page and generated results | Implemented |
-| PX4 / MAVLink source | Stub only; see Future Phases |
+| PX4 / MAVLink source (`Px4MavlinkSource`) | Implemented and flown with PX4 1.17.0 SITL + Gazebo (headless Docker image) on small surveys; see [PX4 SITL + Gazebo](#px4-sitl--gazebo). Not tried with the Gazebo window, QGroundControl or a real vehicle |
+
+## PX4 SITL + Gazebo
+
+The supervisor picks **Fly with: PX4 SITL** before starting a survey (`missions.uav_source`). Then:
+
+1. The backend finds PX4 over MAVLink (MAVSDK, `udpin://0.0.0.0:14540`), waits for its GPS fix and home position,
+   checks the area is within PX4's 900 m mission limit from home, and uploads the simulator's lawnmower path as
+   mission items (mission height and speed, 0.5 m acceptance radius, starting at the first waypoint). If any of this
+   fails the mission stays planned and the reason is shown. A vehicle left in Return mode is switched to Hold so it
+   can arm.
+2. PX4 arms, takes off and flies the lanes. Frames are built at 5 Hz from PX4's position, velocity, heading and
+   battery. The waypoint being flown is taken from PX4's position, as MAVSDK's mission progress was empty with
+   PX4 1.17.
+3. On the survey lines, MD and GPR samples come from the project's sensor model at PX4's position, over the
+   scenario's buried objects. On a real UAV they would come from the payload computer as a separate stream.
+4. After the last waypoint PX4 returns to launch. If the run is cancelled the backend commands return to launch; if
+   the backend stops, PX4's link-loss failsafe returns and lands (observed).
 
 ## Future Phases
 
 None of the items below is implemented in the prototype.
 
-- **PX4 SITL + Gazebo through MAVLink.** Implement `Px4MavlinkSource` with MAVSDK-Python (e.g. `udp://:14540`),
-  subscribing to position, velocity, heading, battery and mission progress. GPR/MD samples would arrive from the
-  payload computer as a separate stream and be time-aligned with position before entering the system.
+- **PX4 on a real vehicle, with real payload data.** The same MAVLink link as PX4 SITL, plus MD/GPR samples from
+  the payload computer as a separate stream, time-aligned with position, instead of the sensor model at PX4's
+  position. The Gazebo 3D window and QGroundControl were not used either.
 - **ROS 2 (optional).** Use it for the sensor pipeline if Gazebo sensor plugins are introduced. The detection
   engine can be wrapped as a ROS 2 node without changes to its logic.
 - **Simulated control commands.** Takeoff, landing, pause, resume and return-to-launch would first be added as
