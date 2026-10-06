@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
+import logging
 import math
 import time
 from collections.abc import AsyncIterator
 
 from app.simulation import SimulationConfig, build_simulation
 
+from .control import FlightControl, Phase
 from .px4_plan import (
     ACCEPTANCE_RADIUS_M,
     PathProgress,
@@ -36,6 +39,8 @@ ARMABLE_TIMEOUT_S = 15.0  # after switching to Hold
 LINK_TIMEOUT_S = 5.0  # no position from PX4 for this long ends the run
 FRAME_PERIOD_S = 0.2  # the simulator's dt_s, which the detector expects between readings
 RATE_HZ = 1 / FRAME_PERIOD_S
+
+logger = logging.getLogger(__name__)
 
 
 class Px4Unavailable(Exception):
@@ -113,6 +118,7 @@ class Px4MavlinkSource:
         self._sim = build_simulation(config)
         self._waypoints = survey_waypoints(self._sim)
         self._system = None
+        self.control: FlightControl | None = None
 
     async def connect(self) -> None:
         """Find PX4, wait until it can fly, check the area is in reach and upload the survey."""
@@ -195,6 +201,23 @@ class Px4MavlinkSource:
             with contextlib.suppress(Exception):  # PX4 keeps its own rate if it refuses
                 await set_rate(RATE_HZ)
 
+        control = self.control or FlightControl()
+        applied: Phase = "surveying"
+
+        async def apply(phase: Phase) -> None:
+            """The supervisor's command, in PX4's terms. Resume continues the mission at the waypoint it was flying
+            to; return home and land end it, and PX4 lands and disarms on its own."""
+            commands = {
+                "paused": action.hold,
+                "surveying": mission.start_mission,
+                "returning": action.return_to_launch,
+                "landing": action.land,
+            }
+            try:
+                await commands[phase]()
+            except (ActionError, MissionError) as e:
+                logger.warning("PX4 refused %s: %s", phase, e)
+
         finished = False
         try:
             try:
@@ -208,6 +231,7 @@ class Px4MavlinkSource:
             loop = asyncio.get_running_loop()
             start = loop.time()
             was_armed = False
+            stopped_at = 0.0  # survey progress when the supervisor ended it
             for i in range(1, 2**31):
                 await asyncio.sleep(max(0.0, start + i * FRAME_PERIOD_S - loop.time()))
                 pos = latest.get("position")
@@ -215,7 +239,14 @@ class Px4MavlinkSource:
                     if pos is not None or loop.time() - start > LINK_TIMEOUT_S:
                         raise RuntimeError(f"Lost the link to PX4: no position for {LINK_TIMEOUT_S:.0f} s")
                     continue
+                if control.phase != applied:
+                    applied = control.phase
+                    await apply(applied)
+                if applied == "paused":
+                    control.paused_s += FRAME_PERIOD_S
+                ending = control.stop_reason is not None
                 vel, hdg, bat = (latest.get(k) for k in ("velocity", "heading", "battery"))
+                x, y = self._sim.frame.to_xy(pos.latitude_deg, pos.longitude_deg)
                 v_n = _number(getattr(vel, "north_m_s", None), 0.0)
                 v_e = _number(getattr(vel, "east_m_s", None), 0.0)
                 state = Px4State(
@@ -228,21 +259,30 @@ class Px4MavlinkSource:
                     v_down_m_s=_number(getattr(vel, "down_m_s", None), 0.0),
                     heading_deg=_number(getattr(hdg, "heading_deg", None), math.degrees(math.atan2(v_e, v_n)) % 360),
                     battery_pct=_number(getattr(bat, "remaining_percent", None), 100.0),
-                    current=tracker.update(*self._sim.frame.to_xy(pos.latitude_deg, pos.longitude_deg)),
+                    # On the way home or down it may cross waypoints: the survey's progress stays where it ended.
+                    current=tracker.current if ending else tracker.update(x, y),
                     total=tracker.total,
                 )
-                yield build_frame(state, loop.time() - start, self._sim, progress)
-                if state.current >= state.total:
+                frame = build_frame(state, loop.time() - start, self._sim, progress, scanning=control.scanning)
+                if ending:
+                    frame = dataclasses.replace(frame, progress=stopped_at)
+                else:
+                    stopped_at = frame.progress
+                yield frame
+                if state.current >= state.total and not ending:
                     finished = True  # PX4 flies home on its own (return to launch after the mission)
                     return
                 armed = latest.get("armed")
                 was_armed = was_armed or armed is True
                 if was_armed and armed is False:
+                    if ending:
+                        finished = True  # landed and disarmed after the supervisor's return home or land
+                        return
                     raise RuntimeError("PX4 disarmed before the survey was finished")
         finally:
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-            if not finished:
+            if not finished and control.stop_reason != "Landed by the supervisor":
                 with contextlib.suppress(Exception):  # cancelled or failed: bring the vehicle back
                     await action.return_to_launch()

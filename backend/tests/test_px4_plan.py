@@ -141,3 +141,10 @@ def test_tracker_follows_a_mission_resumed_part_way(sim):
     later = sim.plan.waypoints_xy[4:]
     seen = [tracker.update(x, y) for x, y in walk(later)]
     assert seen[0] == 5 and seen[-1] == tracker.total
+
+
+def test_no_readings_while_paused_or_on_the_way_down(sim):
+    """Hovering over one spot would pile readings there, and the payload does not scan on the way home."""
+    x, y = sim.plan.waypoints_xy[0]
+    frame = build_frame(state(sim, x, y, 1), 1, sim, PathProgress(sim.plan), scanning=False)
+    assert frame.sensor is None

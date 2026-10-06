@@ -152,3 +152,17 @@ def test_live_view_knows_when_the_survey_lines_began(client, monkeypatch):
     wait_until_finished(client, mission_id, headers)
     with client.websocket_connect(f"/ws/missions/{mission_id}?token={token}") as ws:
         assert ws.receive_json()["last_telemetry"]["survey_start_s"] == 0.0
+
+
+def test_px4_mission_returned_home_is_stopped(client, monkeypatch):
+    class SlowPx4(FakePx4):
+        speed_factor = 1.0
+
+    monkeypatch.setattr("app.api.runner.Px4MavlinkSource", SlowPx4)
+    headers = auth_headers(client, "supervisor")
+    mission_id = create(client, headers)
+    assert client.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers).status_code == 202
+    r = client.post(f"/api/missions/{mission_id}/control", json={"action": "return"}, headers=headers)
+    assert r.status_code == 202 and r.json()["phase"] == "returning"
+    mission = wait_until_finished(client, mission_id, headers)
+    assert (mission["status"], mission["uav_source"]) == ("stopped", "px4")

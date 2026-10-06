@@ -119,10 +119,13 @@ def surveying(state: Px4State) -> bool:
     return 1 <= state.current < state.total
 
 
-def build_frame(state: Px4State, t_s: float, sim: Simulation, progress: PathProgress) -> TelemetryFrame:
+def build_frame(
+    state: Px4State, t_s: float, sim: Simulation, progress: PathProgress, scanning: bool = True
+) -> TelemetryFrame:
+    """scanning: False while the supervisor has paused the survey or ended it (return home, land)."""
     x, y = sim.frame.to_xy(state.lat_deg, state.lon_deg)
     sensor = None
-    if surveying(state):
+    if scanning and surveying(state):
         # MD and GPR are not MAVLink data: the project's sensor model reads the buried objects at PX4's position.
         s = sim.sensor_sample(x, y, state.relative_alt_m)
         sensor = SensorSample(md=s.md, gpr_amp=s.gpr_amp, gpr_twt_ns=s.gpr_twt_ns)
