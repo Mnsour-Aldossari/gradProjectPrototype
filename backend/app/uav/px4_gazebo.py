@@ -59,7 +59,12 @@ fi
 # PX4 and Gazebo's window are both up.
 RUNNING_SCRIPT = "pgrep -x px4 >/dev/null && pgrep -f 'gz sim (-g|gui)' >/dev/null\n"
 
+# The start script that owns PX4 and Gazebo goes first, so that it cannot stop the next ones when its window closes.
 STOP_SCRIPT = r"""
+OWNER=$(cat /tmp/uav-gazebo.owner 2>/dev/null)
+if [ -n "$OWNER" ] && tr '\0' ' ' < "/proc/$OWNER/cmdline" 2>/dev/null | grep -q '^/bin/sh -s -- '; then
+  kill "$OWNER"
+fi
 pkill -x px4; pkill -f 'gz sim'
 i=0
 while pgrep -x px4 >/dev/null || pgrep -f 'gz sim' >/dev/null; do

@@ -243,24 +243,32 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
 | Mission history page (counts per category, verification progress) | Implemented and tested in the browser |
 | Evaluation page and generated results | Implemented |
-| PX4 / MAVLink source (`Px4MavlinkSource`) | Implemented and flown with PX4 1.17.0 SITL + Gazebo (headless Docker image) on small surveys; see [PX4 SITL + Gazebo](#px4-sitl--gazebo). Not tried with the Gazebo window, QGroundControl or a real vehicle |
+| PX4 / MAVLink source (`Px4MavlinkSource`) | Implemented and flown on small surveys with PX4 1.17.0 SITL (headless Docker image) and PX4 v1.18.0-beta1 SITL in Gazebo's window (WSL); see [PX4 SITL + Gazebo](#px4-sitl--gazebo). Not tried with a real vehicle; QGroundControl only by hand |
 
 ## PX4 SITL + Gazebo
 
-The supervisor picks **Fly with: PX4 SITL** before starting a survey (`missions.uav_source`). Then:
+The supervisor picks **Fly with: PX4 SITL** or **PX4 SITL + Gazebo window** before starting a survey
+(`missions.uav_source` is `px4`; the window is chosen with each start). Then:
 
-1. The backend finds PX4 over MAVLink (MAVSDK, `udpin://0.0.0.0:14540`), waits for its GPS fix and home position,
+1. On the backend's PC, the chosen PX4 SITL is started at the takeoff point H when it is off or more than 2 m away,
+   and the other one is stopped so that only one PX4 answers. PX4 SITL takes its home only when it starts, so this
+   is how it takes off from H. `px4_docker.py` runs `docker stop` and `docker run` of the headless image;
+   `px4_gazebo.py` feeds a fixed script to sh in WSL that starts PX4 with only Gazebo's server, then Gazebo's window
+   (WSLg), and stops PX4 when the window closes. Both pass the coordinates as numbers. `PX4_MANAGE_DOCKER=0` turns
+   this off.
+2. The backend finds PX4 over MAVLink (MAVSDK, `udpin://0.0.0.0:14540`), waits for its GPS fix and home position,
    checks the area is within PX4's 900 m mission limit from home, and uploads the simulator's lawnmower path as
    mission items (mission height and speed, 0.5 m acceptance radius, starting at the first waypoint). If any of this
    fails the mission stays planned and the reason is shown. A vehicle left in Return mode is switched to Hold so it
    can arm.
-2. PX4 arms, takes off and flies the lanes. Frames are built at 5 Hz from PX4's position, velocity, heading and
+3. PX4 arms, takes off and flies the lanes. Frames are built at 5 Hz from PX4's position, velocity, heading and
    battery. The waypoint being flown is taken from PX4's position, as MAVSDK's mission progress was empty with
    PX4 1.17.
-3. On the survey lines, MD and GPR samples come from the project's sensor model at PX4's position, over the
+4. On the survey lines, MD and GPR samples come from the project's sensor model at PX4's position, over the
    scenario's buried objects. On a real UAV they would come from the payload computer as a separate stream.
-4. After the last waypoint PX4 returns to launch. If the run is cancelled the backend commands return to launch; if
-   the backend stops, PX4's link-loss failsafe returns and lands (observed).
+5. After the last waypoint PX4 flies at the survey height to the landing point L, or back to H, and lands there (a
+   land mission item; return to launch only as a fallback). If the run is cancelled the backend commands return to
+   launch; if the backend stops, PX4's link-loss failsafe returns and lands (observed).
 
 ## Flight controls
 
@@ -285,7 +293,7 @@ None of the items below is implemented in the prototype.
 
 - **PX4 on a real vehicle, with real payload data.** The same MAVLink link as PX4 SITL, plus MD/GPR samples from
   the payload computer as a separate stream, time-aligned with position, instead of the sensor model at PX4's
-  position. The Gazebo 3D window and QGroundControl were not used either.
+  position. QGroundControl was only tried by hand.
 - **ROS 2 (optional).** Use it for the sensor pipeline if Gazebo sensor plugins are introduced. The detection
   engine can be wrapped as a ROS 2 node without changes to its logic.
 - **Simulated control commands.** Takeoff, landing, pause, resume and return-to-launch would first be added as

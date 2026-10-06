@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import faulthandler
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +15,9 @@ from .config import Settings
 from .db import init_db, make_engine
 from .seed import fail_interrupted_missions, seed_users
 from .uav.px4_mavlink_source import mavsdk_installed
+
+# A crash in native code (MAVSDK's library, for PX4) ends the backend without a Python error; this prints where it was.
+faulthandler.enable()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
