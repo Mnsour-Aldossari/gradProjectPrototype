@@ -7,7 +7,7 @@ import random
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
-from .geo import XY, BBox
+from .geo import XY, BBox, bounding_box, crossings_at
 
 ALTITUDE_JITTER_M = 0.03
 
@@ -38,6 +38,28 @@ def lawnmower_path(bbox: BBox, line_spacing_m: float) -> list[XY]:
             waypoints += [(xmin, y), (xmax, y)]
         else:
             waypoints += [(xmax, y), (xmin, y)]
+    return waypoints
+
+
+# Pieces of a lane shorter than this are left out: PX4 could not tell their two ends apart.
+MIN_LANE_PIECE_M = 1.0
+
+
+def survey_lanes(area_xy: Sequence[XY], line_spacing_m: float) -> list[XY]:
+    """East-west lanes like lawnmower_path, each cut to where it lies inside the area, so any outline (circle, free
+    shape) is covered without flying its bounding box. For a rectangle it is exactly lawnmower_path. A lane that
+    crosses the area more than once (a concave outline) flies its pieces in order, crossing the gaps between them."""
+    xmin, ymin, xmax, ymax = bounding_box(area_xy)
+    n_lines = max(1, math.ceil((ymax - ymin) / line_spacing_m))
+    step = (ymax - ymin) / n_lines
+    waypoints: list[XY] = []
+    for k in range(n_lines):
+        y = ymin + (k + 0.5) * step
+        pieces = [(a, b) for a, b in crossings_at(y, area_xy) if b - a >= MIN_LANE_PIECE_M]
+        if k % 2 == 1:
+            pieces = [(b, a) for a, b in reversed(pieces)]
+        for a, b in pieces:
+            waypoints += [(a, y), (b, y)]
     return waypoints
 
 

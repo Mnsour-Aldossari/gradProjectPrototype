@@ -59,6 +59,23 @@ class MissionCreate(BaseModel):
         return area
 
 
+class AreaCheck(MissionCreate):
+    """A survey outline to check while it is drawn; nothing is stored."""
+
+    name: str = "Check"
+
+
+class AreaCheckResult(BaseModel):
+    ok: bool
+    problems: list[str]  # what to change, first the most basic
+    path: list[list[float]]  # the lanes the UAV would fly, [lat, lon]
+    path_length_m: float
+    width_m: float
+    height_m: float
+    area_m2: float
+    estimated_duration_s: float
+
+
 class MissionStats(BaseModel):
     telemetry_points: int
     sensor_readings: int
