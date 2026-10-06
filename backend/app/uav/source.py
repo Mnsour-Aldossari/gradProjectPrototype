@@ -13,7 +13,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from .control import FlightControl
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,9 @@ class TelemetryFrame:
 
 
 class TelemetrySource(Protocol):
+    # Set by the mission runner before frames(): the supervisor's pause, resume, return home and land commands.
+    control: FlightControl | None
+
     def frames(self) -> AsyncIterator[TelemetryFrame]:
         """Yield frames until the survey ends."""
         ...

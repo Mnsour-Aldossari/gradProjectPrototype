@@ -38,7 +38,7 @@ class Mission(SQLModel, table=True):
     line_spacing_m: float
     soil_type: str
     scenario_seed: int
-    status: str = "planned"  # planned | running | completed | failed
+    status: str = "planned"  # planned | running | completed | stopped (ended early by the supervisor) | failed
     uav_source: str = "simulated"  # simulated | px4: what flew (or will fly) the survey
     progress: float = 0.0
     battery_pct: float | None = None

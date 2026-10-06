@@ -87,6 +87,8 @@ class MissionRead(BaseModel):
     created_at: UtcDatetime
     started_at: UtcDatetime | None
     completed_at: UtcDatetime | None
+    # While running: surveying, paused, returning or landing. Not stored; the mission runner knows it.
+    phase: str | None = None
     stats: MissionStats | None = None
 
     @computed_field
@@ -121,7 +123,12 @@ class MissionHistory(BaseModel):
     totals_adaptive: CategoryCounts
     totals_verification: VerificationCounts
     completed: int
+    stopped: int
     failed: int
+
+
+class ControlRequest(BaseModel):
+    action: Literal["pause", "resume", "return", "land"]
 
 
 class StartRequest(BaseModel):

@@ -18,6 +18,7 @@ from app.models import Detection, Mission, SensorReading, TelemetryPoint, utcnow
 from app.simulation import SimulationConfig
 from app.simulation.geo import LocalFrame
 from app.uav import SimulatedSource, TelemetryFrame, TelemetrySource
+from app.uav.control import Action, FlightControl, Phase
 from app.uav.px4_mavlink_source import Px4MavlinkSource
 
 from .ws import Hub, detection_event
@@ -57,10 +58,12 @@ def make_source(mission: Mission, settings: Settings, speed_factor: float) -> Te
     return SimulatedSource(simulation_config_for(mission), speed_factor=speed_factor)
 
 
-def mission_event(mission: Mission) -> dict:
+def mission_event(mission: Mission, phase: Phase | None = None) -> dict:
+    """phase: what the UAV is doing while the mission runs (surveying, paused, returning, landing)."""
     return {
         "type": "mission",
         "status": mission.status,
+        "phase": phase if mission.status == "running" else None,
         "uav_source": mission.uav_source,
         "progress": mission.progress,
         "battery_pct": mission.battery_pct,
@@ -84,14 +87,16 @@ def _telemetry_row(mission_id: int, f: TelemetryFrame) -> TelemetryPoint:
     )
 
 
-def _telemetry_event(f: TelemetryFrame, survey_start_s: float | None) -> dict:
+def _telemetry_event(f: TelemetryFrame, survey_start_s: float | None, paused_s: float = 0.0) -> dict:
     """survey_start_s: flight time of the first sensor reading. PX4 takes off and flies to the first lane before
-    that, so the page times the rest of the survey from here, not from takeoff."""
+    that, so the page times the rest of the survey from here, not from takeoff. paused_s: flight time spent
+    paused by the supervisor, which does not count towards the survey's pace either."""
     p = f.position
     return {
         "type": "telemetry",
         "t_s": p.time_boot_ms / 1000,
         "survey_start_s": survey_start_s,
+        "paused_s": paused_s,
         "lat": p.lat / 1e7,
         "lon": p.lon / 1e7,
         "relative_alt_m": p.relative_alt / 1000,
@@ -213,7 +218,10 @@ def _set_failed(engine: Engine, mission_id: int, error: str) -> Mission:
         return mission
 
 
-async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: TelemetrySource) -> None:
+async def run_mission(
+    engine: Engine, hub: Hub, mission_id: int, source: TelemetrySource, control: FlightControl | None = None
+) -> None:
+    control = control or FlightControl()
     with Session(engine) as session:
         mission = session.get(Mission, mission_id)
         frame = LocalFrame.centred_on(mission.area)
@@ -258,13 +266,13 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
 
                 now = time.monotonic()
                 if now - last_telemetry_event >= TELEMETRY_EVENT_INTERVAL_S:
-                    hub.publish(mission_id, _telemetry_event(f, survey_start_s))
+                    hub.publish(mission_id, _telemetry_event(f, survey_start_s, control.paused_s))
                     last_telemetry_event = now
 
                 if len(rows) >= FLUSH_ROWS:
                     mission = _flush(engine, mission_id, rows, last)
                     rows = []
-                    hub.publish(mission_id, mission_event(mission))
+                    hub.publish(mission_id, mission_event(mission, control.phase))
 
                 frames_since_detect += 1
                 if frames_since_detect >= DETECT_EVERY_FRAMES:
@@ -276,7 +284,7 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
 
         _flush(engine, mission_id, rows, last)
         if last is not None:
-            hub.publish(mission_id, _telemetry_event(last, survey_start_s))
+            hub.publish(mission_id, _telemetry_event(last, survey_start_s, control.paused_s))
         detector.add(pending_readings)
         for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
             hub.publish(mission_id, event)
@@ -285,8 +293,12 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
             baseline_rows = [_new_detection(mission_id, frame, c) for c in detect_baseline(all_readings)]
             session.add_all(baseline_rows)
             mission = session.get(Mission, mission_id)
-            mission.status = "completed"
-            mission.progress = 1.0
+            if control.stop_reason is None:
+                mission.status = "completed"
+                mission.progress = 1.0
+            else:  # ended early by the supervisor: what was surveyed is kept
+                mission.status = "stopped"
+                mission.error = control.stop_reason
             mission.completed_at = utcnow()
             session.add(mission)
             session.commit()
@@ -310,6 +322,7 @@ class MissionRunner:
         self._engine = engine
         self._hub = hub
         self._tasks: dict[int, asyncio.Task] = {}
+        self._controls: dict[int, FlightControl] = {}
         self._px4: set[int] = set()
 
     def is_running(self, mission_id: int) -> bool:
@@ -319,16 +332,36 @@ class MissionRunner:
         """The mission PX4 is flying, if any: there is one vehicle."""
         return next(iter(self._px4), None)
 
+    def phase(self, mission_id: int) -> Phase | None:
+        control = self._controls.get(mission_id)
+        return None if control is None else control.phase
+
+    def paused_s(self, mission_id: int) -> float:
+        control = self._controls.get(mission_id)
+        return 0.0 if control is None else control.paused_s
+
+    def control(self, mission_id: int, action: Action) -> Phase:
+        """Pass a supervisor command to the running mission. KeyError if it is not running; ControlRejected if the
+        command does not apply now."""
+        phase = self._controls[mission_id].request(action)
+        with Session(self._engine) as session:
+            self._hub.publish(mission_id, mission_event(session.get(Mission, mission_id), phase))
+        return phase
+
     def start(self, mission_id: int, source: TelemetrySource, *, px4: bool = False) -> None:
+        control = FlightControl()
+        source.control = control
         task = asyncio.create_task(
-            run_mission(self._engine, self._hub, mission_id, source), name=f"mission-{mission_id}"
+            run_mission(self._engine, self._hub, mission_id, source, control), name=f"mission-{mission_id}"
         )
         self._tasks[mission_id] = task
+        self._controls[mission_id] = control
         if px4:
             self._px4.add(mission_id)
 
         def done(_: asyncio.Task) -> None:
             self._tasks.pop(mission_id, None)
+            self._controls.pop(mission_id, None)
             self._px4.discard(mission_id)
 
         task.add_done_callback(done)
