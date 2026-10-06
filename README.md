@@ -91,8 +91,8 @@ survey; the metal-detector and radar readings still come from the project's sens
 4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL**, then **Start survey**. PX4 takes off
    at **H**, by default 5 m outside the area before the first lane, and lands back there. **Set on map** next to
    *Takeoff* or *Landing* moves H, or adds a separate landing point **L** (each within 900 m of the survey; both can
-   be dragged; a point inside the area is flagged). If PX4 is elsewhere, the backend restarts the `px4-sitl`
-   container at H first (about a minute; it runs only `docker stop px4-sitl` and `docker run` of the image above
+   be dragged; a point inside the area is flagged). If PX4 is more than 2 m from H, the backend restarts the
+   `px4-sitl` container at H first (about a minute; it runs only `docker stop px4-sitl` and `docker run` of the image above
    with the point's coordinates). Set `PX4_MANAGE_DOCKER=0` to turn this off; PX4 then flies from where it is, or
    Start says which command to run for a chosen point.
 5. Stop PX4 when done: `docker stop px4-sitl`.
@@ -105,8 +105,9 @@ Notes:
   `PX4_HOME_LAT` / `PX4_HOME_LON` at that area; otherwise Start says so and the mission stays planned.
 - If PX4 is not running, Start reports it after about 10 s and the mission stays planned. One PX4 mission flies at
   a time; the simulator is not affected. **Run demo scenario** always uses the simulator.
-- After the survey PX4 returns to launch and lands; the map follows it (Returning home, no readings) and the mission
-  is Completed once it is down. If the backend stops during a flight, PX4's link-loss failsafe holds for 5 s, then
+- After the survey PX4 flies on at the survey height to L, or back to H, and lands there; the map follows it
+  (Flying to landing point / Returning home, no readings) and the mission is Completed once it is down. **Return
+  Home** during the survey uses PX4's return to launch: it climbs to PX4's return height first, then lands at H. If the backend stops during a flight, PX4's link-loss failsafe holds for 5 s, then
   returns and lands.
 - After a restart at the takeoff point, PX4 takes off only once its position has held still there for 10 s (a new
   PX4 SITL starts at its default home in Zurich and jumps).
@@ -191,8 +192,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **169 passed, 2 xfailed** with `requirements-px4.txt` installed (without it two PX4 tests are
-skipped: 167 passed, 2 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **171 passed, 2 xfailed** with `requirements-px4.txt` installed (without it two PX4 tests are
+skipped: 169 passed, 2 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.

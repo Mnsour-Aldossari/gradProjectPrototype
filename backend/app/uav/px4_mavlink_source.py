@@ -25,6 +25,7 @@ from .px4_docker import Px4Docker, Px4RestartFailed
 from .px4_plan import (
     ACCEPTANCE_RADIUS_M,
     landing_check,
+    RESTART_NEAR_M,
     TAKEOFF_MATCH_M,
     PathProgress,
     Px4State,
@@ -160,7 +161,10 @@ class Px4MavlinkSource:
                 "PX4 has no GPS fix or home position yet. Wait until it has started, then try again."
             ) from e
         home = await telemetry.home()
-        home = await self._home_at_takeoff(system, telemetry, (home.latitude_deg, home.longitude_deg))
+        here = await telemetry.position()
+        home = await self._home_at_takeoff(
+            system, telemetry, (home.latitude_deg, home.longitude_deg), (here.latitude_deg, here.longitude_deg)
+        )
         reason = home_check(home, self._waypoints)
         if reason:
             raise Px4Unavailable(reason)
@@ -169,12 +173,16 @@ class Px4MavlinkSource:
             reason = landing_check(self.landing, self._waypoints)
             if reason:
                 raise Px4Unavailable(reason)
-            # After the last lane: fly to the landing point at the survey's height and land there.
+        # After the last lane: fly to the landing point (or back to the takeoff point) at the survey's height and land
+        # there. PX4's own return to launch, the fallback, first climbs to its return height.
+        land_at = self.landing or home
+        land_in_mission = landing_check(land_at, self._waypoints) is None
+        if land_in_mission:
             last = self._waypoints[-1]
-            items.append(_mission_item(Waypoint(*self.landing, last.relative_alt_m, last.speed_m_s), land=True))
+            items.append(_mission_item(Waypoint(*land_at, last.relative_alt_m, last.speed_m_s), land=True))
         mission = MissionAsync(system)
         try:
-            await mission.set_return_to_launch_after_mission(self.landing is None)
+            await mission.set_return_to_launch_after_mission(not land_in_mission)
             await mission.upload_mission(MissionPlan(items))
             # PX4 resumes an identical mission where it was interrupted; a new survey starts at the first lane.
             await mission.set_current_mission_item(0)
@@ -193,13 +201,16 @@ class Px4MavlinkSource:
                 ) from e
         self._system = system
 
-    async def _home_at_takeoff(self, system, telemetry, home: tuple[float, float]) -> tuple[float, float]:
+    async def _home_at_takeoff(
+        self, system, telemetry, home: tuple[float, float], here: tuple[float, float] | None = None
+    ) -> tuple[float, float]:
         """PX4's home, moved to the takeoff point first if needed: PX4 SITL takes its home only when it starts, so
-        it is restarted there (Docker). Returns the home PX4 will fly from."""
+        it is restarted there (Docker). here: where the vehicle stands; PX4 resets its home there when it arms, so
+        after landing elsewhere (a landing point) it is restarted too. Returns the home PX4 will fly from."""
         if self.takeoff is None and home_check(home, self._waypoints) is None:
             return home  # no point chosen: PX4 flies from where it is when the area is in reach
         wanted = self.takeoff or (self._waypoints[0].lat, self._waypoints[0].lon)
-        away = distance_m(home, wanted)
+        away = max(distance_m(home, wanted), distance_m(here or home, wanted))
         if away <= TAKEOFF_MATCH_M:
             return home
         if self.docker is None:
@@ -222,7 +233,7 @@ class Px4MavlinkSource:
                     if await system.is_connected():
                         h = await asyncio.wait_for(telemetry.home(), 5)
                         new = (h.latitude_deg, h.longitude_deg)
-                        if distance_m(new, wanted) <= TAKEOFF_MATCH_M:
+                        if distance_m(new, wanted) <= RESTART_NEAR_M:
                             await self._until(telemetry, lambda x: x.is_global_position_ok and x.is_home_position_ok)
                             await self._settled(telemetry, wanted)
                             return new
@@ -248,7 +259,7 @@ class Px4MavlinkSource:
         async with contextlib.aclosing(telemetry.subscribe_position()) as positions:
             async for p in positions:
                 here, now = (p.latitude_deg, p.longitude_deg), time.monotonic()
-                if distance_m(here, wanted) > TAKEOFF_MATCH_M or anchor is None or distance_m(here, anchor) > SETTLE_M:
+                if distance_m(here, wanted) > RESTART_NEAR_M or anchor is None or distance_m(here, anchor) > SETTLE_M:
                     anchor, since = here, now
                 elif now - since >= SETTLE_S:
                     return
@@ -363,7 +374,7 @@ class Px4MavlinkSource:
                     stopped_at = frame.progress
                 yield frame
                 if state.current >= state.total and not ending:
-                    # PX4 flies home on its own (return to launch after the mission); follow it down.
+                    # PX4 flies on to the landing point (or the takeoff point) by itself; follow it down.
                     control.finish_survey(to_landing=self.landing is not None)
                     applied = control.phase
                     survey_done_at = loop.time()

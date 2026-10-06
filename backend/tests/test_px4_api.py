@@ -288,3 +288,36 @@ def test_px4_mission_ends_with_a_landing_at_the_landing_point():
 
     item = _mission_item(Waypoint(24.1, 47.2, 1.5, 2.0), land=True)
     assert item.vehicle_action == MissionItem.VehicleAction.LAND
+
+
+def test_px4_a_few_metres_from_the_takeoff_point_is_restarted_there(monkeypatch):
+    """PX4 takes off from, and returns home to, the point on the map: 6 m away is too far (it was let off at 25 m)."""
+    monkeypatch.setattr(px4, "SETTLE_S", 0.05)
+    restarted = []
+
+    class FakeDocker:
+        async def restart_at(self, lat, lon):
+            restarted.append((lat, lon))
+            link.home_at = (lat, lon)
+
+    takeoff = (24.13990, 47.26200)
+    source = _source(takeoff=takeoff, docker=FakeDocker())
+    link = _FakePx4Link((24.13990, 47.26206))  # 6 m east
+    assert asyncio.run(source._home_at_takeoff(link, link, link.home_at)) == takeoff and restarted == [takeoff]
+
+
+def test_px4_standing_away_from_its_home_is_restarted_at_the_takeoff_point(monkeypatch):
+    """After landing at a landing point PX4's home is still the takeoff point, but it would take off where it stands."""
+    monkeypatch.setattr(px4, "SETTLE_S", 0.05)
+    restarted = []
+
+    class FakeDocker:
+        async def restart_at(self, lat, lon):
+            restarted.append((lat, lon))
+            link.home_at = (lat, lon)
+
+    takeoff = (24.13990, 47.26200)
+    source = _source(takeoff=takeoff, docker=FakeDocker())
+    link = _FakePx4Link(takeoff)
+    assert asyncio.run(source._home_at_takeoff(link, link, takeoff, here=(24.13990, 47.26220))) == takeoff
+    assert restarted == [takeoff]

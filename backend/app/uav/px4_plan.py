@@ -77,8 +77,11 @@ def landing_check(landing: tuple[float, float], waypoints: list[Waypoint]) -> st
     )
 
 
-# PX4 counts as being at the takeoff point within this distance (GPS noise in SITL is well under a metre).
-TAKEOFF_MATCH_M = 25.0
+# PX4 counts as being at the takeoff point within this distance (GPS noise in SITL is well under a metre). Farther
+# away, PX4 SITL is restarted there, so it takes off from, and returns home to, the point on the map.
+TAKEOFF_MATCH_M = 2.0
+# Right after a restart PX4 counts as having arrived at the takeoff point within this distance (then waits to settle).
+RESTART_NEAR_M = 25.0
 
 
 def takeoff_check(takeoff: tuple[float, float], waypoints: list[Waypoint]) -> str | None:
