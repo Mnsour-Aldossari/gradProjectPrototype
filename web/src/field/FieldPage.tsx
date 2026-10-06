@@ -5,6 +5,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { DisplayMenu } from '../components/DisplayMenu'
+import { Select } from '../components/Select'
 import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
@@ -340,13 +341,11 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
 
             <label className="field">
               <span>Mission</span>
-              <select value={missionId} onChange={(e) => navigate(`/field/${e.target.value}`)}>
-                {missions.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({STATUS_LABELS[m.status]})
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={missionId}
+                onChange={(id) => navigate(`/field/${id}`)}
+                options={missions.map((m) => ({ value: m.id, label: `${m.name} (${STATUS_LABELS[m.status]})` }))}
+              />
             </label>
             <DisplayMenu inline />
             <div className="row spread">

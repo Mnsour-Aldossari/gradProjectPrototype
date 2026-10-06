@@ -5,6 +5,7 @@ import { useAuth } from '../auth'
 import { CARD_ICONS, CardFrame, Glyph, type CardDrag } from '../components/CardFrame'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { FlightControls } from '../components/FlightControls'
+import { Select } from '../components/Select'
 import { SensorTrace } from '../components/SensorTrace'
 import { Splitter } from '../components/Splitter'
 import { StatusBadge } from '../components/StatusBadge'
@@ -338,12 +339,18 @@ export function MissionPage() {
               <div className="start">
                 <label className="field inline">
                   <span>Fly with</span>
-                  <select value={flyWith} onChange={(e) => setFlyWith(e.target.value as UavSource)}>
-                    <option value="simulated">Built-in simulator</option>
-                    <option value="px4" disabled={!px4Available}>
-                      {px4Available ? 'PX4 SITL' : 'PX4 SITL (not installed on the server)'}
-                    </option>
-                  </select>
+                  <Select<UavSource>
+                    value={flyWith}
+                    onChange={setFlyWith}
+                    options={[
+                      { value: 'simulated', label: 'Built-in simulator' },
+                      {
+                        value: 'px4',
+                        label: px4Available ? 'PX4 SITL' : 'PX4 SITL (not installed on the server)',
+                        disabled: !px4Available,
+                      },
+                    ]}
+                  />
                 </label>
                 {flyWith === 'px4' && (
                   <div className="takeoff-row">
@@ -374,13 +381,11 @@ export function MissionPage() {
                 {flyWith === 'simulated' ? (
                   <label className="field inline">
                     <span>Playback speed</span>
-                    <select value={speedFactor} onChange={(e) => setSpeedFactor(Number(e.target.value))}>
-                      {SPEEDS.map((s) => (
-                        <option key={s} value={s}>
-                          {s === 1 ? 'Real time' : `${s}× faster`}
-                        </option>
-                      ))}
-                    </select>
+                    <Select
+                      value={speedFactor}
+                      onChange={setSpeedFactor}
+                      options={SPEEDS.map((s) => ({ value: s, label: s === 1 ? 'Real time' : `${s}× faster` }))}
+                    />
                   </label>
                 ) : (
                   <p className="small start-note">

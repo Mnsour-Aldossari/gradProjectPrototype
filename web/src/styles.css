@@ -257,8 +257,118 @@ textarea {
   min-height: 40px;
   width: 100%;
 }
-.field.inline select {
+.field.inline select,
+.field.inline .select {
   width: auto;
+}
+
+/* ---------- Select (components/Select.tsx): the app's own dropdown, themed like the inputs ---------- */
+
+.select {
+  position: relative;
+  min-width: 0;
+}
+.select-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--input-rule);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.select-button:hover {
+  border-color: var(--survey);
+}
+.select.open .select-button {
+  border-color: var(--survey);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--survey) 22%, transparent);
+}
+.select-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+  transition: transform 0.15s;
+}
+.select.open .select-chevron {
+  transform: rotate(180deg);
+}
+.select-list {
+  position: absolute;
+  z-index: 1200;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-height: 280px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  box-shadow: var(--shadow-lg);
+}
+.select-list.above {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.select-option.active {
+  background: var(--tint);
+}
+.select-option[aria-selected='true'] {
+  font-weight: 600;
+  color: var(--survey);
+}
+.select-option[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+.select-option svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 textarea {
   resize: vertical;
@@ -3508,10 +3618,8 @@ summary,
   min-width: 0;
   accent-color: var(--survey-fill);
 }
-.view3d-speed select {
+.view3d-speed .select-button {
   min-height: 44px;
-  background: var(--surface);
-  color: var(--ink);
 }
 .view3d-credit {
   position: absolute;

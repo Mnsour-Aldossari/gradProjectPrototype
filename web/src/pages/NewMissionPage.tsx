@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Select } from '../components/Select'
 import { Rectangle, useMapEvents } from 'react-leaflet'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -129,13 +130,11 @@ export function NewMissionPage() {
 
           <label className="field">
             <span>Soil type</span>
-            <select value={soil} onChange={(e) => setSoil(e.target.value as SoilType)}>
-              {Object.entries(SOIL_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={soil}
+              onChange={setSoil}
+              options={(Object.entries(SOIL_LABELS) as [SoilType, string][]).map(([value, label]) => ({ value, label }))}
+            />
             <small>The adaptive classifier adjusts its thresholds and depth estimate to the soil.</small>
           </label>
 

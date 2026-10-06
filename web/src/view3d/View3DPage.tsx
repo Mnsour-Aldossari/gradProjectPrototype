@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { FlightControls } from '../components/FlightControls'
+import { Select } from '../components/Select'
 import { StatusBadge } from '../components/StatusBadge'
 import { remainingS } from '../field/mapInfo'
 import { formatDuration } from '../format'
@@ -418,13 +419,7 @@ export default function View3DPage() {
             />
             <label className="view3d-speed">
               <span className="sr-only">Replay speed</span>
-              <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-                {REPLAY_SPEEDS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}×
-                  </option>
-                ))}
-              </select>
+              <Select value={speed} onChange={setSpeed} options={REPLAY_SPEEDS.map((s) => ({ value: s, label: `${s}×` }))} />
             </label>
           </div>
         )}
