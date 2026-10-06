@@ -1245,6 +1245,80 @@ textarea {
   font-size: calc(20px * var(--text-scale));
 }
 
+/* Drawing a survey outline (NewMissionPage.tsx, map/AreaEditor.tsx) */
+.draw-tools {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--tint);
+}
+.draw-tools button {
+  flex: 1;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: 600 calc(13.5px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.draw-tools button:hover {
+  background: var(--tint-soft);
+}
+.draw-tools button[aria-pressed='true'] {
+  background: var(--survey-fill);
+  color: #fff;
+}
+.area-check {
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+}
+.area-check.ok {
+  border-left-color: var(--ok);
+}
+.area-check.bad {
+  border-left-color: var(--hazard);
+}
+.area-check p,
+.area-check ul {
+  margin: 0;
+}
+.area-check ul {
+  padding-left: 18px;
+  color: var(--hazard);
+  font-size: calc(13.5px * var(--text-scale));
+}
+.area-check-title {
+  font-weight: 700;
+}
+.area-check.ok .area-check-title span {
+  color: var(--ok);
+}
+.area-check.bad .area-check-title span {
+  color: var(--hazard);
+}
+.drawing-area,
+.drawing-area .leaflet-interactive {
+  cursor: crosshair !important;
+}
+.area-handle {
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--survey-fill);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  cursor: grab;
+}
+.area-handle-centre {
+  background: #1d2a24;
+}
+.area-handle-radius {
+  border-radius: 3px;
+}
+
 /* ---------- small screens: map on top, panel below ---------- */
 
 @media (max-width: 860px) {
