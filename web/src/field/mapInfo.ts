@@ -26,11 +26,13 @@ export function laneProgress(mission: Mission, t: Telemetry | null): { lane: num
  * estimated from its own pace on the survey lines, timed from the first reading so takeoff does not count.
  */
 export function remainingS(mission: Mission, t: Telemetry | null): number {
-  if (mission.status === 'completed') return 0
+  if (mission.status === 'completed' || mission.status === 'stopped') return 0
+  if (mission.phase === 'returning' || mission.phase === 'landing') return 0
   const elapsed = t?.t_s ?? 0
   const done = t?.progress ?? mission.progress
   if (mission.uav_source === 'px4' && done >= 0.05 && done < 1) {
-    const surveying = elapsed - (t?.survey_start_s ?? 0)
+    // Time spent paused does not count towards the pace.
+    const surveying = elapsed - (t?.survey_start_s ?? 0) - (t?.paused_s ?? 0)
     return Math.max(0, (surveying * (1 - done)) / done)
   }
   return Math.max(0, mission.estimated_duration_s - elapsed)

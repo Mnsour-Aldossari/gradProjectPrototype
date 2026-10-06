@@ -504,6 +504,70 @@ textarea {
   background: var(--status-fail-bg);
   color: var(--hazard);
 }
+.status-stopped,
+.status-paused {
+  background: color-mix(in srgb, var(--amber) 22%, var(--surface));
+  color: var(--ink);
+}
+.status-returning,
+.status-landing {
+  background: var(--amber);
+  color: #1a1a1a;
+}
+
+/* ---------- flight controls (supervisor, during a flight) ---------- */
+
+.flight-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(8px * var(--density));
+  margin-top: calc(4px * var(--density));
+}
+.flight-controls .button {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  min-height: 44px;
+  padding: 0 12px;
+}
+.button.danger {
+  background: var(--hazard-fill);
+  color: #fff;
+}
+.button.danger:hover {
+  background: color-mix(in srgb, var(--hazard-fill) 85%, #000);
+}
+.flight-ending {
+  margin: 0;
+}
+.confirm-dialog {
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.3);
+  overscroll-behavior: contain;
+}
+.confirm-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+.confirm-dialog h2 {
+  margin: 0 0 8px;
+  font-size: calc(18px * var(--text-scale));
+}
+.confirm-dialog p {
+  margin: 0 0 16px;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.confirm-actions .button {
+  min-height: 44px;
+}
 
 /* ---------- mission layout ---------- */
 

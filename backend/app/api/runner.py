@@ -265,11 +265,14 @@ async def run_mission(
                 last = f
 
                 now = time.monotonic()
-                if now - last_telemetry_event >= TELEMETRY_EVENT_INTERVAL_S:
+                # While paused every frame goes out and is stored: the simulator sends one frame at rest, then
+                # nothing, and the page (live or reloaded) must show the UAV stopped.
+                paused = control.phase == "paused"
+                if paused or now - last_telemetry_event >= TELEMETRY_EVENT_INTERVAL_S:
                     hub.publish(mission_id, _telemetry_event(f, survey_start_s, control.paused_s))
                     last_telemetry_event = now
 
-                if len(rows) >= FLUSH_ROWS:
+                if len(rows) >= FLUSH_ROWS or (paused and rows):
                     mission = _flush(engine, mission_id, rows, last)
                     rows = []
                     hub.publish(mission_id, mission_event(mission, control.phase))

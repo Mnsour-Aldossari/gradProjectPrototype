@@ -50,15 +50,19 @@ def test_pause_holds_the_flight_until_resumed():
         frames = source.frames()
         first = [await anext(frames) for _ in range(10)]
         control.request("pause")
+        hover = await anext(frames)
         waiting = asyncio.ensure_future(anext(frames))
         await asyncio.sleep(0.05)
         assert not waiting.done()  # no frames while paused
         control.request("resume")
         resumed = await waiting
         await frames.aclose()
-        return first, resumed
+        return first, hover, resumed
 
-    first, resumed = asyncio.run(run())
+    first, hover, resumed = asyncio.run(run())
+    # One frame at rest where it stopped, without readings.
+    assert (hover.position.lat, hover.position.time_boot_ms) == (first[-1].position.lat, first[-1].position.time_boot_ms)
+    assert (hover.position.vx, hover.position.vy, hover.sensor) == (0, 0, None)
     # The flight carries on from where it paused: the next sample, 0.2 s of flight later.
     assert resumed.position.time_boot_ms - first[-1].position.time_boot_ms == 200
     assert resumed.sensor is not None

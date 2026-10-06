@@ -1,5 +1,9 @@
 export type Role = 'supervisor' | 'field_operator'
-export type MissionStatus = 'planned' | 'running' | 'completed' | 'failed'
+/** stopped: ended early by the supervisor (return home or land), with what was surveyed kept. */
+export type MissionStatus = 'planned' | 'running' | 'completed' | 'stopped' | 'failed'
+/** What the UAV is doing while the mission runs, after the supervisor's commands. */
+export type FlightPhase = 'surveying' | 'paused' | 'returning' | 'landing'
+export type FlightAction = 'pause' | 'resume' | 'return' | 'land'
 export type SoilType = 'dry_sand' | 'wet_clay' | 'mineralized_rocky'
 export type Category = 'high' | 'suspect' | 'clutter'
 export type VerificationStatus = 'pending' | 'confirmed_by_team' | 'false_alarm'
@@ -42,6 +46,7 @@ export interface Mission {
   started_at: string | null
   completed_at: string | null
   estimated_duration_s: number
+  phase?: FlightPhase | null
   stats?: MissionStats | null
 }
 
@@ -92,6 +97,8 @@ export interface Telemetry {
   progress?: number
   /** Flight time of the first sensor reading: the survey lines start there, after takeoff. */
   survey_start_s?: number | null
+  /** Flight time spent paused by the supervisor (PX4 keeps flying in place; the simulator stops its clock). */
+  paused_s?: number
   md?: number | null
   gpr?: number | null
 }
@@ -126,7 +133,14 @@ export const STATUS_LABELS: Record<MissionStatus, string> = {
   planned: 'Planned',
   running: 'Surveying',
   completed: 'Completed',
+  stopped: 'Stopped',
   failed: 'Failed',
+}
+
+export const PHASE_LABELS: Record<Exclude<FlightPhase, 'surveying'>, string> = {
+  paused: 'Paused',
+  returning: 'Returning home',
+  landing: 'Landing',
 }
 
 export const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
@@ -186,5 +200,6 @@ export interface MissionHistory {
   totals_adaptive: CategoryCounts
   totals_verification: VerificationCounts
   completed: number
+  stopped: number
   failed: number
 }

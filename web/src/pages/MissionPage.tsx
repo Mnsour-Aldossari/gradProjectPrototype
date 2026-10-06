@@ -4,8 +4,10 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { CARD_ICONS, CardFrame, Glyph, type CardDrag } from '../components/CardFrame'
 import { DetectionDetail } from '../components/DetectionDetail'
+import { FlightControls } from '../components/FlightControls'
 import { SensorTrace } from '../components/SensorTrace'
 import { Splitter } from '../components/Splitter'
+import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
 import { remainingS } from '../field/mapInfo'
 import { useMissionLive } from '../live'
@@ -14,7 +16,6 @@ import { DEFAULT_MISSION_LAYOUT, MAP_HEIGHT, SIDE_WIDTH, usePrefs, type MissionC
 import {
   CATEGORY_LABELS,
   SOIL_LABELS,
-  STATUS_LABELS,
   VERIFICATION_LABELS,
   type Category,
   type ConditionProfile,
@@ -285,13 +286,19 @@ export function MissionPage() {
         keep={
           <>
             <div className="row spread">
-              <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+              <StatusBadge mission={mission} />
               <span className="num">{progress}% of path</span>
             </div>
             <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
               <div style={{ transform: `scaleX(${mission.progress})` }} />
             </div>
-            {mission.error && <p className="error">{mission.error}</p>}
+            {mission.error &&
+              (mission.status === 'stopped' ? (
+                <p className="small">{mission.error}. What was scanned is kept.</p>
+              ) : (
+                <p className="error">{mission.error}</p>
+              ))}
+            {user?.role === 'supervisor' && mission.status === 'running' && <FlightControls mission={mission} />}
             {canStart && (
               <div className="start">
                 <label className="field inline">
@@ -412,7 +419,7 @@ export function MissionPage() {
             <span>{mission.name}</span>
           </nav>
           <h1>
-            {mission.name} <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+            {mission.name} <StatusBadge mission={mission} />
           </h1>
           <p className="small">
             {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m,
@@ -427,7 +434,7 @@ export function MissionPage() {
           <label className="toggle">
             <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} />
             Compare with the fixed-threshold baseline
-            {mission.status !== 'completed' && <span className="small"> (after the survey)</span>}
+            {mission.status !== 'completed' && mission.status !== 'stopped' && <span className="small"> (after the survey)</span>}
           </label>
           <button
             type="button"
@@ -539,7 +546,7 @@ export function MissionPage() {
             path={mission.path}
             track={state.track}
             swathWidthM={mission.line_spacing_m}
-            uav={mission.status === 'running' || mission.status === 'completed' ? t : null}
+            uav={mission.status === 'running' || mission.status === 'completed' || mission.status === 'stopped' ? t : null}
             detections={visible}
             selectedId={selectedId}
             onSelect={select}

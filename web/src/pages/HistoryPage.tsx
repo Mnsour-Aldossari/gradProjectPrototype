@@ -34,7 +34,10 @@ export function HistoryPage() {
           <section className="stat-row" aria-label="Totals over finished missions">
             <div className="stat">
               <span className="num">{history.completed}</span>
-              <span>Completed missions{history.failed > 0 ? `, ${history.failed} failed` : ''}</span>
+              <span>
+                Completed missions{history.stopped > 0 ? `, ${history.stopped} stopped early` : ''}
+                {history.failed > 0 ? `, ${history.failed} failed` : ''}
+              </span>
             </div>
             {CATEGORIES.map((c) => (
               <div key={c} className={`stat stat-${c}`}>
@@ -78,7 +81,11 @@ export function HistoryPage() {
                     <tr key={m.id}>
                       <th>
                         <Link to={`/missions/${m.id}`}>{m.name}</Link>
-                        {m.status === 'failed' && <span className="status status-failed">{STATUS_LABELS.failed}</span>}
+                        {(m.status === 'failed' || m.status === 'stopped') && (
+                          <span className={`status status-${m.status}`} title={m.error ?? undefined}>
+                            {STATUS_LABELS[m.status]}
+                          </span>
+                        )}
                       </th>
                       <td>{formatDate(m.completed_at)}</td>
                       <td>{SOIL_LABELS[m.soil_type]}</td>

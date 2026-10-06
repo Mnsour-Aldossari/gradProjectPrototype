@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import math
 from collections.abc import AsyncIterator, Iterator
 
@@ -99,7 +100,9 @@ class SimulatedSource:
 
         for fs, ss in sim.samples():
             if control is not None and control.phase == "paused":
-                # Hovering in place: no frames, and the flight clock stops with it.
+                # Hovering in place: one frame at rest, then none until resumed; the flight clock stops with it.
+                if last is not None:
+                    yield to_frame(sim, dataclasses.replace(last, v_east=0.0, v_north=0.0), None)
                 await control.wait_while_paused()
                 start = loop.time() - i * period
             if control is not None and control.stop_reason is not None:
