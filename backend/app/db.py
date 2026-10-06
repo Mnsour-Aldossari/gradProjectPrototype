@@ -15,7 +15,11 @@ def make_engine(database_url: str) -> Engine:
 
 # Columns added after the first release, as (table, column, SQL type and default). create_all() makes new tables
 # but leaves existing ones as they are, so a database from an older version gets these added here.
-ADDED_COLUMNS = [("missions", "uav_source", "VARCHAR NOT NULL DEFAULT 'simulated'")]
+ADDED_COLUMNS = [
+    ("missions", "uav_source", "VARCHAR NOT NULL DEFAULT 'simulated'"),
+    ("missions", "takeoff_lat", "FLOAT"),
+    ("missions", "takeoff_lon", "FLOAT"),
+]
 
 
 def init_db(engine: Engine) -> None:

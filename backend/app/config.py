@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +41,9 @@ class Settings:
     default_speed_factor: float = 10.0
     # Where PX4 (SITL or a vehicle) sends MAVLink, for missions flown with PX4. MAVSDK listens here.
     px4_url: str = "udpin://0.0.0.0:14540"
+    # Restart the PX4 SITL container (Docker) at a mission's takeoff point. On where the docker command exists,
+    # unless PX4_MANAGE_DOCKER=0; never on in tests (the default here).
+    px4_manage_docker: bool = False
     token_ttl_s: int = 12 * 3600
     cors_origins: tuple[str, ...] = ("http://localhost:5180", "http://127.0.0.1:5180")
 
@@ -50,4 +54,5 @@ class Settings:
             secret_key=os.environ.get("SECRET_KEY") or load_or_create_secret_key(),
             default_speed_factor=float(os.environ.get("SIM_SPEED_FACTOR", "10")),
             px4_url=os.environ.get("PX4_URL", "udpin://0.0.0.0:14540"),
+            px4_manage_docker=os.environ.get("PX4_MANAGE_DOCKER", "1") != "0" and shutil.which("docker") is not None,
         )

@@ -148,3 +148,14 @@ def test_no_readings_while_paused_or_on_the_way_down(sim):
     x, y = sim.plan.waypoints_xy[0]
     frame = build_frame(state(sim, x, y, 1), 1, sim, PathProgress(sim.plan), scanning=False)
     assert frame.sensor is None
+
+
+def test_takeoff_point_must_be_within_reach_of_the_survey(sim):
+    from app.uav.px4_plan import takeoff_check
+
+    wps = survey_waypoints(sim)
+    start = (wps[0].lat, wps[0].lon)
+    assert takeoff_check(start, wps) is None
+    far = (start[0] + 0.01, start[1])  # about 1.1 km north
+    reason = takeoff_check(far, wps)
+    assert reason is not None and "nearer the area" in reason

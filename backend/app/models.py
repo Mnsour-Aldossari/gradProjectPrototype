@@ -40,6 +40,9 @@ class Mission(SQLModel, table=True):
     scenario_seed: int
     status: str = "planned"  # planned | running | completed | stopped (ended early by the supervisor) | failed
     uav_source: str = "simulated"  # simulated | px4: what flew (or will fly) the survey
+    # Where PX4 takes off (its home), chosen on the map; None: the first point of the survey path.
+    takeoff_lat: float | None = None
+    takeoff_lon: float | None = None
     progress: float = 0.0
     battery_pct: float | None = None
     error: str | None = None

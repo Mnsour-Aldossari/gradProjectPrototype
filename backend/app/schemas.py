@@ -80,6 +80,8 @@ class MissionRead(BaseModel):
     scenario_seed: int
     status: str
     uav_source: str
+    takeoff_lat: float | None
+    takeoff_lon: float | None
     progress: float
     battery_pct: float | None
     error: str | None
@@ -125,6 +127,13 @@ class MissionHistory(BaseModel):
     completed: int
     stopped: int
     failed: int
+
+
+class TakeoffRequest(BaseModel):
+    """PX4's takeoff point; null for both: the first point of the survey path."""
+
+    lat: float | None = Field(None, ge=-90, le=90)
+    lon: float | None = Field(None, ge=-180, le=180)
 
 
 class ControlRequest(BaseModel):
