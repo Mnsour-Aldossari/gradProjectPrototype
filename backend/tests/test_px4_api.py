@@ -321,3 +321,18 @@ def test_px4_standing_away_from_its_home_is_restarted_at_the_takeoff_point(monke
     link = _FakePx4Link(takeoff)
     assert asyncio.run(source._home_at_takeoff(link, link, takeoff, here=(24.13990, 47.26220))) == takeoff
     assert restarted == [takeoff]
+
+
+def test_after_a_restart_the_old_home_reported_for_a_moment_is_not_taken(monkeypatch):
+    """MAVSDK reports the old PX4's home until the new one is up; a few metres off must not pass as the takeoff point."""
+    monkeypatch.setattr(px4, "SETTLE_S", 0.05)
+    takeoff = (24.13990, 47.26200)
+    old = (24.13990, 47.26206)  # 6 m east
+
+    class FakeDocker:
+        async def restart_at(self, lat, lon):
+            asyncio.get_running_loop().call_later(0.3, lambda: setattr(link, "home_at", (lat, lon)))
+
+    source = _source(takeoff=takeoff, docker=FakeDocker())
+    link = _FakePx4Link(old)
+    assert asyncio.run(source._home_at_takeoff(link, link, old)) == takeoff

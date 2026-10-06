@@ -25,7 +25,6 @@ from .px4_docker import Px4Docker, Px4RestartFailed
 from .px4_plan import (
     ACCEPTANCE_RADIUS_M,
     landing_check,
-    RESTART_NEAR_M,
     TAKEOFF_MATCH_M,
     PathProgress,
     Px4State,
@@ -175,7 +174,7 @@ class Px4MavlinkSource:
                 raise Px4Unavailable(reason)
         # After the last lane: fly to the landing point (or back to the takeoff point) at the survey's height and land
         # there. PX4's own return to launch, the fallback, first climbs to its return height.
-        land_at = self.landing or home
+        land_at = self.landing or self.takeoff or home
         land_in_mission = landing_check(land_at, self._waypoints) is None
         if land_in_mission:
             last = self._waypoints[-1]
@@ -233,7 +232,8 @@ class Px4MavlinkSource:
                     if await system.is_connected():
                         h = await asyncio.wait_for(telemetry.home(), 5)
                         new = (h.latitude_deg, h.longitude_deg)
-                        if distance_m(new, wanted) <= RESTART_NEAR_M:
+                        # Right after the restart MAVSDK still reports the old PX4's home: wait for the new one.
+                        if distance_m(new, wanted) <= TAKEOFF_MATCH_M:
                             await self._until(telemetry, lambda x: x.is_global_position_ok and x.is_home_position_ok)
                             await self._settled(telemetry, wanted)
                             return new
@@ -259,7 +259,7 @@ class Px4MavlinkSource:
         async with contextlib.aclosing(telemetry.subscribe_position()) as positions:
             async for p in positions:
                 here, now = (p.latitude_deg, p.longitude_deg), time.monotonic()
-                if distance_m(here, wanted) > RESTART_NEAR_M or anchor is None or distance_m(here, anchor) > SETTLE_M:
+                if distance_m(here, wanted) > TAKEOFF_MATCH_M or anchor is None or distance_m(here, anchor) > SETTLE_M:
                     anchor, since = here, now
                 elif now - since >= SETTLE_S:
                     return
