@@ -33,6 +33,93 @@ const SPEEDS = [1, 5, 10, 20]
 type FlyWith = UavSource | 'gazebo'
 const FLY_WITH: FlyWith[] = ['simulated', 'px4', 'gazebo']
 
+/** What each PX4 option needs installed on the server's PC, with where to get it. */
+const PX4_NEEDS: Record<'px4' | 'gazebo', { items: [string, string, string][] }> = {
+  px4: {
+    items: [
+      ['Docker Desktop', 'https://www.docker.com/products/docker-desktop/', 'download'],
+      [
+        'the PX4 image (about 3.3 GB; download it once before the first flight: docker pull jonasvautherin/px4-gazebo-headless:1.17.0)',
+        'https://hub.docker.com/r/jonasvautherin/px4-gazebo-headless',
+        'the image page',
+      ],
+    ],
+  },
+  gazebo: {
+    items: [
+      ['WSL with Ubuntu 22.04', 'https://learn.microsoft.com/windows/wsl/install', 'how to install'],
+      [
+        'PX4-Autopilot built inside Ubuntu (once, 30–60 minutes) and WSL mirrored networking',
+        'https://github.com/PX4/PX4-Autopilot',
+        'source and build steps',
+      ],
+    ],
+  },
+}
+
+/** Orange notice before a PX4 flight: what must be installed. "Don't show again" is kept per user in this browser. */
+function Px4Requirements({ kind, username }: { kind: 'px4' | 'gazebo'; username: string | undefined }) {
+  const key = `uav.px4Notice.v1.${username ?? ''}`
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(key) === 'hidden'
+    } catch {
+      return false
+    }
+  })
+  const [seen, setSeen] = useState(false)
+  if (hidden || seen) {
+    // Still reachable: a small link brings the notice back (and clears "Don't show again").
+    return (
+      <button
+        type="button"
+        className="link-button px4-notice-again"
+        onClick={() => {
+          setHidden(false)
+          setSeen(false)
+          try {
+            localStorage.removeItem(key)
+          } catch {
+            // storage unavailable
+          }
+        }}
+      >
+        What PX4 needs
+      </button>
+    )
+  }
+  const dontShow = () => {
+    setHidden(true)
+    try {
+      localStorage.setItem(key, 'hidden')
+    } catch {
+      // storage unavailable: hidden until reload
+    }
+  }
+  return (
+    <div className="px4-notice" role="note">
+      <p>
+        <strong>Before a PX4 flight, the server's PC needs:</strong>
+      </p>
+      <ul>
+        {PX4_NEEDS[kind].items.map(([what, url, label]) => (
+          <li key={url}>
+            {what} (<a href={url} target="_blank" rel="noreferrer">{label}</a>)
+          </li>
+        ))}
+      </ul>
+      <div className="px4-notice-actions">
+        <button type="button" className="button" onClick={() => setSeen(true)}>
+          Got it
+        </button>
+        <button type="button" className="link-button" onClick={dontShow}>
+          Don't show again
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /** The last choice of Fly with, kept per user in this browser (it may be unavailable: then it lasts until reload). */
 function useFlyWith(username: string | undefined): [FlyWith, (f: FlyWith) => void] {
   const key = `uav.flyWith.v1.${username ?? ''}`
@@ -414,6 +501,7 @@ export function MissionPage() {
                     ]}
                   />
                 </label>
+                {withPx4 && <Px4Requirements kind={flyWith === 'gazebo' ? 'gazebo' : 'px4'} username={user?.username} />}
                 {withPx4 && (
                   <div className="takeoff-rows">
                     <div className="takeoff-row">
