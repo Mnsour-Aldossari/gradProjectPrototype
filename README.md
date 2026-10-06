@@ -114,6 +114,18 @@ simulator and PX4 alike:
   scanned, and its potential detections, are kept and shown in History.
 - The field view shows Paused, Returning home or Landing; only the supervisor has the buttons.
 
+## 3D view
+
+The **3D** button on the mission map (supervisor) opens `/missions/{id}/3d`: the UAV over the satellite imagery of the
+area, the track it flew at its real height, the ground scanned, and a pin wherever a potential detection was reported
+(same colours as the map; click one for its details and verification). Cameras: **Follow** the UAV, **Orbit** freely,
+or **Top** down. While the survey flies it is live, with Pause / Return Home / Land; once it has ended it can be
+replayed (1×–20×, or dragged), each pin appearing when the UAV first passed within half a lane spacing of it.
+
+It is a visual view, built in the browser with three.js from the same data as the map, and replaces the Gazebo
+window for watching a survey. The flight itself is the simulator's or PX4's; the ground is flat (no terrain heights),
+and buried objects are not shown, only what was detected. The page loads three.js only when opened.
+
 ## Demo accounts (test credentials only)
 
 Two demo accounts are created on first start: `supervisor` (mission supervisor) and `field` (field operator).
@@ -213,6 +225,8 @@ Works (implemented and tested with PyTest and/or in the browser):
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
   verification, comparison with the baseline, mission history, evaluation page.
 - Field view `/field` at phone size: alerts, nearest potential detections, verification.
+- 3D view (supervisor): live and replay, checked in the browser at desktop and phone size, light and dark, with the
+  simulator. Not yet opened while PX4 flies.
 - Display settings: light, dark or device theme, small / normal / large text and comfortable / compact density,
   chosen under **Display** (in the sidebar, or on the Status tab of `/field`) and saved per user in the browser on
   that device; **Reset to default** restores them. They change the look only, never what a user can see.

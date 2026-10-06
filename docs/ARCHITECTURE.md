@@ -239,6 +239,7 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | Baseline and adaptive classification | Implemented, calibrated on tuning seeds, evaluated on separate seeds |
 | SQLite database | Implemented and tested |
 | Supervisor web dashboard (React + TypeScript + Leaflet) | Implemented and tested in the browser |
+| 3D view (`web/src/view3d/`, three.js) | Implemented and tested in the browser with the simulator (live and replay); a visual view of the same data as the map, in the backend's local metre frame. Not yet opened during a PX4 flight |
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
 | Mission history page (counts per category, verification progress) | Implemented and tested in the browser |
 | Evaluation page and generated results | Implemented |
