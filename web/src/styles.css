@@ -2429,6 +2429,11 @@ td.miss {
 .map-expand:hover {
   background-color: var(--tint-soft);
 }
+.map-3d {
+  top: 126px;
+  font: 700 calc(12px * var(--text-scale)) var(--font);
+  text-decoration: none;
+}
 .map-expand[aria-pressed='true'] {
   background-color: var(--survey-fill);
   color: #fff;
@@ -3290,4 +3295,228 @@ summary,
 [role='button'] {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- 3D view (view3d/View3DPage.tsx): the scene fills the screen, panels float over it ---------- */
+
+.view3d {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+}
+.view3d-empty {
+  display: grid;
+  place-items: center;
+}
+.view3d-canvas,
+.view3d-canvas canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.view3d-message {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  padding: 16px;
+  text-align: center;
+}
+.view3d-top,
+.view3d-tools,
+.view3d-hud {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+  backdrop-filter: blur(6px);
+}
+.view3d-top {
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px 8px 8px;
+}
+.view3d-top h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: calc(17px * var(--text-scale));
+}
+.view3d-top h1 > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.view3d-source {
+  white-space: nowrap;
+}
+.view3d-top .button {
+  white-space: nowrap;
+}
+.view3d-tools {
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px;
+}
+.view3d-seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--tint);
+}
+.view3d-seg button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: 600 calc(13px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.view3d-seg button[aria-pressed='true'] {
+  background: var(--survey-fill);
+  color: #fff;
+}
+.view3d-seg button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.view3d-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+  font-size: calc(13px * var(--text-scale));
+  white-space: nowrap;
+  cursor: pointer;
+}
+.view3d .toast {
+  top: 72px;
+}
+.view3d-detail {
+  position: absolute;
+  z-index: 3;
+  top: 72px;
+  right: 12px;
+  width: min(360px, calc(100% - 24px));
+  max-height: calc(100% - 260px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.view3d-hud {
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 10px;
+  width: min(760px, calc(100% - 24px));
+  padding: 10px 14px;
+}
+.view3d-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+}
+.view3d-figures dt {
+  color: var(--ink-2);
+  font-size: calc(12px * var(--text-scale));
+}
+.view3d-figures dd {
+  margin: 0;
+  font-weight: 700;
+  font-size: calc(16px * var(--text-scale));
+  font-variant-numeric: tabular-nums;
+}
+.view3d-counts {
+  display: flex;
+  gap: 10px;
+}
+.view3d-counts .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+}
+.view3d-note {
+  margin: 0;
+}
+.view3d-replay {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.view3d-replay .button {
+  min-width: 92px;
+  min-height: 44px;
+}
+.view3d-replay input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--survey-fill);
+}
+.view3d-speed select {
+  min-height: 44px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.view3d-credit {
+  position: absolute;
+  right: 8px;
+  bottom: 2px;
+  z-index: 1;
+  margin: 0;
+  color: #fff;
+  font-size: 11px;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  .view3d-top {
+    right: 12px;
+  }
+  .view3d-source {
+    display: none;
+  }
+  .view3d-tools {
+    top: calc(max(12px, env(safe-area-inset-top)) + 66px);
+    left: 12px;
+    right: auto;
+  }
+  .view3d .toast,
+  .view3d-detail {
+    top: calc(max(12px, env(safe-area-inset-top)) + 130px);
+  }
+  .view3d-detail {
+    max-height: calc(100% - 340px);
+  }
+  .view3d-credit {
+    display: none;
+  }
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

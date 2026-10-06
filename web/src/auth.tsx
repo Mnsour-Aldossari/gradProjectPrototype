@@ -19,7 +19,7 @@ export function homePath(user: User): string {
 /** Pages that belong to one role only; every other page is open to both roles. */
 export function canAccess(user: User, path: string): boolean {
   if (path === '/field' || path.startsWith('/field/')) return user.role === 'field_operator'
-  if (path === '/missions/new') return user.role === 'supervisor'
+  if (path === '/missions/new' || /^\/missions\/[^/]+\/3d$/.test(path)) return user.role === 'supervisor'
   return true
 }
 

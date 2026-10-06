@@ -565,6 +565,11 @@ export function MissionPage() {
           >
             <Glyph d={expanded ? CARD_ICONS.shrink : CARD_ICONS.expand} />
           </button>
+          {user?.role === 'supervisor' && (
+            <Link className="map-expand map-3d" to={`/missions/${missionId}/3d`} aria-label="3D view" title="3D view">
+              3D
+            </Link>
+          )}
           {state.connection === 'failed' ? (
             <div className="map-banner">
               Live connection lost.{' '}
