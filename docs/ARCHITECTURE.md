@@ -156,7 +156,7 @@ erDiagram
         float line_spacing_m
         string soil_type
         int scenario_seed
-        string status "planned | running | completed | failed"
+        string status "planned | running | completed | stopped | failed"
         float progress
         int created_by FK
     }
@@ -260,6 +260,23 @@ The supervisor picks **Fly with: PX4 SITL** before starting a survey (`missions.
    scenario's buried objects. On a real UAV they would come from the payload computer as a separate stream.
 4. After the last waypoint PX4 returns to launch. If the run is cancelled the backend commands return to launch; if
    the backend stops, PX4's link-loss failsafe returns and lands (observed).
+
+## Flight controls
+
+`POST /api/missions/{id}/control` (supervisor) sets the wanted phase on the mission's `FlightControl`
+(`backend/app/uav/control.py`): surveying, paused, returning or landing. The source flying the mission reads it
+between frames, so commands run in the source's own event loop (MAVSDK needs that):
+
+| Command | Simulator | PX4 |
+|---|---|---|
+| Pause / Resume | one frame at rest, then no frames until resumed; the flight clock stops | Hold mode / mission start, which continues at the waypoint being flown to |
+| Return Home | straight to the start of the path, then down at 0.5 m/s | return to launch |
+| Land | down where it is at 0.5 m/s | land |
+
+No sensor readings are taken while paused or on the way down. After Return Home or Land the run ends once the UAV
+is down (PX4: disarmed), and the mission is stored as `stopped` with the reason; the detector's last update and the
+baseline run on what was scanned. The phase is not stored: it comes with the mission while it runs (REST, WebSocket
+snapshot and mission events).
 
 ## Future Phases
 

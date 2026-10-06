@@ -102,6 +102,18 @@ Notes:
 - After the survey PX4 returns to launch and lands. If the backend stops during a flight, PX4's link-loss failsafe
   holds for 5 s, then returns and lands.
 
+## Flight controls during a survey
+
+While a survey flies, the supervisor's Flight card has **Pause / Resume**, **Return Home** and **Land**, for the
+simulator and PX4 alike:
+
+- **Pause** holds the UAV where it is (PX4: Hold mode) and takes no readings; **Resume** continues the survey from
+  there.
+- **Return Home** flies back to where the survey started and lands; **Land** lands where the UAV is. Both ask for
+  confirmation, as the survey cannot be resumed afterwards. Once the UAV is down the mission is **Stopped**: what was
+  scanned, and its potential detections, are kept and shown in History.
+- The field view shows Paused, Returning home or Landing; only the supervisor has the buttons.
+
 ## Demo accounts (test credentials only)
 
 Two demo accounts are created on first start: `supervisor` (mission supervisor) and `field` (field operator).
@@ -133,8 +145,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **145 passed, 2 xfailed** with `requirements-px4.txt` installed (without it one PX4 test is
-skipped: 144 passed, 1 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **154 passed, 2 xfailed** with `requirements-px4.txt` installed (without it one PX4 test is
+skipped: 153 passed, 1 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.
@@ -173,9 +185,10 @@ for SQLite only. (Not re-run while this README was reviewed.)
 | POST | `/api/auth/login` | anyone |
 | GET | `/api/auth/me` | any user |
 | GET/POST | `/api/missions` | read: any user, create: supervisor |
-| GET | `/api/missions/history` | any user — finished missions with potential-detection counts per category and verification progress |
+| GET | `/api/missions/history` | any user — finished missions (completed, stopped, failed) with potential-detection counts per category and verification progress |
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
 | POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10, "uav_source": "simulated"}` or `{"uav_source": "px4"}`; 503 with the reason if PX4 cannot fly it |
+| POST | `/api/missions/{id}/control` | supervisor; body `{"action": "pause" \| "resume" \| "return" \| "land"}` during a flight; 409 if the mission is not flying or the command does not apply now |
 | POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
 | GET | `/api/missions/{id}/telemetry` | any user |
 | GET | `/api/missions/{id}/detections?method=adaptive` | any user |
@@ -193,6 +206,8 @@ Works (implemented and tested with PyTest and/or in the browser):
   to end on 20 × 20 m surveys: all 12 waypoints in order, median 0.06 m from the planned lanes (max 0.62 m),
   1.46–1.54 m high for 1.5 m planned, readings and detections stored like a simulated survey. Also checked: PX4 not
   running, an area 87 km from home, a second flight right after the first, a flight interrupted by a backend stop.
+- Flight controls (Pause, Resume, Return Home, Land) with the simulator, tested with PyTest and in the browser
+  (desktop and phone size). With PX4 they are covered by PyTest only so far (see the table below).
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
@@ -214,6 +229,7 @@ Not working, not run, or only partly checked:
 | Postman | `postman/uav-prototype.postman_collection.json` (six requests) **has not been opened in Postman**. The same requests and test scripts were replayed against the running backend with a small Node script that mimics `pm`, and all passed. |
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
 | PostgreSQL | Supported through `DATABASE_URL` by design, never run against a PostgreSQL server. |
+| Flight controls with PX4 | Hold, mission start, return to launch and land through MAVSDK; not yet tried with PX4 running. |
 | PX4 SITL + Gazebo | Flown only in the headless Docker image (no 3D window) and only on small surveys; not tried with the Gazebo window, QGroundControl, the full demo field or a real vehicle. MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
