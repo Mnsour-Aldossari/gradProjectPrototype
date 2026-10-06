@@ -111,7 +111,9 @@ Each mission:
 4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL** or **PX4 SITL + Gazebo window**, then
    **Start survey**. PX4 takes off at **H**, by default 5 m outside the area before the first lane, and lands back
    there. **Set on map** next to *Takeoff* or *Landing* moves H, or adds a separate landing point **L** (each within
-   900 m of the survey; both can be dragged; a point inside the area is flagged).
+   900 m of the survey; both can be dragged; a point inside the area is flagged). An orange notice lists what the
+   chosen option needs installed, with links; **Got it** hides it until the page is opened again, **Don't show
+   again** hides it for that user in this browser, and **What PX4 needs** brings it back.
 5. If the chosen PX4 is off, or more than 2 m from H, the backend starts it at H first, and stops the other one so
    that only one PX4 answers: about 30 s for Gazebo's window, about a minute for Docker. For Docker it runs only
    `docker stop px4-sitl` and `docker run` of the image above with the point's coordinates; for WSL, a fixed script

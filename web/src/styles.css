@@ -739,6 +739,31 @@ textarea {
   flex: 1 1 160px;
   margin: 0;
 }
+.px4-notice {
+  flex: 1 1 100%;
+  border: 1px solid color-mix(in srgb, var(--amber) 55%, transparent);
+  background: color-mix(in srgb, var(--amber) 14%, var(--surface));
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+}
+.px4-notice p {
+  margin: 0 0 4px;
+}
+.px4-notice ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.px4-notice a {
+  color: inherit;
+  text-decoration: underline;
+}
+.px4-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 
 .telemetry {
   display: grid;
