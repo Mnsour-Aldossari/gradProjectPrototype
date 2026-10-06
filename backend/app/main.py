@@ -70,6 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "px4_restarts": settings.px4_manage_docker,
             "px4_gazebo": settings.px4_manage_gazebo,
             "px4_manage_off": settings.px4_manage_off,
+            "database": engine.dialect.name,  # sqlite or postgresql: which one holds the data
         }
 
     return app

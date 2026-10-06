@@ -205,7 +205,8 @@ in the browser and is never sent to the server.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///.../backend/uav.db` | e.g. `postgresql+psycopg://user:pass@localhost:5432/uav` |
+| `DATABASE_URL` | `sqlite:///.../backend/uav.db` | e.g. `postgresql+psycopg://user:pass@127.0.0.1:5432/uav` (see **PostgreSQL** below) |
+| `TEST_DATABASE_URL` | unset | tests only: a PostgreSQL server (any database); each test then gets a schema of its own there, dropped afterwards. Unset: tests use temporary SQLite files |
 | `SIM_SPEED_FACTOR` | `10` | default playback speed for missions (1 = real time) |
 | `SECRET_KEY` | random, saved in `backend/.secret_key` | token signing key; if unset, one is generated on first start and reused (git-ignored) |
 | `PX4_MANAGE_DOCKER` | `1` | `0`: never start or restart PX4 SITL at a mission's takeoff point, neither the Docker container nor Gazebo's window in WSL (each is off anyway without the `docker` / `wsl` command) |
@@ -213,8 +214,30 @@ in the browser and is never sent to the server.
 | `PX4_GAZEBO_DIR` | `PX4-Autopilot` | PX4-Autopilot's folder in that distribution, in the user's home or an absolute path |
 | `PX4_URL` | `udpin://0.0.0.0:14540` | where MAVSDK listens for PX4, for missions flown with PX4 |
 
-The code uses only portable column types so switching to PostgreSQL needs no code change; this has not yet been
-run against a PostgreSQL server in this prototype.
+## PostgreSQL (optional)
+
+SQLite stays the default: without `DATABASE_URL` nothing changes and `backend/uav.db` is used. To run on PostgreSQL
+instead, start a server and point the backend at it. For a trial, in Docker:
+
+```bash
+docker run -d --name uav-postgres -e POSTGRES_USER=uav -e POSTGRES_PASSWORD=uav -e POSTGRES_DB=uav -p 5433:5432 -v uav-pgdata:/var/lib/postgresql/data postgres:17
+```
+
+Then in the terminal that starts the backend (cmd), before it:
+
+```bash
+set DATABASE_URL=postgresql+psycopg://uav:uav@127.0.0.1:5433/uav
+```
+
+The tables are created on the first start and the demo accounts added; the database starts empty, and the missions
+in `uav.db` stay there. To go back to SQLite, start the backend without `DATABASE_URL`. `GET /api/health` says which
+one is running (`"database": "postgresql"` or `"sqlite"`). Use `127.0.0.1`, not `localhost`: on the PC where this was
+tried, `localhost` made the connection hang. The whole stack on PostgreSQL: `docker compose -f docker-compose.yml
+-f docker-compose.postgres.yml up --build -d` (the database has no published port; set `POSTGRES_PASSWORD` for
+anything but a local trial).
+
+The code uses only portable column types. Run the tests on PostgreSQL with `TEST_DATABASE_URL` set to the server
+(a database in it; the tests create and drop their own schemas).
 
 ## Tests and type check
 
@@ -223,8 +246,9 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **190 passed, 2 xfailed** with `requirements-px4.txt` installed (without it two PX4 tests are
-skipped: 188 passed, 2 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **190 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **191 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+too). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.
@@ -314,10 +338,10 @@ Not working, not run, or only partly checked:
 
 | Item | Status |
 |---|---|
-| Docker | `docker-compose.yml`, `backend/Dockerfile`, `web/Dockerfile`, `web/nginx.conf`: the images were built and the two containers run with `docker compose up --build -d` (Docker Desktop, Windows 11); the page opened on http://localhost:8080 and `/api/health` answered ok. **Not tried inside Docker:** signing in and running the demo scenario. |
+| Docker | `docker-compose.yml`, `backend/Dockerfile`, `web/Dockerfile`, `web/nginx.conf`: the images were built and the containers run with `docker compose up --build -d` (Docker Desktop, Windows 11), also with `docker-compose.postgres.yml`; on http://localhost:8080 `/api/health` answered ok, signing in worked and the demo scenario ran to the end with its data stored (on PostgreSQL), and the data survived a restart of the backend container. Not tried: a hosted deployment of the containers. |
 | Postman | `postman/uav-prototype.postman_collection.json` (six requests) **has not been opened in Postman**. The same requests and test scripts were replayed against the running backend with a small Node script that mimics `pm`, and all passed. |
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
-| PostgreSQL | Supported through `DATABASE_URL` by design, never run against a PostgreSQL server. |
+| PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. Not tried: PostGIS, a hosted PostgreSQL (e.g. Render's), a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |

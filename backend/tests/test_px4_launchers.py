@@ -174,6 +174,7 @@ def test_docker_px4_is_running_when_its_container_runs(monkeypatch):
 def test_health_says_whether_gazebo_can_be_started(client):
     health = client.get("/api/health").json()
     assert health["px4_gazebo"] is False and health["px4_manage_off"] is False  # never in tests, and not turned off
+    assert health["database"] in ("sqlite", "postgresql")
 
 
 def test_gazebo_without_wsl_leaves_the_mission_planned(client):

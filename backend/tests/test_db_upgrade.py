@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 
+import pytest
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app.db import init_db, make_engine
@@ -37,6 +40,25 @@ def test_old_database_gets_uav_source_and_keeps_its_missions(tmp_path):
     with Session(engine) as session:
         mission = session.exec(select(Mission)).one()
     assert (mission.name, mission.status, mission.uav_source) == ("Old survey", "completed", "simulated")
+
+
+@pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), reason="needs a PostgreSQL server (TEST_DATABASE_URL)")
+def test_old_postgresql_database_gets_uav_source_and_keeps_its_missions(database_url):
+    engine = make_engine(database_url)
+    with engine.begin() as conn:
+        conn.execute(text(OLD_MISSIONS.replace("DATETIME", "TIMESTAMP")))
+        conn.execute(
+            text(
+                "INSERT INTO missions VALUES (1, 'Old survey', '[]', '[]', 10, 1.5, 2, 2, 'dry_sand', 7,"
+                " 'completed', 1, 80, NULL, NULL, '2026-10-01 10:00:00', NULL, NULL)"
+            )
+        )
+    init_db(engine)
+    init_db(engine)
+    with Session(engine) as session:
+        mission = session.exec(select(Mission)).one()
+    assert (mission.name, mission.uav_source, mission.takeoff_lat) == ("Old survey", "simulated", None)
+    engine.dispose()
 
 
 def test_new_missions_fly_the_simulator_unless_told_otherwise(tmp_path):

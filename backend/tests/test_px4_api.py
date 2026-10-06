@@ -107,7 +107,7 @@ def test_real_mavsdk_reports_no_px4_quickly(monkeypatch):
         asyncio.run(source.connect())
 
 
-def test_cancelled_run_lets_the_source_finish(tmp_path, monkeypatch):
+def test_cancelled_run_lets_the_source_finish(database_url, monkeypatch):
     """When the backend shuts down mid-flight, the source's cleanup runs (for PX4: return to launch)."""
     from fastapi.testclient import TestClient
 
@@ -127,7 +127,7 @@ def test_cancelled_run_lets_the_source_finish(tmp_path, monkeypatch):
                 finished.append(True)
 
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", EndlessPx4)
-    settings = Settings(database_url=f"sqlite:///{(tmp_path / 'c.db').as_posix()}", secret_key="test-secret")
+    settings = Settings(database_url=database_url, secret_key="test-secret")
     with TestClient(create_app(settings)) as c:
         headers = auth_headers(c, "supervisor")
         mission_id = create(c, headers)

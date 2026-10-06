@@ -305,9 +305,10 @@ None of the items below is implemented in the prototype.
 - **Sharing field-team positions.** The field view uses the device location locally, for distances, but does not
   send it to the server.
 - **Flutter mobile app.** A native app could use the same REST and WebSocket API as the PWA.
-- **PostgreSQL + PostGIS.** The schema uses portable types, but the system has not been run on PostgreSQL, and no
-  PostGIS spatial features are used yet.
-- **Containers (Docker).** Built and run on a developer PC (page and health check); sign-in and the demo inside the containers, and any hosted deployment of them, are not tried.
+- **PostGIS.** The system runs on PostgreSQL (tested with PostgreSQL 17 in Docker; SQLite stays the default), but
+  no PostGIS spatial features are used yet.
+- **Containers (Docker).** Built and run on a developer PC, with SQLite or PostgreSQL (sign-in and the demo scenario
+  work); a hosted deployment of them is not tried.
 - **Real sensor data.** Calibrate the sensor models and the classifier against real MD/GPR measurements; the
   current parameters are tuned on simulated data only.
 - **Production hardening.** Managed user accounts, secrets management, HTTPS, and deployment beyond a single
