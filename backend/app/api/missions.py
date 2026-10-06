@@ -202,12 +202,14 @@ def _check_can_start(request: Request, mission: Mission) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
 
 
-async def _start(request: Request, session: Session, mission: Mission, speed_factor: float) -> Mission:
+async def _start(
+    request: Request, session: Session, mission: Mission, speed_factor: float, gazebo: bool = False
+) -> Mission:
     """Start the mission with the source in mission.uav_source. PX4 is reached and given the survey first; if
-    that fails the mission stays planned and the reason goes back to the user."""
+    that fails the mission stays planned and the reason goes back to the user. gazebo: PX4 in Gazebo's window."""
     runner = request.app.state.runner
     _check_can_start(request, mission)
-    source = make_source(mission, request.app.state.settings, speed_factor)
+    source = make_source(mission, request.app.state.settings, speed_factor, gazebo=gazebo)
     px4 = mission.uav_source == "px4"
     if px4:
         busy = runner.px4_mission()
@@ -278,9 +280,18 @@ async def start_mission(
 ) -> MissionRead:
     mission = get_mission_or_404(session, mission_id)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else settings.default_speed_factor
+    gazebo = body is not None and body.gazebo
+    if gazebo and (body.uav_source or mission.uav_source) != "px4":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Gazebo's window is for missions flown with PX4")
+    if gazebo and not settings.px4_manage_gazebo:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Gazebo's window needs PX4 SITL in WSL on the server's PC (README, 'Gazebo window'). Fly with PX4 SITL "
+            "instead.",
+        )
     if body and body.uav_source is not None and mission.status == "planned":
         mission.uav_source = body.uav_source
-    mission = await _start(request, session, mission, speed_factor)
+    mission = await _start(request, session, mission, speed_factor, gazebo=gazebo)
     return mission_read(session, mission, runner=request.app.state.runner)
 
 

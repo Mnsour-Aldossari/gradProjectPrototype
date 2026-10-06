@@ -28,6 +28,32 @@ import {
 } from '../types'
 
 const SPEEDS = [1, 5, 10, 20]
+
+/** What flies the survey: the simulator, PX4 SITL without a window (Docker), or PX4 SITL in Gazebo's window (WSL). */
+type FlyWith = UavSource | 'gazebo'
+const FLY_WITH: FlyWith[] = ['simulated', 'px4', 'gazebo']
+
+/** The last choice of Fly with, kept per user in this browser (it may be unavailable: then it lasts until reload). */
+function useFlyWith(username: string | undefined): [FlyWith, (f: FlyWith) => void] {
+  const key = `uav.flyWith.v1.${username ?? ''}`
+  const [flyWith, setFlyWith] = useState<FlyWith>(() => {
+    try {
+      const saved = localStorage.getItem(key) as FlyWith | null
+      return saved && FLY_WITH.includes(saved) ? saved : 'simulated'
+    } catch {
+      return 'simulated'
+    }
+  })
+  const choose = (f: FlyWith) => {
+    setFlyWith(f)
+    try {
+      localStorage.setItem(key, f)
+    } catch {
+      // storage unavailable: the choice lasts until reload
+    }
+  }
+  return [flyWith, choose]
+}
 const CATEGORY_ORDER: Category[] = ['high', 'suspect', 'clutter']
 
 const CARD_TITLES: Record<MissionCard | MissionHideable, string> = {
@@ -65,11 +91,20 @@ export function MissionPage() {
   const [showClutter, setShowClutter] = useState(false)
   const [showBaseline, setShowBaseline] = useState(false)
   const [speedFactor, setSpeedFactor] = useState(10)
-  const [flyWith, setFlyWith] = useState<UavSource>('simulated')
+  const [chosenFlyWith, setFlyWith] = useFlyWith(user?.username)
   // Whether the server can talk to PX4 at all (MAVSDK installed); whether PX4 runs shows when the survey starts.
   const [px4Available, setPx4Available] = useState(false)
-  // Whether the server restarts PX4 SITL (Docker) at the takeoff point by itself.
+  // Whether the server starts PX4 SITL (Docker) at the takeoff point by itself.
   const [px4Restarts, setPx4Restarts] = useState(false)
+  // Whether the server can start PX4 SITL in Gazebo's window (WSL on its PC), and whether that is turned off.
+  const [px4Gazebo, setPx4Gazebo] = useState(false)
+  const [px4ManageOff, setPx4ManageOff] = useState(false)
+  // A saved choice the server cannot fly (yet: its health comes after the first render) falls back to the simulator.
+  const flyWith: FlyWith =
+    (chosenFlyWith !== 'simulated' && !px4Available) || (chosenFlyWith === 'gazebo' && !px4Gazebo)
+      ? 'simulated'
+      : chosenFlyWith
+  const withPx4 = flyWith !== 'simulated'
   // PX4's takeoff and landing points as last saved from this page (null: as the mission came); picking: which one
   // the next map click sets.
   const [pointsFrom, setPointsFrom] = useState<Mission | null>(null)
@@ -111,10 +146,14 @@ export function MissionPage() {
   }, [expanded])
 
   useEffect(() => {
-    api<{ px4_available?: boolean; px4_restarts?: boolean }>('/api/health')
+    api<{ px4_available?: boolean; px4_restarts?: boolean; px4_gazebo?: boolean; px4_manage_off?: boolean }>(
+      '/api/health',
+    )
       .then((h) => {
         setPx4Available(h.px4_available === true)
         setPx4Restarts(h.px4_restarts === true)
+        setPx4Gazebo(h.px4_gazebo === true)
+        setPx4ManageOff(h.px4_manage_off === true)
       })
       .catch(() => setPx4Available(false))
   }, [])
@@ -183,7 +222,7 @@ export function MissionPage() {
   const takeoffChosen = pts.takeoff_lat !== null
   const landingChosen = pts.landing_lat !== null
   const landingPoint: LatLon = pts.landing_point ?? takeoffPoint
-  const showTakeoff = (canStart && flyWith === 'px4') || (mission.status !== 'planned' && mission.uav_source === 'px4')
+  const showTakeoff = (canStart && withPx4) || (mission.status !== 'planned' && mission.uav_source === 'px4')
   const inside = (p: LatLon) => insideArea(p, mission.area)
 
   async function savePoint(kind: 'takeoff' | 'landing', p: LatLon | null) {
@@ -212,7 +251,9 @@ export function MissionPage() {
     setStartError(null)
     try {
       // PX4 flies in real time; the playback speed is the simulator's.
-      const body = flyWith === 'px4' ? { uav_source: flyWith } : { uav_source: flyWith, speed_factor: speedFactor }
+      const body = withPx4
+        ? { uav_source: 'px4', gazebo: flyWith === 'gazebo' }
+        : { uav_source: 'simulated', speed_factor: speedFactor }
       await api(`/api/missions/${missionId}/start`, { method: 'POST', body })
     } catch (e) {
       setStartError(e instanceof Error ? e.message : 'Could not start the survey')
@@ -349,7 +390,7 @@ export function MissionPage() {
               <div className="start">
                 <label className="field inline">
                   <span>Fly with</span>
-                  <Select<UavSource>
+                  <Select<FlyWith>
                     value={flyWith}
                     onChange={setFlyWith}
                     options={[
@@ -359,10 +400,21 @@ export function MissionPage() {
                         label: px4Available ? 'PX4 SITL' : 'PX4 SITL (not installed on the server)',
                         disabled: !px4Available,
                       },
+                      {
+                        value: 'gazebo',
+                        label: !px4Available
+                          ? 'PX4 SITL + Gazebo window (not installed on the server)'
+                          : px4Gazebo
+                            ? 'PX4 SITL + Gazebo window'
+                            : px4ManageOff
+                              ? 'PX4 SITL + Gazebo window (off: PX4_MANAGE_DOCKER=0 on the server)'
+                              : 'PX4 SITL + Gazebo window (needs WSL on the server)',
+                        disabled: !px4Available || !px4Gazebo,
+                      },
                     ]}
                   />
                 </label>
-                {flyWith === 'px4' && (
+                {withPx4 && (
                   <div className="takeoff-rows">
                     <div className="takeoff-row">
                       <span className="takeoff-label">
@@ -427,7 +479,7 @@ export function MissionPage() {
                     )}
                   </div>
                 )}
-                {flyWith === 'simulated' ? (
+                {!withPx4 ? (
                   <label className="field inline">
                     <span>Playback speed</span>
                     <Select
@@ -440,11 +492,20 @@ export function MissionPage() {
                   <p className="small start-note">
                     PX4 flies in real time: about {Math.max(1, Math.round(mission.estimated_duration_s / 60))} min for
                     this survey.
-                    {px4Restarts && ' If PX4 is elsewhere it is restarted at the takeoff point first (about a minute).'}
+                    {flyWith === 'gazebo'
+                      ? " Gazebo's window opens on the server's computer, at the takeoff point (up to a minute the first time). Closing the window stops PX4."
+                      : px4Restarts &&
+                        ' If PX4 is off or elsewhere it is started at the takeoff point first (about a minute).'}
                   </p>
                 )}
                 <button type="button" className="button" disabled={starting} onClick={start}>
-                  {starting ? (flyWith === 'px4' ? 'Connecting to PX4…' : 'Starting') : 'Start survey'}
+                  {starting
+                    ? flyWith === 'gazebo'
+                      ? 'Opening Gazebo…'
+                      : flyWith === 'px4'
+                        ? 'Connecting to PX4…'
+                        : 'Starting'
+                    : 'Start survey'}
                 </button>
               </div>
             )}
@@ -671,7 +732,7 @@ export function MissionPage() {
               <TakeoffPoint
                 point={takeoffPoint}
                 picking={picking === 'takeoff'}
-                editable={canStart && flyWith === 'px4'}
+                editable={canStart && withPx4}
                 onPick={(p) => savePoint('takeoff', p)}
               />
             )}
@@ -680,7 +741,7 @@ export function MissionPage() {
                 point={landingPoint}
                 letter="L"
                 picking={picking === 'landing'}
-                editable={canStart && flyWith === 'px4'}
+                editable={canStart && withPx4}
                 onPick={(p) => savePoint('landing', p)}
               />
             )}

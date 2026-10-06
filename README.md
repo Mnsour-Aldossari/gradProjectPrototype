@@ -77,34 +77,60 @@ instead of `.venv/Scripts/` (not tested).
 
 A mission can be flown by the PX4 autopilot in the Gazebo simulator instead of the built-in simulator. PX4 flies the
 survey; the metal-detector and radar readings still come from the project's sensor model, taken at PX4's position.
+PX4 SITL runs on the PC that runs the backend, in one of two ways, and the backend starts it itself:
 
-1. Start Docker Desktop and wait for **Engine running**.
-2. Start PX4 + Gazebo with its home at the survey area (here the test field near Al-Kharj). The first run downloads
-   the image (about 3.3 GB, 10 GB on disk). Keep `-it`: without a terminal, PX4's console fills the log.
+- **PX4 SITL**: the headless Docker image, without a window.
+- **PX4 SITL + Gazebo window**: PX4-Autopilot built in WSL (Windows 11), with Gazebo's 3D window on the desktop.
+
+Once:
+
+1. In the backend folder: `.venv/Scripts/pip install -r requirements-px4.txt` (MAVSDK), then restart the backend.
+2. Without a window: start Docker Desktop and download the image (about 3.3 GB, 10 GB on disk):
+   `docker pull jonasvautherin/px4-gazebo-headless:1.17.0`.
+3. With Gazebo's window: install Ubuntu 22.04 in WSL (`wsl --install -d Ubuntu-22.04`), then in Ubuntu build PX4
+   once (30–60 minutes):
 
    ```bash
-   docker run -dit --rm --name px4-sitl -e PX4_HOME_LAT=24.13950 -e PX4_HOME_LON=47.26200 -e PX4_HOME_ALT=430 jonasvautherin/px4-gazebo-headless:1.17.0
+   git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+   bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
+   cd PX4-Autopilot && make px4_sitl gz_x500
    ```
 
-3. Once, in the backend folder: `.venv/Scripts/pip install -r requirements-px4.txt` (MAVSDK), then restart the
-   backend.
-4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL**, then **Start survey**. PX4 takes off
-   at **H**, by default 5 m outside the area before the first lane, and lands back there. **Set on map** next to
-   *Takeoff* or *Landing* moves H, or adds a separate landing point **L** (each within 900 m of the survey; both can
-   be dragged; a point inside the area is flagged). If PX4 is more than 2 m from H, the backend restarts the
-   `px4-sitl` container at H first (about a minute; it runs only `docker stop px4-sitl` and `docker run` of the image above
-   with the point's coordinates). Set `PX4_MANAGE_DOCKER=0` to turn this off; PX4 then flies from where it is, or
-   Start says which command to run for a chosen point.
-5. Stop PX4 when done: `docker stop px4-sitl`.
+   The last command opens Gazebo; close it with Ctrl+C. Then turn on WSL's mirrored networking, so PX4 in WSL
+   reaches the backend. In PowerShell:
+
+   ```powershell
+   Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nnetworkingMode=mirrored"
+   wsl --shutdown
+   ```
+
+   Another distribution or folder: `PX4_GAZEBO_DISTRO`, `PX4_GAZEBO_DIR` (Settings).
+
+Each mission:
+
+4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL** or **PX4 SITL + Gazebo window**, then
+   **Start survey**. PX4 takes off at **H**, by default 5 m outside the area before the first lane, and lands back
+   there. **Set on map** next to *Takeoff* or *Landing* moves H, or adds a separate landing point **L** (each within
+   900 m of the survey; both can be dragged; a point inside the area is flagged).
+5. If the chosen PX4 is off, or more than 2 m from H, the backend starts it at H first, and stops the other one so
+   that only one PX4 answers: about 30 s for Gazebo's window, about a minute for Docker. For Docker it runs only
+   `docker stop px4-sitl` and `docker run` of the image above with the point's coordinates; for WSL, a fixed script
+   with the coordinates as numbers. Gazebo's window then stays open between missions, also when the backend stops;
+   closing it stops PX4 too. Set `PX4_MANAGE_DOCKER=0` to turn all this off: PX4 then flies from where it is, or
+   Start says which `PX4_HOME_LAT` / `PX4_HOME_LON` to start it with for a chosen point.
+6. Stop PX4 when done: close Gazebo's window, or `docker stop px4-sitl`.
 
 Notes:
 
 - PX4 flies in real time, so playback speed does not apply. Lane ends are slower than the plan, so the remaining time
   follows PX4's own pace. The 60 × 40 m demo field takes more than 11 minutes.
-- The survey area must be within 900 m of PX4's home (PX4's limit). For another area, restart the container with
-  `PX4_HOME_LAT` / `PX4_HOME_LON` at that area; otherwise Start says so and the mission stays planned.
-- If PX4 is not running, Start reports it after about 10 s and the mission stays planned. One PX4 mission flies at
-  a time; the simulator is not affected. **Run demo scenario** always uses the simulator.
+- H and L must be within 900 m of the survey (PX4's limit). With `PX4_MANAGE_DOCKER=0`, PX4's own home must be too:
+  start PX4 with `PX4_HOME_LAT` / `PX4_HOME_LON` at that area; otherwise Start says so and the mission stays planned.
+- With `PX4_MANAGE_DOCKER=0` (or a real vehicle), if PX4 is not running Start reports it after about 10 s and the
+  mission stays planned. One PX4 mission flies at a time; the simulator is not affected. **Run demo scenario** always
+  uses the simulator.
+- Gazebo's ground is an empty plane: the potential detections are shown in the app (map and 3D view), from the
+  project's sensor model, not in Gazebo.
 - After the survey PX4 flies on at the survey height to L, or back to H, and lands there; the map follows it
   (Flying to landing point / Returning home, no readings) and the mission is Completed once it is down. **Return
   Home** during the survey uses PX4's return to launch: it climbs to PX4's return height first (30 m by default),
@@ -180,7 +206,9 @@ in the browser and is never sent to the server.
 | `DATABASE_URL` | `sqlite:///.../backend/uav.db` | e.g. `postgresql+psycopg://user:pass@localhost:5432/uav` |
 | `SIM_SPEED_FACTOR` | `10` | default playback speed for missions (1 = real time) |
 | `SECRET_KEY` | random, saved in `backend/.secret_key` | token signing key; if unset, one is generated on first start and reused (git-ignored) |
-| `PX4_MANAGE_DOCKER` | `1` | `0`: never restart the PX4 SITL container at a mission's takeoff point (it is off anyway without the `docker` command) |
+| `PX4_MANAGE_DOCKER` | `1` | `0`: never start or restart PX4 SITL at a mission's takeoff point, neither the Docker container nor Gazebo's window in WSL (each is off anyway without the `docker` / `wsl` command) |
+| `PX4_GAZEBO_DISTRO` | `Ubuntu-22.04` | the WSL distribution where PX4-Autopilot is built, for **PX4 SITL + Gazebo window** |
+| `PX4_GAZEBO_DIR` | `PX4-Autopilot` | PX4-Autopilot's folder in that distribution, in the user's home or an absolute path |
 | `PX4_URL` | `udpin://0.0.0.0:14540` | where MAVSDK listens for PX4, for missions flown with PX4 |
 
 The code uses only portable column types so switching to PostgreSQL needs no code change; this has not yet been
@@ -193,8 +221,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **172 passed, 2 xfailed** with `requirements-px4.txt` installed (without it two PX4 tests are
-skipped: 170 passed, 2 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **190 passed, 2 xfailed** with `requirements-px4.txt` installed (without it two PX4 tests are
+skipped: 188 passed, 2 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.
@@ -235,7 +263,7 @@ for SQLite only. (Not re-run while this README was reviewed.)
 | GET/POST | `/api/missions` | read: any user, create: supervisor |
 | GET | `/api/missions/history` | any user — finished missions (completed, stopped, failed) with potential-detection counts per category and verification progress |
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
-| POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10, "uav_source": "simulated"}` or `{"uav_source": "px4"}`; 503 with the reason if PX4 cannot fly it |
+| POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10, "uav_source": "simulated"}`, `{"uav_source": "px4"}` or `{"uav_source": "px4", "gazebo": true}` (Gazebo's window, WSL); 503 with the reason if PX4 cannot fly it |
 | POST | `/api/missions/check` | supervisor; the same body as creating a mission; returns the lanes and the problems for that outline without storing anything |
 | PUT | `/api/missions/{id}/takeoff` | supervisor; body `{"lat": …, "lon": …}` (or `{}` for the default, 5 m outside the survey start) on a planned mission; 422 if over 900 m from the survey start |
 | PUT | `/api/missions/{id}/landing` | supervisor; the same body (or `{}`: land at the takeoff point); 422 if over 900 m from the survey end |
@@ -257,6 +285,12 @@ Works (implemented and tested with PyTest and/or in the browser):
   to end on 20 × 20 m surveys: all 12 waypoints in order, median 0.06 m from the planned lanes (max 0.62 m),
   1.46–1.54 m high for 1.5 m planned, readings and detections stored like a simulated survey. Also checked: PX4 not
   running, an area 87 km from home, a second flight right after the first, a flight interrupted by a backend stop.
+- PX4 SITL + Gazebo window (PX4-Autopilot v1.18.0-beta1 built in WSL Ubuntu 22.04, Gazebo Harmonic 8.15, Windows 11),
+  started from the Flight card: Gazebo opened in 25–30 s with nothing running, and closed and reopened at an H moved
+  6 m in 27 s; take-off 0–2 cm from H; a full 20 × 20 m survey landed 2 cm from H without climbing above 1.5 m.
+  Choosing PX4 SITL afterwards closed Gazebo and started the Docker container (it was off) at H in 25–36 s, and
+  back again; closing Gazebo's window (its process stopped) stopped PX4 too; Gazebo stayed open while the backend
+  was stopped.
 - Flight controls (Pause, Resume, Return Home, Land): with the simulator, tested with PyTest and in the browser
   (desktop and phone size); with PX4 SITL + Gazebo (headless Docker image), tried by hand in the browser.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
@@ -265,7 +299,7 @@ Works (implemented and tested with PyTest and/or in the browser):
   verification, comparison with the baseline, mission history, evaluation page.
 - Field view `/field` at phone size: alerts, nearest potential detections, verification.
 - 3D view (supervisor): live and replay, checked in the browser at desktop and phone size, light and dark, with the
-  simulator. Not yet opened while PX4 flies.
+  simulator; also opened while PX4 flew in Gazebo's window (live view, Land from its top bar).
 - Display settings: light, dark or device theme, small / normal / large text and comfortable / compact density,
   chosen under **Display** (in the sidebar, or on the Status tab of `/field`) and saved per user in the browser on
   that device; **Reset to default** restores them. They change the look only, never what a user can see.
@@ -282,7 +316,7 @@ Not working, not run, or only partly checked:
 | Postman | `postman/uav-prototype.postman_collection.json` (six requests) **has not been opened in Postman**. The same requests and test scripts were replayed against the running backend with a small Node script that mimics `pm`, and all passed. |
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
 | PostgreSQL | Supported through `DATABASE_URL` by design, never run against a PostgreSQL server. |
-| PX4 SITL + Gazebo | Flown only in the headless Docker image (no 3D window) and only on small surveys; not tried with the Gazebo window, QGroundControl, the full demo field or a real vehicle. MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. |
+| PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle, and QGroundControl only by hand. MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |

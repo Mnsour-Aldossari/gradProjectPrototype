@@ -171,6 +171,11 @@ class StartRequest(BaseModel):
     uav_source: Literal["simulated", "px4"] | None = Field(
         None, description="What flies the survey: the built-in simulator, or PX4 over MAVLink (real time)"
     )
+    gazebo: bool = Field(
+        False,
+        description="With PX4: PX4 SITL in Gazebo's window (WSL on the server's PC), started at the takeoff point, "
+        "instead of the headless Docker image",
+    )
 
 
 class TelemetryRead(BaseModel):

@@ -1,4 +1,4 @@
-"""Restarting PX4 SITL (the headless Docker image) with its home at a chosen takeoff point.
+"""Starting PX4 SITL (the headless Docker image) with its home at a chosen takeoff point.
 
 PX4 SITL takes its home position only when it starts (PX4_HOME_LAT / PX4_HOME_LON), so flying from another point
 means a new container. This runs two fixed commands, `docker stop` and `docker run` of the configured image, with the
@@ -9,6 +9,7 @@ coordinates as numbers; nothing else reaches the command line. Used only where t
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import math
 import shutil
 import subprocess
@@ -43,6 +44,18 @@ class Px4Docker:
             self.image,
         ]  # fmt: skip
 
+    async def prepare(self) -> None:
+        pass
+
+    async def running(self) -> bool:
+        out = await _output(["docker", "container", "inspect", "-f", "{{.State.Running}}", self.container])
+        return out is not None and out.strip() == "true"
+
+    async def stop(self) -> None:
+        if self.available():
+            with contextlib.suppress(Px4RestartFailed):
+                await _run(["docker", "stop", self.container], STOP_TIMEOUT_S)
+
     async def restart_at(self, lat: float, lon: float) -> None:
         args = self.run_args(lat, lon)
         # The container runs with --rm, so once stopped its name is free again.
@@ -56,6 +69,15 @@ class Px4Docker:
                 f"Docker could not start PX4 at the takeoff point. Check that Docker Desktop is running and the image "
                 f"{self.image} is downloaded."
             )
+
+
+async def _output(args: list[str], timeout_s: float = 15.0) -> str | None:
+    """Like _run, but returns what the command printed (None if it failed)."""
+    try:
+        done = await asyncio.to_thread(subprocess.run, args, capture_output=True, timeout=timeout_s, check=False)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    return done.stdout.decode(errors="replace") if done.returncode == 0 else None
 
 
 async def _run(args: list[str], timeout_s: float) -> bool:

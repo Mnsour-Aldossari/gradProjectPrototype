@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import faulthandler
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +15,9 @@ from .config import Settings
 from .db import init_db, make_engine
 from .seed import fail_interrupted_missions, seed_users
 from .uav.px4_mavlink_source import mavsdk_installed
+
+# A crash in native code (MAVSDK's library, for PX4) ends the backend without a Python error; this prints where it was.
+faulthandler.enable()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -57,8 +61,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/health", tags=["health"])
     def health() -> dict:
         # px4_available: the server can talk to PX4 (MAVSDK installed); whether PX4 runs shows when a mission starts.
-        # px4_restarts: PX4 SITL is restarted at a mission's takeoff point when needed (Docker on this machine).
-        return {"status": "ok", "px4_available": mavsdk_installed(), "px4_restarts": settings.px4_manage_docker}
+        # px4_restarts: PX4 SITL is started at a mission's takeoff point when needed (Docker on this machine).
+        # px4_gazebo: PX4 SITL can also be started in Gazebo's window (WSL on this Windows PC).
+        # px4_manage_off: both are turned off with PX4_MANAGE_DOCKER=0.
+        return {
+            "status": "ok",
+            "px4_available": mavsdk_installed(),
+            "px4_restarts": settings.px4_manage_docker,
+            "px4_gazebo": settings.px4_manage_gazebo,
+            "px4_manage_off": settings.px4_manage_off,
+        }
 
     return app
 
