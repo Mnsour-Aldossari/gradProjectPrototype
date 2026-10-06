@@ -31,7 +31,7 @@ from app.simulation.scenario import generate_scenario
 
 from .deps import CurrentUser, SessionDep, SettingsDep, SupervisorUser
 from app.uav.control import ControlRejected
-from app.uav.px4_plan import Waypoint, takeoff_check
+from app.uav.px4_plan import Waypoint, default_takeoff, landing_check, takeoff_check
 from app.uav.px4_mavlink_source import Px4Unavailable
 
 from .runner import make_source, mission_event, survey_context_for
@@ -71,6 +71,14 @@ def _count(session: Session, table: type, mission_id: int) -> int:
 def mission_read(session: Session, mission: Mission, with_stats: bool = False, runner=None) -> MissionRead:
     """runner: the MissionRunner, to add the phase of a running mission."""
     out = MissionRead.model_validate(mission)
+    if len(mission.path) >= 2:
+        takeoff = (
+            [mission.takeoff_lat, mission.takeoff_lon]
+            if mission.takeoff_lat is not None
+            else list(default_takeoff(mission.area, mission.path))
+        )
+        out.takeoff_point = takeoff
+        out.landing_point = [mission.landing_lat, mission.landing_lon] if mission.landing_lat is not None else takeoff
     if runner is not None and mission.status == "running":
         out.phase = runner.phase(mission.id)
     if with_stats:
@@ -291,6 +299,27 @@ def set_takeoff(mission_id: int, body: TakeoffRequest, session: SessionDep, _: S
         if reason:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
     mission.takeoff_lat, mission.takeoff_lon = body.lat, body.lon
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+    return mission_read(session, mission)
+
+
+@router.put("/{mission_id}/landing", response_model=MissionRead)
+def set_landing(mission_id: int, body: TakeoffRequest, session: SessionDep, _: SupervisorUser) -> MissionRead:
+    """Where PX4 lands after the survey, chosen on the map before it starts (within 900 m of the end of the survey).
+    Both null: back at the takeoff point."""
+    mission = get_mission_or_404(session, mission_id)
+    if mission.status != "planned":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
+    if (body.lat is None) != (body.lon is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give both lat and lon, or neither")
+    if body.lat is not None:
+        end = mission.path[-1]
+        reason = landing_check((body.lat, body.lon), [Waypoint(end[0], end[1], 0, 0)])
+        if reason:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
+    mission.landing_lat, mission.landing_lon = body.lat, body.lon
     session.add(mission)
     session.commit()
     session.refresh(mission)

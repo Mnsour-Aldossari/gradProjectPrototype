@@ -10,7 +10,8 @@ import asyncio
 from typing import Literal
 
 Action = Literal["pause", "resume", "return", "land"]
-Phase = Literal["surveying", "paused", "returning", "landing"]
+# to_landing: after the survey, flying to the landing point chosen for the mission (PX4).
+Phase = Literal["surveying", "paused", "returning", "landing", "to_landing"]
 
 STOP_REASONS = {"returning": "Returned home by the supervisor", "landing": "Landed by the supervisor"}
 
@@ -38,10 +39,10 @@ class FlightControl:
         """Why the survey ended early, or None while it may still finish (or has finished)."""
         return None if self.survey_finished else STOP_REASONS.get(self.phase)
 
-    def finish_survey(self) -> None:
-        """The last waypoint is reached; the UAV returns home and lands by itself."""
+    def finish_survey(self, to_landing: bool = False) -> None:
+        """The last waypoint is reached; the UAV returns home (or flies to the landing point) and lands by itself."""
         self.survey_finished = True
-        self.phase = "returning"
+        self.phase = "to_landing" if to_landing else "returning"
         self._changed.set()
 
     def request(self, action: Action) -> Phase:
