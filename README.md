@@ -14,7 +14,7 @@ The current version is a prototype and is not ready for public deployment; see
 
 | Folder | Responsibility | Depends on |
 |---|---|---|
-| `backend/app/simulation/` | Simulated world: soil profiles, buried objects (ground truth), lawnmower flight path, MD/GPR sensor models | nothing else in the app |
+| `backend/app/simulation/` | Simulated world: soil profiles, buried objects (ground truth), lawnmower lanes cut to the area's outline, MD/GPR sensor models | nothing else in the app |
 | `backend/app/uav/` | **UAV interface layer.** `TelemetrySource` protocol + `SimulatedSource`, and `Px4MavlinkSource` (PX4 SITL + Gazebo over MAVLink, through MAVSDK; optional) with its vehicle-free parts in `px4_plan.py` | `simulation/` |
 | `backend/app/detection/` | Detection & classification library: fixed-threshold baseline and the adaptive classifier (condition profile, CFAR-style thresholds, reliability-weighted decision), plus scoring against ground truth. Pure Python, no FastAPI/DB imports | nothing else in the app |
 | `backend/app/evaluation/` | Evaluation protocol (tuning vs. evaluation seeds) and harness that runs simulated surveys through both methods | `simulation/`, `detection/` |
@@ -88,11 +88,13 @@ survey; the metal-detector and radar readings still come from the project's sens
 
 3. Once, in the backend folder: `.venv/Scripts/pip install -r requirements-px4.txt` (MAVSDK), then restart the
    backend.
-4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL**, then **Start survey**. To take off from
-   another point, use **Set on map** next to *Takeoff point* and click the map (within 900 m of the survey); the H
-   can also be dragged. If PX4 is elsewhere, the backend restarts the `px4-sitl` container there first (about a
-   minute; it runs only `docker stop px4-sitl` and `docker run` of the image above with the point's coordinates).
-   Set `PX4_MANAGE_DOCKER=0` to turn this off; then Start says which command to run.
+4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL**, then **Start survey**. PX4 takes off
+   at **H**, by default 5 m outside the area before the first lane, and lands back there. **Set on map** next to
+   *Takeoff* or *Landing* moves H, or adds a separate landing point **L** (each within 900 m of the survey; both can
+   be dragged; a point inside the area is flagged). If PX4 is elsewhere, the backend restarts the `px4-sitl`
+   container at H first (about a minute; it runs only `docker stop px4-sitl` and `docker run` of the image above
+   with the point's coordinates). Set `PX4_MANAGE_DOCKER=0` to turn this off; PX4 then flies from where it is, or
+   Start says which command to run for a chosen point.
 5. Stop PX4 when done: `docker stop px4-sitl`.
 
 Notes:
@@ -108,6 +110,16 @@ Notes:
   returns and lands.
 - After a restart at the takeoff point, PX4 takes off only once its position has held still there for 10 s (a new
   PX4 SITL starts at its default home in Zurich and jumps).
+
+## Planning a survey area
+
+On **New mission**, draw the area with **Rectangle** (two opposite corners), **Circle** (the centre, then a point on
+the edge) or **Free shape** (a click per corner; click the first corner or double-click to finish; Backspace removes
+the last corner, Escape cancels). Then drag the corners, or a circle's centre and edge, to adjust it. While drawing
+and editing, the outline is checked by the backend with the same rules as **Create mission** (each side 20–300 m, a
+path of at most 15 km, an outline that does not cross itself, room for the simulated objects), and the lanes the UAV
+will fly are drawn on the map. Lanes are cut to the outline; for a rectangle they are exactly the same as before, so
+the evaluation and the demo scenario are unchanged.
 
 ## Flight controls during a survey
 
@@ -165,8 +177,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **161 passed, 2 xfailed** with `requirements-px4.txt` installed (without it one PX4 test is
-skipped: 160 passed, 1 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **169 passed, 2 xfailed** with `requirements-px4.txt` installed (without it two PX4 tests are
+skipped: 167 passed, 2 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.
@@ -208,7 +220,9 @@ for SQLite only. (Not re-run while this README was reviewed.)
 | GET | `/api/missions/history` | any user — finished missions (completed, stopped, failed) with potential-detection counts per category and verification progress |
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
 | POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10, "uav_source": "simulated"}` or `{"uav_source": "px4"}`; 503 with the reason if PX4 cannot fly it |
-| PUT | `/api/missions/{id}/takeoff` | supervisor; body `{"lat": …, "lon": …}` (or `{}` for the start of the survey) on a planned mission; 422 if over 900 m from the survey start |
+| POST | `/api/missions/check` | supervisor; the same body as creating a mission; returns the lanes and the problems for that outline without storing anything |
+| PUT | `/api/missions/{id}/takeoff` | supervisor; body `{"lat": …, "lon": …}` (or `{}` for the default, 5 m outside the survey start) on a planned mission; 422 if over 900 m from the survey start |
+| PUT | `/api/missions/{id}/landing` | supervisor; the same body (or `{}`: land at the takeoff point); 422 if over 900 m from the survey end |
 | POST | `/api/missions/{id}/control` | supervisor; body `{"action": "pause" \| "resume" \| "return" \| "land"}` during a flight; 409 if the mission is not flying or the command does not apply now |
 | POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
 | GET | `/api/missions/{id}/telemetry` | any user |
