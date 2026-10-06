@@ -206,8 +206,8 @@ Works (implemented and tested with PyTest and/or in the browser):
   to end on 20 × 20 m surveys: all 12 waypoints in order, median 0.06 m from the planned lanes (max 0.62 m),
   1.46–1.54 m high for 1.5 m planned, readings and detections stored like a simulated survey. Also checked: PX4 not
   running, an area 87 km from home, a second flight right after the first, a flight interrupted by a backend stop.
-- Flight controls (Pause, Resume, Return Home, Land) with the simulator, tested with PyTest and in the browser
-  (desktop and phone size). With PX4 they are covered by PyTest only so far (see the table below).
+- Flight controls (Pause, Resume, Return Home, Land): with the simulator, tested with PyTest and in the browser
+  (desktop and phone size); with PX4 SITL + Gazebo (headless Docker image), tried by hand in the browser.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
@@ -229,7 +229,6 @@ Not working, not run, or only partly checked:
 | Postman | `postman/uav-prototype.postman_collection.json` (six requests) **has not been opened in Postman**. The same requests and test scripts were replayed against the running backend with a small Node script that mimics `pm`, and all passed. |
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
 | PostgreSQL | Supported through `DATABASE_URL` by design, never run against a PostgreSQL server. |
-| Flight controls with PX4 | Hold, mission start, return to launch and land through MAVSDK; not yet tried with PX4 running. |
 | PX4 SITL + Gazebo | Flown only in the headless Docker image (no 3D window) and only on small surveys; not tried with the Gazebo window, QGroundControl, the full demo field or a real vehicle. MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
