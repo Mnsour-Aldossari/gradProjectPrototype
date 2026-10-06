@@ -46,7 +46,7 @@ service, without touching the rest of the system.
 flowchart TB
     subgraph SIM["Simulation layer (implemented)"]
         SC["Scenario: soil profile + buried objects"]
-        FL["Flight: lawnmower path, kinematics, battery"]
+        FL["Flight: lawnmower lanes cut to the outline, kinematics, battery"]
         SE["Sensor models: MD + GPR"]
     end
 

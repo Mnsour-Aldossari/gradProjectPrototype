@@ -168,3 +168,16 @@ def test_takeoff_point_must_be_within_reach_of_the_survey(sim):
     far = (start[0] + 0.01, start[1])  # about 1.1 km north
     reason = takeoff_check(far, wps)
     assert reason is not None and "nearer the area" in reason
+
+
+def test_default_takeoff_is_just_outside_the_area_before_the_first_lane(sim):
+    from app.simulation.geo import point_in_polygon
+    from app.uav.px4_plan import TAKEOFF_OUTSIDE_M, default_takeoff
+
+    area = [list(p) for p in DEMO_AREA]
+    path = [list(p) for p in sim.plan.waypoints_latlon]
+    lat, lon = default_takeoff(area, path)
+    x, y = sim.frame.to_xy(lat, lon)
+    (x0, y0), (x1, _) = sim.plan.waypoints_xy[0], sim.plan.waypoints_xy[1]
+    assert not point_in_polygon(x, y, sim.plan.area_xy)
+    assert (x, y) == pytest.approx((x0 - TAKEOFF_OUTSIDE_M if x1 > x0 else x0 + TAKEOFF_OUTSIDE_M, y0), abs=1e-6)

@@ -3,12 +3,27 @@ import { useEffect } from 'react'
 import { Marker, useMap, useMapEvents } from 'react-leaflet'
 import type { LatLon } from '../types'
 
-const ICON = L.divIcon({
-  className: 'takeoff-icon',
-  html: '<span aria-hidden="true">H</span>',
-  iconSize: [30, 30],
-  iconAnchor: [15, 15],
-})
+// Made once each: a new icon on every render would make Leaflet rebuild the marker and stop a drag.
+const ICONS = {
+  H: L.divIcon({ className: 'takeoff-icon', html: '<span aria-hidden="true">H</span>', iconSize: [30, 30], iconAnchor: [15, 15] }),
+  L: L.divIcon({
+    className: 'takeoff-icon landing-icon',
+    html: '<span aria-hidden="true">L</span>',
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  }),
+}
+
+/** Whether a point lies inside a lat/lon outline (ray casting; fine over a few hundred metres). */
+export function insideArea(p: LatLon, area: LatLon[]): boolean {
+  let inside = false
+  for (let i = 0, j = area.length - 1; i < area.length; j = i++) {
+    const [yi, xi] = area[i]
+    const [yj, xj] = area[j]
+    if (yi > p[0] !== yj > p[0] && p[1] < xi + ((p[0] - yi) * (xj - xi)) / (yj - yi)) inside = !inside
+  }
+  return inside
+}
 
 /** Ground distance in metres between two nearby points (equirectangular, like the backend's LocalFrame). */
 export function distanceM(a: LatLon, b: LatLon): number {
@@ -20,16 +35,18 @@ export function distanceM(a: LatLon, b: LatLon): number {
 }
 
 /**
- * PX4's takeoff point on the map (an H pad). While picking, a click on the map sets it; it can also be dragged.
- * Goes inside SurveyMap.
+ * PX4's takeoff point (an H pad) or landing point (L) on the map. While picking, a click on the map sets it; it can
+ * also be dragged. Goes inside SurveyMap.
  */
 export function TakeoffPoint({
   point,
+  letter = 'H',
   picking = false,
   editable = false,
   onPick,
 }: {
   point: LatLon
+  letter?: 'H' | 'L'
   picking?: boolean
   editable?: boolean
   onPick?: (p: LatLon) => void
@@ -49,10 +66,10 @@ export function TakeoffPoint({
   return (
     <Marker
       position={point}
-      icon={ICON}
+      icon={ICONS[letter]}
       draggable={editable}
       keyboard={false}
-      title="Takeoff point"
+      title={letter === 'H' ? 'Takeoff point' : 'Landing point'}
       zIndexOffset={900}
       eventHandlers={{
         dragend: (e) => {

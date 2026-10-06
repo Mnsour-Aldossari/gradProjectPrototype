@@ -68,3 +68,52 @@ def test_simulation_is_deterministic_for_a_seed():
     first = list(build_simulation(cfg).samples())
     second = list(build_simulation(cfg).samples())
     assert first == second
+
+
+def _circle(cx, cy, r, n=32):
+    return [(cx + r * math.cos(2 * math.pi * i / n), cy + r * math.sin(2 * math.pi * i / n)) for i in range(n)]
+
+
+def test_lanes_for_a_rectangle_are_the_lawnmower_path():
+    """Rectangles (every mission so far, the evaluation and the demo) fly exactly the same path as before."""
+    from app.simulation.flight import survey_lanes
+
+    rect = [(0.0, 0.0), (60.0, 0.0), (60.0, 40.0), (0.0, 40.0)]
+    for spacing in (0.5, 2.0, 2.5, 5.0):
+        assert survey_lanes(rect, spacing) == lawnmower_path(BBOX, spacing)
+
+
+def test_lanes_stay_inside_a_circle_and_cover_it():
+    from app.simulation.flight import survey_lanes
+    from app.simulation.geo import point_in_polygon
+
+    circle = _circle(0, 0, 30)
+    spacing = 2.0
+    waypoints = survey_lanes(circle, spacing)
+    for (x0, y0), (x1, y1) in zip(waypoints[::2], waypoints[1::2]):
+        assert y0 == y1
+        assert point_in_polygon((x0 + x1) / 2, y0, circle)  # each lane piece lies inside
+    assert path_length(waypoints) < 0.85 * path_length(lawnmower_path((-30, -30, 30, 30), spacing))
+    line_ys = sorted({y for _, y in waypoints})
+    rng = random.Random(0)
+    for _ in range(500):  # every point inside, away from the very top and bottom, is near a lane
+        x, y = rng.uniform(-30, 30), rng.uniform(-28, 28)
+        if point_in_polygon(x, y, circle):
+            assert min(abs(y - ly) for ly in line_ys) <= spacing / 2 + 1e-9
+
+
+def test_concave_outline_flies_each_piece_of_a_lane():
+    from app.simulation.flight import survey_lanes
+
+    u_shape = [(0, 0), (60, 0), (60, 40), (40, 40), (40, 15), (20, 15), (20, 40), (0, 40)]
+    upper = [w for w in survey_lanes(u_shape, 5.0) if w[1] > 15]
+    assert all(not (20 < x < 40) for x, _ in upper)  # nothing ends in the gap of the U
+    assert {x for x, _ in upper} == {0, 20, 40, 60}
+
+
+def test_outline_that_crosses_itself_is_found():
+    from app.simulation.geo import is_simple
+
+    assert is_simple([(0, 0), (60, 0), (60, 40), (0, 40)])
+    assert is_simple(_circle(0, 0, 30))
+    assert not is_simple([(0, 0), (60, 40), (60, 0), (0, 40)])  # a bow tie

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { FlightControls } from '../components/FlightControls'
+import { Select } from '../components/Select'
 import { StatusBadge } from '../components/StatusBadge'
 import { remainingS } from '../field/mapInfo'
 import { formatDuration } from '../format'
@@ -75,18 +76,16 @@ export default function View3DPage() {
   const live = mission?.status === 'running'
 
   // The scene, once the mission (its area and path) is known.
-  const areaKey = mission ? JSON.stringify([mission.area, mission.uav_source, mission.takeoff_lat, mission.takeoff_lon]) : null
+  const areaKey = mission ? JSON.stringify([mission.area, mission.uav_source, mission.takeoff_point, mission.landing_point]) : null
   useEffect(() => {
     if (!mission || !holder.current) return
     let w: World
     try {
-      const takeoff: LatLon | null =
-        mission.uav_source !== 'px4'
-          ? null
-          : mission.takeoff_lat !== null
-            ? [mission.takeoff_lat, mission.takeoff_lon!]
-            : (mission.path[0] ?? null)
-      w = new World(holder.current, mission.area, mission.path, mission.line_spacing_m, takeoff)
+      // PX4's takeoff pad, and its landing pad when it lands elsewhere.
+      const px4 = mission.uav_source === 'px4'
+      const takeoff: LatLon | null = px4 ? (mission.takeoff_point ?? null) : null
+      const landing: LatLon | null = px4 && mission.landing_lat !== null ? (mission.landing_point ?? null) : null
+      w = new World(holder.current, mission.area, mission.path, mission.line_spacing_m, takeoff, landing)
     } catch {
       setWebglError(true)
       return
@@ -418,13 +417,7 @@ export default function View3DPage() {
             />
             <label className="view3d-speed">
               <span className="sr-only">Replay speed</span>
-              <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-                {REPLAY_SPEEDS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}×
-                  </option>
-                ))}
-              </select>
+              <Select value={speed} onChange={setSpeed} options={REPLAY_SPEEDS.map((s) => ({ value: s, label: `${s}×` }))} />
             </label>
           </div>
         )}

@@ -19,7 +19,7 @@ class FakePx4(SimulatedSource):
 
     speed_factor = 0.0  # as fast as possible
 
-    def __init__(self, config: SimulationConfig, url: str, takeoff=None, docker=None) -> None:
+    def __init__(self, config: SimulationConfig, url: str, takeoff=None, docker=None, landing=None) -> None:
         super().__init__(config, speed_factor=self.speed_factor)
         self.url, self.takeoff, self.docker = url, takeoff, docker
 
@@ -262,3 +262,29 @@ def test_after_a_restart_px4_must_hold_still_at_the_takeoff_point(monkeypatch):
 
     asyncio.run(Px4MavlinkSource._settled(Positions(), takeoff))
     assert seen[-1] == takeoff and len(seen) > 8  # not before the drift had stopped
+
+
+def test_takeoff_and_landing_points_shown_with_the_mission(client):
+    headers = auth_headers(client, "supervisor")
+    mission_id = create(client, headers)
+    m = client.get(f"/api/missions/{mission_id}", headers=headers).json()
+    start, end = m["path"][0], m["path"][-1]
+    assert m["takeoff_point"][1] < start[1] and m["landing_point"] == m["takeoff_point"]  # west of the first lane
+    landing = {"lat": end[0] + 0.0001, "lon": end[1]}
+    m = client.put(f"/api/missions/{mission_id}/landing", json=landing, headers=headers).json()
+    assert m["landing_point"] == [landing["lat"], landing["lon"]] and m["takeoff_point"] != m["landing_point"]
+    far = client.put(f"/api/missions/{mission_id}/landing", json={"lat": end[0] + 0.01, "lon": end[1]}, headers=headers)
+    assert far.status_code == 422 and "landing point" in far.json()["detail"]
+    m = client.put(f"/api/missions/{mission_id}/landing", json={}, headers=headers).json()
+    assert m["landing_point"] == m["takeoff_point"]
+
+
+@pytest.mark.skipif(not px4.mavsdk_installed(), reason="MAVSDK not installed (requirements-px4.txt)")
+def test_px4_mission_ends_with_a_landing_at_the_landing_point():
+    from mavsdk.plugins.mission import MissionItem
+
+    from app.uav.px4_mavlink_source import _mission_item
+    from app.uav.px4_plan import Waypoint
+
+    item = _mission_item(Waypoint(24.1, 47.2, 1.5, 2.0), land=True)
+    assert item.vehicle_action == MissionItem.VehicleAction.LAND

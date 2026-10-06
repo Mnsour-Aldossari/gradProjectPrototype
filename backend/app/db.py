@@ -19,6 +19,8 @@ ADDED_COLUMNS = [
     ("missions", "uav_source", "VARCHAR NOT NULL DEFAULT 'simulated'"),
     ("missions", "takeoff_lat", "FLOAT"),
     ("missions", "takeoff_lon", "FLOAT"),
+    ("missions", "landing_lat", "FLOAT"),
+    ("missions", "landing_lon", "FLOAT"),
 ]
 
 

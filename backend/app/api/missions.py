@@ -10,6 +10,8 @@ from app.detection.context import condition_profile
 from app.evaluation.protocol import EVALUATION_SEEDS, STANDARD_SURVEY
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, User, utcnow
 from app.schemas import (
+    AreaCheck,
+    AreaCheckResult,
     CategoryCounts,
     ConditionProfileRead,
     ControlRequest,
@@ -23,12 +25,13 @@ from app.schemas import (
     TelemetryRead,
     VerificationCounts,
 )
-from app.simulation import plan_survey
+from app.simulation import SurveyPlan, plan_survey
+from app.simulation.geo import is_simple, polygon_area
 from app.simulation.scenario import generate_scenario
 
 from .deps import CurrentUser, SessionDep, SettingsDep, SupervisorUser
 from app.uav.control import ControlRejected
-from app.uav.px4_plan import Waypoint, takeoff_check
+from app.uav.px4_plan import Waypoint, default_takeoff, landing_check, takeoff_check
 from app.uav.px4_mavlink_source import Px4Unavailable
 
 from .runner import make_source, mission_event, survey_context_for
@@ -68,6 +71,14 @@ def _count(session: Session, table: type, mission_id: int) -> int:
 def mission_read(session: Session, mission: Mission, with_stats: bool = False, runner=None) -> MissionRead:
     """runner: the MissionRunner, to add the phase of a running mission."""
     out = MissionRead.model_validate(mission)
+    if len(mission.path) >= 2:
+        takeoff = (
+            [mission.takeoff_lat, mission.takeoff_lon]
+            if mission.takeoff_lat is not None
+            else list(default_takeoff(mission.area, mission.path))
+        )
+        out.takeoff_point = takeoff
+        out.landing_point = [mission.landing_lat, mission.landing_lon] if mission.landing_lat is not None else takeoff
     if runner is not None and mission.status == "running":
         out.phase = runner.phase(mission.id)
     if with_stats:
@@ -138,24 +149,35 @@ def mission_history(session: SessionDep, _: CurrentUser) -> MissionHistory:
     )
 
 
-def _create(session: Session, body: MissionCreate, user: User) -> Mission:
+def survey_problems(body: MissionCreate, seed: int) -> tuple[SurveyPlan, list[str]]:
+    """The survey plan for an outline, and what would stop it being created (empty if nothing). The same rules
+    for creating a mission and for checking an outline while it is drawn."""
     plan = plan_survey(body.area, body.line_spacing_m)
+    problems: list[str] = []
+    if not is_simple(plan.area_xy):
+        problems.append("The outline crosses itself; move a corner so that no edges cross")
     width, height = plan.width_m, plan.height_m
     if not (MIN_SIDE_M <= width <= MAX_SIDE_M and MIN_SIDE_M <= height <= MAX_SIDE_M):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"Survey area must be {MIN_SIDE_M:.0f}-{MAX_SIDE_M:.0f} m on each side (got {width:.0f} x {height:.0f} m)",
+        problems.append(
+            f"Survey area must be {MIN_SIDE_M:.0f}-{MAX_SIDE_M:.0f} m on each side (got {width:.0f} x {height:.0f} m)"
         )
+    if len(plan.waypoints_xy) < 2:
+        problems.append("The area is too narrow for a survey lane; make it wider")
     if plan.length_m > MAX_PATH_M:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"Survey path would be {plan.length_m / 1000:.1f} km; increase line spacing or reduce the area",
-        )
+        problems.append(f"Survey path would be {plan.length_m / 1000:.1f} km; increase line spacing or reduce the area")
+    if not problems:
+        try:
+            generate_scenario(plan.area_xy, body.soil_type, seed)
+        except ValueError as exc:
+            problems.append(f"{str(exc).capitalize()}; make the area larger or less narrow")
+    return plan, problems
+
+
+def _create(session: Session, body: MissionCreate, user: User) -> Mission:
     seed = body.scenario_seed if body.scenario_seed is not None else secrets.randbelow(1_000_000)
-    try:
-        generate_scenario(plan.area_xy, body.soil_type, seed)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    plan, problems = survey_problems(body, seed)
+    if problems:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problems[0])
 
     mission = Mission(
         name=body.name,
@@ -205,6 +227,22 @@ async def _start(request: Request, session: Session, mission: Mission, speed_fac
     request.app.state.hub.publish(mission.id, mission_event(mission, "surveying"))
     runner.start(mission.id, source, px4=px4)
     return mission
+
+
+@router.post("/check", response_model=AreaCheckResult)
+def check_area(body: AreaCheck, _: SupervisorUser) -> AreaCheckResult:
+    """Check a survey outline while it is drawn: the lanes it would get and what to change, without storing it."""
+    plan, problems = survey_problems(body, body.scenario_seed if body.scenario_seed is not None else 0)
+    return AreaCheckResult(
+        ok=not problems,
+        problems=problems,
+        path=[list(p) for p in plan.waypoints_latlon],
+        path_length_m=round(plan.length_m, 1),
+        width_m=round(plan.width_m, 1),
+        height_m=round(plan.height_m, 1),
+        area_m2=round(polygon_area(plan.area_xy), 1),
+        estimated_duration_s=round(plan.length_m / body.speed_mps, 1),
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=MissionRead)
@@ -261,6 +299,27 @@ def set_takeoff(mission_id: int, body: TakeoffRequest, session: SessionDep, _: S
         if reason:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
     mission.takeoff_lat, mission.takeoff_lon = body.lat, body.lon
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+    return mission_read(session, mission)
+
+
+@router.put("/{mission_id}/landing", response_model=MissionRead)
+def set_landing(mission_id: int, body: TakeoffRequest, session: SessionDep, _: SupervisorUser) -> MissionRead:
+    """Where PX4 lands after the survey, chosen on the map before it starts (within 900 m of the end of the survey).
+    Both null: back at the takeoff point."""
+    mission = get_mission_or_404(session, mission_id)
+    if mission.status != "planned":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
+    if (body.lat is None) != (body.lon is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give both lat and lon, or neither")
+    if body.lat is not None:
+        end = mission.path[-1]
+        reason = landing_check((body.lat, body.lon), [Waypoint(end[0], end[1], 0, 0)])
+        if reason:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
+    mission.landing_lat, mission.landing_lon = body.lat, body.lon
     session.add(mission)
     session.commit()
     session.refresh(mission)

@@ -7,7 +7,7 @@ import math
 from dataclasses import dataclass
 
 from app.simulation import Simulation, SurveyPlan
-from app.simulation.geo import LocalFrame
+from app.simulation.geo import LocalFrame, point_in_polygon
 
 from .source import BatteryStatus, GlobalPositionInt, MissionCurrent, SensorSample, TelemetryFrame
 
@@ -44,6 +44,36 @@ def home_check(home: tuple[float, float], waypoints: list[Waypoint]) -> str | No
     return (
         f"The survey area is {d / 1000:.1f} km from the PX4 home position; PX4 accepts up to "
         f"{MAX_HOME_DISTANCE_M:.0f} m. Restart PX4 with PX4_HOME_LAT and PX4_HOME_LON at the area."
+    )
+
+
+# By default PX4 takes off (and lands) this far outside the area, before the start of the first lane: not over the
+# ground being searched.
+TAKEOFF_OUTSIDE_M = 5.0
+
+
+def default_takeoff(area: list[list[float]], path: list[list[float]]) -> tuple[float, float]:
+    """Just outside the area, behind the start of the first lane (the first lane runs from path[0] to path[1])."""
+    frame = LocalFrame.centred_on(area)
+    area_xy = [frame.to_xy(lat, lon) for lat, lon in area]
+    (x0, y0), (x1, y1) = frame.to_xy(*path[0]), frame.to_xy(*path[1])
+    d = math.dist((x0, y0), (x1, y1)) or 1.0
+    ux, uy = (x0 - x1) / d, (y0 - y1) / d
+    for k in range(1, 21):  # a concave outline may lie behind the first lane too: step back until outside
+        x, y = x0 + ux * TAKEOFF_OUTSIDE_M * k, y0 + uy * TAKEOFF_OUTSIDE_M * k
+        if not point_in_polygon(x, y, area_xy):
+            return frame.to_latlon(x, y)
+    return frame.to_latlon(x0 + ux * TAKEOFF_OUTSIDE_M, y0 + uy * TAKEOFF_OUTSIDE_M)
+
+
+def landing_check(landing: tuple[float, float], waypoints: list[Waypoint]) -> str | None:
+    """A reason a landing point is too far from the end of the survey for PX4, or None."""
+    d = distance_m(landing, (waypoints[-1].lat, waypoints[-1].lon))
+    if d <= MAX_HOME_DISTANCE_M:
+        return None
+    return (
+        f"The landing point is {d:.0f} m from the end of the survey; PX4 accepts up to {MAX_HOME_DISTANCE_M:.0f} m "
+        "between mission points. Choose a point nearer the area."
     )
 
 

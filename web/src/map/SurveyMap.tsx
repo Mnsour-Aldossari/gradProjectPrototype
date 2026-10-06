@@ -106,6 +106,8 @@ interface SurveyMapProps {
   fitPadding?: FitPadding
   /** Show each detection's number next to its marker. */
   labelDetections?: boolean
+  /** What to keep in view, if not the area (an outline being edited must not refit the map at every change). */
+  fitTo?: LatLon[]
 }
 
 export function SurveyMap({
@@ -121,6 +123,7 @@ export function SurveyMap({
   className,
   fitPadding,
   labelDetections = false,
+  fitTo,
 }: SurveyMapProps) {
   const center = useMemo<LatLon>(() => {
     if (!area.length) return [24.1395, 47.262]
@@ -130,7 +133,7 @@ export function SurveyMap({
   return (
     <MapContainer center={center} zoom={19} maxZoom={22} className={className ?? 'survey-map'} zoomControl>
       <TileLayer url={SATELLITE_URL} attribution={SATELLITE_ATTRIBUTION} maxNativeZoom={19} maxZoom={22} />
-      <FitArea area={area} padding={fitPadding} />
+      <FitArea area={fitTo ?? area} padding={fitPadding} />
 
       {/* Survey area boundary, styled after red-and-white hazard marking */}
       <Polygon positions={area} interactive={false} pathOptions={{ color: '#ffffff', weight: 4, fill: false }} />

@@ -257,8 +257,118 @@ textarea {
   min-height: 40px;
   width: 100%;
 }
-.field.inline select {
+.field.inline select,
+.field.inline .select {
   width: auto;
+}
+
+/* ---------- Select (components/Select.tsx): the app's own dropdown, themed like the inputs ---------- */
+
+.select {
+  position: relative;
+  min-width: 0;
+}
+.select-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--input-rule);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.select-button:hover {
+  border-color: var(--survey);
+}
+.select.open .select-button {
+  border-color: var(--survey);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--survey) 22%, transparent);
+}
+.select-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+  transition: transform 0.15s;
+}
+.select.open .select-chevron {
+  transform: rotate(180deg);
+}
+.select-list {
+  position: absolute;
+  z-index: 1200;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-height: 280px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  box-shadow: var(--shadow-lg);
+}
+.select-list.above {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.select-option.active {
+  background: var(--tint);
+}
+.select-option[aria-selected='true'] {
+  font-weight: 600;
+  color: var(--survey);
+}
+.select-option[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+.select-option svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 textarea {
   resize: vertical;
@@ -909,12 +1019,40 @@ textarea {
 .picking-takeoff .leaflet-interactive {
   cursor: crosshair !important;
 }
+.takeoff-rows {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 100%;
+}
 .takeoff-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 10px;
-  flex: 1 1 100%;
+}
+.takeoff-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 82px;
+}
+.takeoff-letter {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1d2a24;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.takeoff-letter.landing,
+.landing-icon span {
+  background: #6b3fa0;
+}
+.takeoff-warn {
+  color: var(--hazard);
 }
 .takeoff-label {
   font-weight: 600;
@@ -1133,6 +1271,80 @@ textarea {
 .area-size {
   margin: 0;
   font-size: calc(20px * var(--text-scale));
+}
+
+/* Drawing a survey outline (NewMissionPage.tsx, map/AreaEditor.tsx) */
+.draw-tools {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--tint);
+}
+.draw-tools button {
+  flex: 1;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: 600 calc(13.5px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.draw-tools button:hover {
+  background: var(--tint-soft);
+}
+.draw-tools button[aria-pressed='true'] {
+  background: var(--survey-fill);
+  color: #fff;
+}
+.area-check {
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+}
+.area-check.ok {
+  border-left-color: var(--ok);
+}
+.area-check.bad {
+  border-left-color: var(--hazard);
+}
+.area-check p,
+.area-check ul {
+  margin: 0;
+}
+.area-check ul {
+  padding-left: 18px;
+  color: var(--hazard);
+  font-size: calc(13.5px * var(--text-scale));
+}
+.area-check-title {
+  font-weight: 700;
+}
+.area-check.ok .area-check-title span {
+  color: var(--ok);
+}
+.area-check.bad .area-check-title span {
+  color: var(--hazard);
+}
+.drawing-area,
+.drawing-area .leaflet-interactive {
+  cursor: crosshair !important;
+}
+.area-handle {
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--survey-fill);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  cursor: grab;
+}
+.area-handle-centre {
+  background: #1d2a24;
+}
+.area-handle-radius {
+  border-radius: 3px;
 }
 
 /* ---------- small screens: map on top, panel below ---------- */
@@ -3508,10 +3720,8 @@ summary,
   min-width: 0;
   accent-color: var(--survey-fill);
 }
-.view3d-speed select {
+.view3d-speed .select-button {
   min-height: 44px;
-  background: var(--surface);
-  color: var(--ink);
 }
 .view3d-credit {
   position: absolute;

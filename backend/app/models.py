@@ -43,6 +43,9 @@ class Mission(SQLModel, table=True):
     # Where PX4 takes off (its home), chosen on the map; None: the first point of the survey path.
     takeoff_lat: float | None = None
     takeoff_lon: float | None = None
+    # Where PX4 lands after the survey; None: back at the takeoff point.
+    landing_lat: float | None = None
+    landing_lon: float | None = None
     progress: float = 0.0
     battery_pct: float | None = None
     error: str | None = None

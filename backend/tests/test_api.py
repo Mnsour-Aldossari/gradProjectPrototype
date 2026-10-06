@@ -207,3 +207,28 @@ def test_history_counts_potential_detections_per_category(client):
     assert item["verification"]["false_alarm"] == 1
     assert item["verification"]["pending"] == len(reported) - 1
     assert history["completed"] == 1 and history["totals_adaptive"] == item["adaptive"]
+
+
+def test_outline_is_checked_while_it_is_drawn(client):
+    import math
+
+    headers = auth_headers(client, "supervisor")
+    lat0, lon0 = 24.1395, 47.2620
+    circle = [
+        [lat0 + 25 / 111195 * math.sin(a), lon0 + 25 / (111195 * math.cos(math.radians(lat0))) * math.cos(a)]
+        for a in (2 * math.pi * i / 32 for i in range(32))
+    ]
+    r = client.post("/api/missions/check", json=mission_body(area=circle, line_spacing_m=2.0), headers=headers)
+    body = r.json()
+    assert r.status_code == 200 and body["ok"] and body["problems"] == []
+    assert len(body["path"]) > 20 and abs(body["area_m2"] - math.pi * 25**2) < 30
+    created = client.post("/api/missions", json=mission_body(area=circle, line_spacing_m=2.0), headers=headers)
+    assert created.status_code == 201 and created.json()["path"] == body["path"]  # what is checked is what flies
+
+    bow_tie = [[lat0, lon0], [lat0 + 0.0003, lon0 + 0.0003], [lat0, lon0 + 0.0003], [lat0 + 0.0003, lon0]]
+    bad = client.post("/api/missions/check", json=mission_body(area=bow_tie), headers=headers).json()
+    assert not bad["ok"] and "crosses itself" in bad["problems"][0]
+    tiny = [[lat0, lon0], [lat0 + 0.00005, lon0], [lat0 + 0.00005, lon0 + 0.00005], [lat0, lon0 + 0.00005]]
+    small = client.post("/api/missions/check", json=mission_body(area=tiny), headers=headers).json()
+    assert not small["ok"] and "on each side" in small["problems"][0]
+    assert client.post("/api/missions/check", json=mission_body(), headers=auth_headers(client, "field")).status_code == 403

@@ -59,6 +59,23 @@ class MissionCreate(BaseModel):
         return area
 
 
+class AreaCheck(MissionCreate):
+    """A survey outline to check while it is drawn; nothing is stored."""
+
+    name: str = "Check"
+
+
+class AreaCheckResult(BaseModel):
+    ok: bool
+    problems: list[str]  # what to change, first the most basic
+    path: list[list[float]]  # the lanes the UAV would fly, [lat, lon]
+    path_length_m: float
+    width_m: float
+    height_m: float
+    area_m2: float
+    estimated_duration_s: float
+
+
 class MissionStats(BaseModel):
     telemetry_points: int
     sensor_readings: int
@@ -82,6 +99,12 @@ class MissionRead(BaseModel):
     uav_source: str
     takeoff_lat: float | None
     takeoff_lon: float | None
+    landing_lat: float | None
+    landing_lon: float | None
+    # Where PX4 takes off: the chosen point, or by default just outside the area at the start of the survey.
+    takeoff_point: list[float] | None = None
+    # Where PX4 lands after the survey: the chosen point, else the takeoff point.
+    landing_point: list[float] | None = None
     progress: float
     battery_pct: float | None
     error: str | None
@@ -130,7 +153,8 @@ class MissionHistory(BaseModel):
 
 
 class TakeoffRequest(BaseModel):
-    """PX4's takeoff point; null for both: the first point of the survey path."""
+    """PX4's takeoff (or landing) point; null for both: the default (takeoff: just outside the area at the start of
+    the survey; landing: the takeoff point)."""
 
     lat: float | None = Field(None, ge=-90, le=90)
     lon: float | None = Field(None, ge=-180, le=180)

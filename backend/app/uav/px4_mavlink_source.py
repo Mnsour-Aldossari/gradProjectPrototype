@@ -24,6 +24,7 @@ from .control import FlightControl, Phase
 from .px4_docker import Px4Docker, Px4RestartFailed
 from .px4_plan import (
     ACCEPTANCE_RADIUS_M,
+    landing_check,
     TAKEOFF_MATCH_M,
     PathProgress,
     Px4State,
@@ -91,7 +92,7 @@ async def _connect(url: str):
     return system
 
 
-def _mission_item(w: Waypoint):
+def _mission_item(w: Waypoint, land: bool = False):
     from mavsdk.plugins.mission import MissionItem
 
     nan = float("nan")
@@ -109,7 +110,7 @@ def _mission_item(w: Waypoint):
         acceptance_radius_m=ACCEPTANCE_RADIUS_M,
         yaw_deg=nan,
         camera_photo_distance_m=nan,
-        vehicle_action=MissionItem.VehicleAction.NONE,
+        vehicle_action=MissionItem.VehicleAction.LAND if land else MissionItem.VehicleAction.NONE,
     )
 
 
@@ -126,12 +127,15 @@ class Px4MavlinkSource:
         url: str = "udpin://0.0.0.0:14540",
         takeoff: tuple[float, float] | None = None,
         docker: Px4Docker | None = None,
+        landing: tuple[float, float] | None = None,
     ) -> None:
-        """takeoff: where PX4 should take off (its home); None: the first point of the survey. docker: restarts PX4
-        SITL there when its home is elsewhere; without it, PX4 must already be there."""
+        """takeoff: where PX4 should take off (its home); None: wherever PX4 is, if the area is in reach (a real
+        vehicle). docker: restarts PX4 SITL at the takeoff point when its home is elsewhere. landing: where PX4 lands
+        after the survey; None: back at the takeoff point (return to launch)."""
         self.url = url
         self.takeoff = takeoff
         self.docker = docker
+        self.landing = landing
         self._sim = build_simulation(config)
         self._waypoints = survey_waypoints(self._sim)
         self._system = None
@@ -160,10 +164,18 @@ class Px4MavlinkSource:
         reason = home_check(home, self._waypoints)
         if reason:
             raise Px4Unavailable(reason)
+        items = [_mission_item(w) for w in self._waypoints]
+        if self.landing is not None:
+            reason = landing_check(self.landing, self._waypoints)
+            if reason:
+                raise Px4Unavailable(reason)
+            # After the last lane: fly to the landing point at the survey's height and land there.
+            last = self._waypoints[-1]
+            items.append(_mission_item(Waypoint(*self.landing, last.relative_alt_m, last.speed_m_s), land=True))
         mission = MissionAsync(system)
         try:
-            await mission.set_return_to_launch_after_mission(True)
-            await mission.upload_mission(MissionPlan([_mission_item(w) for w in self._waypoints]))
+            await mission.set_return_to_launch_after_mission(self.landing is None)
+            await mission.upload_mission(MissionPlan(items))
             # PX4 resumes an identical mission where it was interrupted; a new survey starts at the first lane.
             await mission.set_current_mission_item(0)
         except MissionError as e:
@@ -286,6 +298,7 @@ class Px4MavlinkSource:
             """The supervisor's command, in PX4's terms. Resume continues the mission at the waypoint it was flying
             to; return home and land end it, and PX4 lands and disarms on its own."""
             commands = {
+                "to_landing": mission.start_mission,  # the mission goes on to the landing point by itself
                 "paused": action.hold,
                 "surveying": mission.start_mission,
                 "returning": action.return_to_launch,
@@ -324,7 +337,7 @@ class Px4MavlinkSource:
                 if applied == "paused":
                     control.paused_s += FRAME_PERIOD_S
                 # Returning or landing: after the supervisor's command, or on its own after the last waypoint.
-                ending = control.phase in ("returning", "landing")
+                ending = control.phase in ("returning", "landing", "to_landing")
                 vel, hdg, bat = (latest.get(k) for k in ("velocity", "heading", "battery"))
                 x, y = self._sim.frame.to_xy(pos.latitude_deg, pos.longitude_deg)
                 v_n = _number(getattr(vel, "north_m_s", None), 0.0)
@@ -351,7 +364,7 @@ class Px4MavlinkSource:
                 yield frame
                 if state.current >= state.total and not ending:
                     # PX4 flies home on its own (return to launch after the mission); follow it down.
-                    control.finish_survey()
+                    control.finish_survey(to_landing=self.landing is not None)
                     applied = control.phase
                     survey_done_at = loop.time()
                 if control.survey_finished and loop.time() - survey_done_at > HOME_AFTER_SURVEY_S:
