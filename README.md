@@ -135,11 +135,25 @@ simulator and PX4 alike:
 
 ## 3D view
 
-The **3D** button on the mission map (supervisor) opens `/missions/{id}/3d`: the UAV over the satellite imagery of the
-area, the track it flew at its real height, the ground scanned, and a pin wherever a potential detection was reported
-(same colours as the map; click one for its details and verification). Cameras: **Follow** the UAV, **Orbit** freely,
-or **Top** down. While the survey flies it is live, with Pause / Return Home / Land; once it has ended it can be
-replayed (1×–20×, or dragged), each pin appearing when the UAV first passed within half a lane spacing of it.
+The **3D** button on the mission map (supervisor) opens `/missions/{id}/3d`, laid out after the "Mission view"
+design in the app's own colours (the bars and panels follow the light or dark theme; the scene is always dark):
+
+- **Scene:** a dim ground, the area as a low translucent wall, the planned lanes, the track flown as a glowing line at
+  its real height, the ground scanned, the UAV with its sensor footprint and heading, a diamond pin wherever a
+  potential detection was reported (same colours as the map), a 5 m safety buffer drawn round high-priority ones
+  (for display only), and PX4's H and L points. Labels follow the UAV and the detections.
+- **Top bar:** cameras (**3D Orbit**, **Top-down**, **Follow UAV**), the flight clock and, while the survey flies,
+  Pause / Return Home / Land.
+- **Mission panel:** area coverage with the lane and time left, height, ground speed, battery, source, the live
+  metal-detector and radar signal, and **Layers** to show or hide the flown path, planned lanes, scanned area, sensor
+  footprint, safety buffers, likely clutter and the satellite imagery (off by default). The choices are kept per user
+  in the browser.
+- **Detections panel:** the reported detections with their score, distance from the UAV and when the UAV passed them;
+  a selected one shows its depth, evidence and status, with the same verification buttons as the mission page.
+- Compass, zoom, fit, recenter on the UAV, a scale bar, and a **timeline** with the detections marked on it: live
+  while the survey flies; once it has ended a replay (1×–20×, or dragged), each pin appearing when the UAV first passed
+  within half a lane spacing of it.
+- On a tablet the panels open from the top bar; on a phone as sheets.
 
 It is a visual view, built in the browser with three.js from the same data as the map, and replaces the Gazebo
 window for watching a survey. The flight itself is the simulator's or PX4's; the ground is flat (no terrain heights),
