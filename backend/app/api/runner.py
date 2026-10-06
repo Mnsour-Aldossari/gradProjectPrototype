@@ -19,6 +19,7 @@ from app.simulation import SimulationConfig
 from app.simulation.geo import LocalFrame
 from app.uav import SimulatedSource, TelemetryFrame, TelemetrySource
 from app.uav.control import Action, FlightControl, Phase
+from app.uav.px4_docker import Px4Docker
 from app.uav.px4_mavlink_source import Px4MavlinkSource
 
 from .ws import Hub, detection_event
@@ -54,7 +55,9 @@ def survey_context_for(mission: Mission) -> SurveyContext:
 def make_source(mission: Mission, settings: Settings, speed_factor: float) -> TelemetrySource:
     """PX4 flies in real time, so speed_factor only applies to the simulator."""
     if mission.uav_source == "px4":
-        return Px4MavlinkSource(simulation_config_for(mission), settings.px4_url)
+        takeoff = None if mission.takeoff_lat is None else (mission.takeoff_lat, mission.takeoff_lon)
+        docker = Px4Docker() if settings.px4_manage_docker else None
+        return Px4MavlinkSource(simulation_config_for(mission), settings.px4_url, takeoff=takeoff, docker=docker)
     return SimulatedSource(simulation_config_for(mission), speed_factor=speed_factor)
 
 

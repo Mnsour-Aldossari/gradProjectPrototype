@@ -47,6 +47,21 @@ def home_check(home: tuple[float, float], waypoints: list[Waypoint]) -> str | No
     )
 
 
+# PX4 counts as being at the takeoff point within this distance (GPS noise in SITL is well under a metre).
+TAKEOFF_MATCH_M = 25.0
+
+
+def takeoff_check(takeoff: tuple[float, float], waypoints: list[Waypoint]) -> str | None:
+    """A reason a takeoff point is too far from the survey for PX4, or None."""
+    d = distance_m(takeoff, (waypoints[0].lat, waypoints[0].lon))
+    if d <= MAX_HOME_DISTANCE_M:
+        return None
+    return (
+        f"The takeoff point is {d:.0f} m from the start of the survey; PX4 accepts up to {MAX_HOME_DISTANCE_M:.0f} m. "
+        "Choose a point nearer the area."
+    )
+
+
 class PathProgress:
     """Fraction of the survey path flown, from the vehicle position and the waypoint it is flying to."""
 

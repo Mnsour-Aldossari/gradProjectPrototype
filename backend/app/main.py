@@ -57,7 +57,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/health", tags=["health"])
     def health() -> dict:
         # px4_available: the server can talk to PX4 (MAVSDK installed); whether PX4 runs shows when a mission starts.
-        return {"status": "ok", "px4_available": mavsdk_installed()}
+        # px4_restarts: PX4 SITL is restarted at a mission's takeoff point when needed (Docker on this machine).
+        return {"status": "ok", "px4_available": mavsdk_installed(), "px4_restarts": settings.px4_manage_docker}
 
     return app
 

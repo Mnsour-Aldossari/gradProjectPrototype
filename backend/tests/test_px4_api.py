@@ -19,9 +19,9 @@ class FakePx4(SimulatedSource):
 
     speed_factor = 0.0  # as fast as possible
 
-    def __init__(self, config: SimulationConfig, url: str) -> None:
+    def __init__(self, config: SimulationConfig, url: str, takeoff=None, docker=None) -> None:
         super().__init__(config, speed_factor=self.speed_factor)
-        self.url = url
+        self.url, self.takeoff, self.docker = url, takeoff, docker
 
     async def connect(self) -> None:
         pass
@@ -166,3 +166,75 @@ def test_px4_mission_returned_home_is_stopped(client, monkeypatch):
     assert r.status_code == 202 and r.json()["phase"] == "returning"
     mission = wait_until_finished(client, mission_id, headers)
     assert (mission["status"], mission["uav_source"]) == ("stopped", "px4")
+
+
+def test_takeoff_point_is_set_on_a_planned_mission(client):
+    headers = auth_headers(client, "supervisor")
+    mission_id = create(client, headers)
+    start = client.get(f"/api/missions/{mission_id}", headers=headers).json()["path"][0]
+    near = {"lat": start[0] + 0.0002, "lon": start[1]}  # about 22 m north
+    r = client.put(f"/api/missions/{mission_id}/takeoff", json=near, headers=headers)
+    assert r.status_code == 200 and (r.json()["takeoff_lat"], r.json()["takeoff_lon"]) == (near["lat"], near["lon"])
+    far = client.put(f"/api/missions/{mission_id}/takeoff", json={"lat": start[0] + 0.01, "lon": start[1]}, headers=headers)
+    assert far.status_code == 422 and "900 m" in far.json()["detail"]
+    assert client.put(f"/api/missions/{mission_id}/takeoff", json={"lat": 1.0}, headers=headers).status_code == 422
+    assert client.put(f"/api/missions/{mission_id}/takeoff", json=near, headers=auth_headers(client, "field")).status_code == 403
+    cleared = client.put(f"/api/missions/{mission_id}/takeoff", json={}, headers=headers).json()
+    assert (cleared["takeoff_lat"], cleared["takeoff_lon"]) == (None, None)
+
+
+class _Home:
+    def __init__(self, lat, lon):
+        self.latitude_deg, self.longitude_deg = lat, lon
+
+
+class _Health:
+    is_global_position_ok = is_home_position_ok = True
+
+
+class _FakePx4Link:
+    """A PX4 whose home moves once the fake Docker restarts it."""
+
+    def __init__(self, home):
+        self.home_at = home
+
+    async def is_connected(self):
+        return True
+
+    async def home(self):
+        return _Home(*self.home_at)
+
+    async def subscribe_health(self):
+        yield _Health()
+
+
+def _source(**kw):
+    config = SimulationConfig(
+        area=((24.13968, 47.26170), (24.13968, 47.26230), (24.13932, 47.26230), (24.13932, 47.26170)),
+        altitude_m=1.5, speed_mps=2.0, line_spacing_m=2.0, soil_type="dry_sand", seed=1,
+    )
+    return Px4MavlinkSource(config, **kw)
+
+
+def test_px4_is_restarted_at_the_takeoff_point():
+    restarted = []
+
+    class FakeDocker:
+        async def restart_at(self, lat, lon):
+            restarted.append((lat, lon))
+            link.home_at = (lat, lon)
+
+    takeoff = (24.13990, 47.26200)
+    source = _source(takeoff=takeoff, docker=FakeDocker())
+    link = _FakePx4Link((47.397742, 8.545594))  # PX4's default home, Zurich
+    home = asyncio.run(source._home_at_takeoff(link, link, link.home_at))
+    assert restarted == [takeoff] and home == takeoff
+    # Already there: no restart.
+    assert asyncio.run(source._home_at_takeoff(link, link, takeoff)) == takeoff and len(restarted) == 1
+
+
+def test_without_docker_a_takeoff_point_elsewhere_is_explained():
+    source = _source(takeoff=(24.13990, 47.26200))
+    link = _FakePx4Link((24.13950, 47.26200))  # 44 m south
+    with pytest.raises(Px4Unavailable, match="PX4_HOME_LAT=24.139900"):
+        asyncio.run(source._home_at_takeoff(link, link, link.home_at))

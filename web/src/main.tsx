@@ -1,6 +1,6 @@
 import './styles.css'
 
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, HomeRoute, RequireAuth } from './auth'
@@ -14,6 +14,9 @@ import { MissionsPage } from './pages/MissionsPage'
 import { NewMissionPage } from './pages/NewMissionPage'
 import { PrefsProvider } from './prefs'
 
+// three.js is large: the 3D view loads only when it is opened.
+const View3DPage = lazy(() => import('./view3d/View3DPage'))
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
@@ -26,6 +29,16 @@ createRoot(document.getElementById('root')!).render(
               element={
                 <RequireAuth>
                   <FieldPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/missions/:id/3d"
+              element={
+                <RequireAuth>
+                  <Suspense fallback={<main className="view3d view3d-empty"><p>Loading the 3D view…</p></main>}>
+                    <View3DPage />
+                  </Suspense>
                 </RequireAuth>
               }
             />

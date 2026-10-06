@@ -88,7 +88,11 @@ survey; the metal-detector and radar readings still come from the project's sens
 
 3. Once, in the backend folder: `.venv/Scripts/pip install -r requirements-px4.txt` (MAVSDK), then restart the
    backend.
-4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL**, then **Start survey**.
+4. Open a planned mission. In the Flight card choose **Fly with: PX4 SITL**, then **Start survey**. To take off from
+   another point, use **Set on map** next to *Takeoff point* and click the map (within 900 m of the survey); the H
+   can also be dragged. If PX4 is elsewhere, the backend restarts the `px4-sitl` container there first (about a
+   minute; it runs only `docker stop px4-sitl` and `docker run` of the image above with the point's coordinates).
+   Set `PX4_MANAGE_DOCKER=0` to turn this off; then Start says which command to run.
 5. Stop PX4 when done: `docker stop px4-sitl`.
 
 Notes:
@@ -114,6 +118,18 @@ simulator and PX4 alike:
   scanned, and its potential detections, are kept and shown in History.
 - The field view shows Paused, Returning home or Landing; only the supervisor has the buttons.
 
+## 3D view
+
+The **3D** button on the mission map (supervisor) opens `/missions/{id}/3d`: the UAV over the satellite imagery of the
+area, the track it flew at its real height, the ground scanned, and a pin wherever a potential detection was reported
+(same colours as the map; click one for its details and verification). Cameras: **Follow** the UAV, **Orbit** freely,
+or **Top** down. While the survey flies it is live, with Pause / Return Home / Land; once it has ended it can be
+replayed (1×–20×, or dragged), each pin appearing when the UAV first passed within half a lane spacing of it.
+
+It is a visual view, built in the browser with three.js from the same data as the map, and replaces the Gazebo
+window for watching a survey. The flight itself is the simulator's or PX4's; the ground is flat (no terrain heights),
+and buried objects are not shown, only what was detected. The page loads three.js only when opened.
+
 ## Demo accounts (test credentials only)
 
 Two demo accounts are created on first start: `supervisor` (mission supervisor) and `field` (field operator).
@@ -133,6 +149,7 @@ in the browser and is never sent to the server.
 | `DATABASE_URL` | `sqlite:///.../backend/uav.db` | e.g. `postgresql+psycopg://user:pass@localhost:5432/uav` |
 | `SIM_SPEED_FACTOR` | `10` | default playback speed for missions (1 = real time) |
 | `SECRET_KEY` | random, saved in `backend/.secret_key` | token signing key; if unset, one is generated on first start and reused (git-ignored) |
+| `PX4_MANAGE_DOCKER` | `1` | `0`: never restart the PX4 SITL container at a mission's takeoff point (it is off anyway without the `docker` command) |
 | `PX4_URL` | `udpin://0.0.0.0:14540` | where MAVSDK listens for PX4, for missions flown with PX4 |
 
 The code uses only portable column types so switching to PostgreSQL needs no code change; this has not yet been
@@ -145,8 +162,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **154 passed, 2 xfailed** with `requirements-px4.txt` installed (without it one PX4 test is
-skipped: 153 passed, 1 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **158 passed, 2 xfailed** with `requirements-px4.txt` installed (without it one PX4 test is
+skipped: 157 passed, 1 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.
@@ -188,6 +205,7 @@ for SQLite only. (Not re-run while this README was reviewed.)
 | GET | `/api/missions/history` | any user — finished missions (completed, stopped, failed) with potential-detection counts per category and verification progress |
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
 | POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10, "uav_source": "simulated"}` or `{"uav_source": "px4"}`; 503 with the reason if PX4 cannot fly it |
+| PUT | `/api/missions/{id}/takeoff` | supervisor; body `{"lat": …, "lon": …}` (or `{}` for the start of the survey) on a planned mission; 422 if over 900 m from the survey start |
 | POST | `/api/missions/{id}/control` | supervisor; body `{"action": "pause" \| "resume" \| "return" \| "land"}` during a flight; 409 if the mission is not flying or the command does not apply now |
 | POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
 | GET | `/api/missions/{id}/telemetry` | any user |
@@ -213,6 +231,8 @@ Works (implemented and tested with PyTest and/or in the browser):
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
   verification, comparison with the baseline, mission history, evaluation page.
 - Field view `/field` at phone size: alerts, nearest potential detections, verification.
+- 3D view (supervisor): live and replay, checked in the browser at desktop and phone size, light and dark, with the
+  simulator. Not yet opened while PX4 flies.
 - Display settings: light, dark or device theme, small / normal / large text and comfortable / compact density,
   chosen under **Display** (in the sidebar, or on the Status tab of `/field`) and saved per user in the browser on
   that device; **Reset to default** restores them. They change the look only, never what a user can see.

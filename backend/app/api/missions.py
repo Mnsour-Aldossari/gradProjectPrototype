@@ -19,6 +19,7 @@ from app.schemas import (
     MissionRead,
     MissionStats,
     StartRequest,
+    TakeoffRequest,
     TelemetryRead,
     VerificationCounts,
 )
@@ -27,6 +28,7 @@ from app.simulation.scenario import generate_scenario
 
 from .deps import CurrentUser, SessionDep, SettingsDep, SupervisorUser
 from app.uav.control import ControlRejected
+from app.uav.px4_plan import Waypoint, takeoff_check
 from app.uav.px4_mavlink_source import Px4Unavailable
 
 from .runner import make_source, mission_event, survey_context_for
@@ -242,6 +244,27 @@ async def start_mission(
         mission.uav_source = body.uav_source
     mission = await _start(request, session, mission, speed_factor)
     return mission_read(session, mission, runner=request.app.state.runner)
+
+
+@router.put("/{mission_id}/takeoff", response_model=MissionRead)
+def set_takeoff(mission_id: int, body: TakeoffRequest, session: SessionDep, _: SupervisorUser) -> MissionRead:
+    """Where PX4 takes off for this mission, chosen on the map before the survey starts. It must be within PX4's
+    900 m of the start of the survey. Both null: the start of the survey."""
+    mission = get_mission_or_404(session, mission_id)
+    if mission.status != "planned":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
+    if (body.lat is None) != (body.lon is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give both lat and lon, or neither")
+    if body.lat is not None:
+        start = mission.path[0]
+        reason = takeoff_check((body.lat, body.lon), [Waypoint(start[0], start[1], 0, 0)])
+        if reason:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
+    mission.takeoff_lat, mission.takeoff_lon = body.lat, body.lon
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+    return mission_read(session, mission)
 
 
 @router.post("/{mission_id}/control", status_code=status.HTTP_202_ACCEPTED, response_model=MissionRead)
