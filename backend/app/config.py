@@ -33,6 +33,12 @@ def load_or_create_secret_key(path: Path | None = None) -> str:
     raise RuntimeError(f"Could not read or create the signing key file {path}")
 
 
+def database_ui_url(value: str) -> str:
+    """The link to the database page: only an http(s) address is used (it goes into a link in the browser)."""
+    value = value.strip()
+    return value if value.lower().startswith(("http://", "https://")) else ""
+
+
 @dataclass(frozen=True)
 class Settings:
     secret_key: str  # no default on purpose: see Settings.from_env
@@ -47,6 +53,8 @@ class Settings:
     px4_manage_docker: bool = False
     px4_manage_gazebo: bool = False
     px4_manage_off: bool = False  # PX4_MANAGE_DOCKER=0: both off on purpose, whatever is installed
+    # A web page for browsing the database (e.g. NocoDB, Adminer), linked in the supervisor's menu. Empty: no link.
+    database_ui_url: str = ""
     # Where PX4-Autopilot is built in WSL (make px4_sitl gz_x500): the distribution, and the folder in its home.
     px4_gazebo_distro: str = "Ubuntu-22.04"
     px4_gazebo_dir: str = "PX4-Autopilot"
@@ -64,6 +72,7 @@ class Settings:
             px4_manage_docker=manage and shutil.which("docker") is not None,
             px4_manage_gazebo=manage and os.name == "nt" and shutil.which("wsl") is not None,
             px4_manage_off=not manage,
+            database_ui_url=database_ui_url(os.environ.get("DATABASE_UI_URL", "")),
             px4_gazebo_distro=os.environ.get("PX4_GAZEBO_DISTRO", "Ubuntu-22.04"),
             px4_gazebo_dir=os.environ.get("PX4_GAZEBO_DIR", "PX4-Autopilot"),
         )

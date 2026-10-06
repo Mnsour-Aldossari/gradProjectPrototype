@@ -14,6 +14,8 @@ export interface User {
   username: string
   full_name: string
   role: Role
+  /** A page for browsing the database, set on the server (DATABASE_UI_URL); supervisors only. */
+  database_ui_url?: string | null
 }
 
 export interface MissionStats {

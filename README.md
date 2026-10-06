@@ -206,6 +206,7 @@ in the browser and is never sent to the server.
 | Variable | Default | Meaning |
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///.../backend/uav.db` | e.g. `postgresql+psycopg://user:pass@127.0.0.1:5432/uav` (see **PostgreSQL** below) |
+| `DATABASE_UI_URL` | unset | an http(s) address of a page for browsing the database (e.g. NocoDB at `http://localhost:8082`); when set, supervisors get a **Database** link in the menu that opens it in a new tab. Not shown to the field operator, and not in `/api/health` |
 | `TEST_DATABASE_URL` | unset | tests only: a PostgreSQL server (any database); each test then gets a schema of its own there, dropped afterwards. Unset: tests use temporary SQLite files |
 | `SIM_SPEED_FACTOR` | `10` | default playback speed for missions (1 = real time) |
 | `SECRET_KEY` | random, saved in `backend/.secret_key` | token signing key; if unset, one is generated on first start and reused (git-ignored) |
@@ -236,6 +237,18 @@ tried, `localhost` made the connection hang. The whole stack on PostgreSQL: `doc
 -f docker-compose.postgres.yml up --build -d` (the database has no published port; set `POSTGRES_PASSWORD` for
 anything but a local trial).
 
+To browse the tables in the browser, run a web tool next to PostgreSQL, e.g. NocoDB (it asks for a local account on
+first use):
+
+```bash
+docker run -d --name uav-nocodb -p 8082:8080 -e NC_ALLOW_LOCAL_EXTERNAL_DBS=true -v uav-nocodb-data:/usr/app/data nocodb/nocodb:latest
+```
+
+In NocoDB: **Create base**, **Connect to external database**, PostgreSQL, host `host.docker.internal`, port `5433`,
+and the user, password and database used above. Then start the backend with `set DATABASE_UI_URL=http://localhost:8082`
+for the **Database** link. `NC_ALLOW_LOCAL_EXTERNAL_DBS` lets NocoDB reach local addresses; do not use it on a server
+open to the internet. The `users` table holds the password hashes: do not show it to others.
+
 The code uses only portable column types. Run the tests on PostgreSQL with `TEST_DATABASE_URL` set to the server
 (a database in it; the tests create and drop their own schemas).
 
@@ -246,8 +259,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **190 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **191 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+Expected result: **192 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **193 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
 too). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a

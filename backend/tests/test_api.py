@@ -232,3 +232,31 @@ def test_outline_is_checked_while_it_is_drawn(client):
     small = client.post("/api/missions/check", json=mission_body(area=tiny), headers=headers).json()
     assert not small["ok"] and "on each side" in small["problems"][0]
     assert client.post("/api/missions/check", json=mission_body(), headers=auth_headers(client, "field")).status_code == 403
+
+
+def test_database_page_link_is_for_the_supervisor_and_only_when_set(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings, database_ui_url
+    from app.main import create_app
+    from app.seed import DEMO_USERS
+
+    assert database_ui_url(" http://localhost:8082 ") == "http://localhost:8082"
+    assert database_ui_url("javascript:alert(1)") == "" and database_ui_url("") == ""
+
+    url = "http://localhost:8082"
+    settings = Settings(
+        database_url=f"sqlite:///{(tmp_path / 'link.db').as_posix()}", secret_key="test-secret", database_ui_url=url
+    )
+    with TestClient(create_app(settings)) as c:
+        for user, shown in (("supervisor", url), ("field", None)):
+            headers = auth_headers(c, user)
+            assert c.get("/api/auth/me", headers=headers).json()["database_ui_url"] == shown
+        password = next(u["password"] for u in DEMO_USERS if u["username"] == "supervisor")
+        login = c.post("/api/auth/login", json={"username": "supervisor", "password": password}).json()
+        assert login["user"]["database_ui_url"] == url
+        assert "database_ui_url" not in c.get("/api/health").text  # not on the public health check
+
+
+def test_no_database_page_link_without_the_setting(client):
+    assert client.get("/api/auth/me", headers=auth_headers(client, "supervisor")).json()["database_ui_url"] is None

@@ -36,9 +36,15 @@ class UserRead(BaseModel):
     role: str
 
 
+class SessionUser(UserRead):
+    """The signed-in user as the page needs it: database_ui_url only for a supervisor, and only when it is set."""
+
+    database_ui_url: str | None = None
+
+
 class LoginResponse(BaseModel):
     token: str
-    user: UserRead
+    user: SessionUser
 
 
 class MissionCreate(BaseModel):
