@@ -135,12 +135,21 @@ def test_tracker_on_closely_spaced_lanes():
     assert set(seen) == set(range(1, tracker.total + 1))
 
 
-def test_tracker_follows_a_mission_resumed_part_way(sim):
-    """PX4 resumed an interrupted identical mission at a later lane: the tracker picks it up there."""
+def test_tracker_follows_px4_skipping_ahead_once_surveying(sim):
+    """Once at the first waypoint, a later one counts too if PX4 goes straight there."""
     tracker = WaypointTracker(sim.plan)
-    later = sim.plan.waypoints_xy[4:]
-    seen = [tracker.update(x, y) for x, y in walk(later)]
-    assert seen[0] == 5 and seen[-1] == tracker.total
+    pts = sim.plan.waypoints_xy
+    seen = [tracker.update(x, y) for x, y in walk([pts[0], *pts[4:]])]
+    assert seen[0] == 1 and 5 in seen and seen[-1] == tracker.total
+
+
+def test_taking_off_next_to_a_later_lane_end_is_not_surveying(sim):
+    """The takeoff point 0.2 m from waypoint 8 (seen with PX4): nothing counts until the first waypoint."""
+    tracker = WaypointTracker(sim.plan)
+    x8, y8 = sim.plan.waypoints_xy[8]
+    assert tracker.update(x8, y8 - 0.2) == 0
+    seen = [tracker.update(x, y) for x, y in walk([(x8, y8 - 0.2), *sim.plan.waypoints_xy])]
+    assert set(seen) == set(range(0, tracker.total + 1))  # every waypoint, in order
 
 
 def test_no_readings_while_paused_or_on_the_way_down(sim):

@@ -31,6 +31,14 @@ def test_commands_that_do_not_apply_are_refused():
             control.request(action)
 
 
+def test_after_the_survey_the_uav_returns_home_and_the_mission_completes():
+    control = FlightControl()
+    control.finish_survey()
+    assert (control.phase, control.scanning, control.stop_reason) == ("returning", False, None)
+    with pytest.raises(ControlRejected, match="survey is complete"):
+        control.request("land")
+
+
 async def _fly(command_at: dict[int, str]) -> list:
     """Frames from the simulator, giving a command after the given frame numbers."""
     source = SimulatedSource(CONFIG, speed_factor=0)

@@ -207,6 +207,11 @@ class _FakePx4Link:
     async def subscribe_health(self):
         yield _Health()
 
+    async def subscribe_position(self):
+        while True:
+            yield _Home(*self.home_at)
+            await asyncio.sleep(0.01)
+
 
 def _source(**kw):
     config = SimulationConfig(
@@ -216,7 +221,8 @@ def _source(**kw):
     return Px4MavlinkSource(config, **kw)
 
 
-def test_px4_is_restarted_at_the_takeoff_point():
+def test_px4_is_restarted_at_the_takeoff_point(monkeypatch):
+    monkeypatch.setattr(px4, "SETTLE_S", 0.05)
     restarted = []
 
     class FakeDocker:
@@ -238,3 +244,21 @@ def test_without_docker_a_takeoff_point_elsewhere_is_explained():
     link = _FakePx4Link((24.13950, 47.26200))  # 44 m south
     with pytest.raises(Px4Unavailable, match="PX4_HOME_LAT=24.139900"):
         asyncio.run(source._home_at_takeoff(link, link, link.home_at))
+
+
+def test_after_a_restart_px4_must_hold_still_at_the_takeoff_point(monkeypatch):
+    """A new PX4 SITL jumps from its default home to the takeoff point; takeoff waits until its position settles."""
+    monkeypatch.setattr(px4, "SETTLE_S", 0.05)
+    takeoff = (24.13990, 47.26200)
+    seen = []
+
+    class Positions:
+        async def subscribe_position(self):
+            track = [(47.397742, 8.545594)] * 3 + [(24.13990 + 0.00002 * k, 47.26200) for k in range(5)]
+            for lat, lon in track + [takeoff] * 100:  # Zurich, then drifting, then still
+                seen.append((lat, lon))
+                yield _Home(lat, lon)
+                await asyncio.sleep(0.01)
+
+    asyncio.run(Px4MavlinkSource._settled(Positions(), takeoff))
+    assert seen[-1] == takeoff and len(seen) > 8  # not before the drift had stopped
