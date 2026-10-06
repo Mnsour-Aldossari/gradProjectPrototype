@@ -20,7 +20,8 @@ from app.simulation.geo import LocalFrame
 from app.uav import SimulatedSource, TelemetryFrame, TelemetrySource
 from app.uav.control import Action, FlightControl, Phase
 from app.uav.px4_docker import Px4Docker
-from app.uav.px4_mavlink_source import Px4MavlinkSource
+from app.uav.px4_gazebo import Px4Gazebo
+from app.uav.px4_mavlink_source import Px4Launcher, Px4MavlinkSource
 from app.uav.px4_plan import default_takeoff
 
 from .ws import Hub, detection_event
@@ -53,19 +54,34 @@ def survey_context_for(mission: Mission) -> SurveyContext:
     )
 
 
-def make_source(mission: Mission, settings: Settings, speed_factor: float) -> TelemetrySource:
-    """PX4 flies in real time, so speed_factor only applies to the simulator."""
+def px4_launchers(settings: Settings, gazebo: bool) -> tuple[Px4Launcher | None, tuple[Px4Launcher, ...]]:
+    """The PX4 SITL the backend starts at the takeoff point (Gazebo's window in WSL, or the headless Docker image),
+    and the other one, stopped first so that only one PX4 answers."""
+    window = Px4Gazebo(settings.px4_gazebo_distro, settings.px4_gazebo_dir) if settings.px4_manage_gazebo else None
+    headless = Px4Docker() if settings.px4_manage_docker else None
+    launcher, other = (window, headless) if gazebo else (headless, window)
+    return launcher, () if other is None else (other,)
+
+
+def make_source(mission: Mission, settings: Settings, speed_factor: float, gazebo: bool = False) -> TelemetrySource:
+    """PX4 flies in real time, so speed_factor only applies to the simulator. gazebo: PX4 SITL with Gazebo's window
+    (WSL) rather than the headless image."""
     if mission.uav_source == "px4":
-        docker = Px4Docker() if settings.px4_manage_docker else None
+        launcher, others = px4_launchers(settings, gazebo)
         if mission.takeoff_lat is not None:
             takeoff = (mission.takeoff_lat, mission.takeoff_lon)
-        elif docker is not None:
+        elif launcher is not None:
             takeoff = default_takeoff(mission.area, mission.path)  # PX4 SITL is moved there: what the map shows
         else:
             takeoff = None  # a vehicle that cannot be moved flies from where it is
         landing = None if mission.landing_lat is None else (mission.landing_lat, mission.landing_lon)
         return Px4MavlinkSource(
-            simulation_config_for(mission), settings.px4_url, takeoff=takeoff, docker=docker, landing=landing
+            simulation_config_for(mission),
+            settings.px4_url,
+            takeoff=takeoff,
+            launcher=launcher,
+            landing=landing,
+            others=others,
         )
     return SimulatedSource(simulation_config_for(mission), speed_factor=speed_factor)
 

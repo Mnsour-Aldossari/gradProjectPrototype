@@ -17,11 +17,12 @@ import logging
 import math
 import time
 from collections.abc import AsyncIterator
+from typing import Protocol
 
 from app.simulation import SimulationConfig, build_simulation
 
 from .control import FlightControl, Phase
-from .px4_docker import Px4Docker, Px4RestartFailed
+from .px4_docker import Px4RestartFailed
 from .px4_plan import (
     ACCEPTANCE_RADIUS_M,
     landing_check,
@@ -40,7 +41,7 @@ from .source import TelemetryFrame
 DISCOVERY_TIMEOUT_S = 10.0  # how long to listen for PX4's heartbeat
 READY_TIMEOUT_S = 60.0  # GPS fix and home position, a few seconds after PX4 SITL starts
 ARMABLE_TIMEOUT_S = 15.0  # after switching to Hold
-RESTART_TIMEOUT_S = 150.0  # PX4 SITL + Gazebo starting in a new container, up to GPS fix and home
+RESTART_TIMEOUT_S = 150.0  # PX4 SITL starting (a new container, or Gazebo in WSL), up to GPS fix and home
 HOME_AFTER_SURVEY_S = 300.0  # following PX4 home after the survey: stop waiting for it to land after this
 SETTLE_S = 10.0  # after a restart: PX4's position must hold still this long before takeoff
 SETTLE_M = 0.5
@@ -53,6 +54,19 @@ logger = logging.getLogger(__name__)
 
 class Px4Unavailable(Exception):
     """PX4 cannot fly this mission now. The message says why and what to do."""
+
+
+class Px4Launcher(Protocol):
+    """Starts PX4 SITL on this machine with its home at the takeoff point: the headless Docker image (px4_docker) or
+    Gazebo's window in WSL (px4_gazebo). Each raises Px4RestartFailed with the reason when it cannot."""
+
+    async def prepare(self) -> None: ...  # checks that come before anything is started or stopped
+
+    async def running(self) -> bool: ...
+
+    async def restart_at(self, lat: float, lon: float) -> None: ...
+
+    async def stop(self) -> None: ...
 
 
 def mavsdk_installed() -> bool:
@@ -69,8 +83,11 @@ _links: dict[str, object] = {}
 _locks: dict[int, asyncio.Lock] = {}
 
 
-async def _connect(url: str):
+async def _connect(url: str, timeout_s: float | None = None):
+    """PX4's system, once it answers. timeout_s: how long to listen (longer while a just started PX4 boots)."""
     from mavsdk.asyncio import ComponentType, Configuration, Mavsdk, MavsdkConnectionError
+
+    timeout_s = DISCOVERY_TIMEOUT_S if timeout_s is None else timeout_s
 
     async with _locks.setdefault(id(asyncio.get_running_loop()), asyncio.Lock()):
         if url not in _links:
@@ -82,14 +99,18 @@ async def _connect(url: str):
                 raise Px4Unavailable(f"Cannot listen for PX4 on {url}: {e}") from e
             _links[url] = mavsdk
         mavsdk = _links[url]
-    system = await mavsdk.first_autopilot(timeout_s=DISCOVERY_TIMEOUT_S)
-    # A system seen before stays in MAVSDK's list after PX4 stops, so check that it is still there.
-    if system is None or not await system.is_connected():
-        raise Px4Unavailable(
-            f"No PX4 answered on {url} within {DISCOVERY_TIMEOUT_S:.0f} s. Start PX4 SITL (README, 'PX4 SITL + Gazebo') "
-            "and try again."
-        )
-    return system
+    deadline = time.monotonic() + timeout_s
+    while True:
+        system = await mavsdk.first_autopilot(timeout_s=max(1.0, deadline - time.monotonic()))
+        # A system seen before stays in MAVSDK's list after PX4 stops, so check that it is still there.
+        if system is not None and await system.is_connected():
+            return system
+        if time.monotonic() >= deadline:
+            raise Px4Unavailable(
+                f"No PX4 answered on {url} within {timeout_s:.0f} s. Start PX4 SITL (README, 'PX4 SITL + Gazebo') "
+                "and try again."
+            )
+        await asyncio.sleep(1)
 
 
 def _mission_item(w: Waypoint, land: bool = False):
@@ -126,15 +147,18 @@ class Px4MavlinkSource:
         config: SimulationConfig,
         url: str = "udpin://0.0.0.0:14540",
         takeoff: tuple[float, float] | None = None,
-        docker: Px4Docker | None = None,
+        launcher: Px4Launcher | None = None,
         landing: tuple[float, float] | None = None,
+        others: tuple[Px4Launcher, ...] = (),
     ) -> None:
         """takeoff: where PX4 should take off (its home); None: wherever PX4 is, if the area is in reach (a real
-        vehicle). docker: restarts PX4 SITL at the takeoff point when its home is elsewhere. landing: where PX4 lands
-        after the survey; None: back at the takeoff point (return to launch)."""
+        vehicle). launcher: starts PX4 SITL at the takeoff point when it is off, or restarts it there when its home is
+        elsewhere. others: the other kinds of PX4 SITL on this machine, stopped first so that only one PX4 answers.
+        landing: where PX4 lands after the survey; None: back at the takeoff point."""
         self.url = url
         self.takeoff = takeoff
-        self.docker = docker
+        self.launcher = launcher
+        self.others = others
         self.landing = landing
         self._sim = build_simulation(config)
         self._waypoints = survey_waypoints(self._sim)
@@ -149,21 +173,26 @@ class Px4MavlinkSource:
         from mavsdk.asyncio.plugins.mission import MissionAsync, MissionError, MissionPlan
         from mavsdk.asyncio.plugins.telemetry import TelemetryAsync
 
-        system = await _connect(self.url)
+        started = await self._start_px4_if_off()
+        system = await _connect(self.url, RESTART_TIMEOUT_S if started else None)
         telemetry = TelemetryAsync(system)
-        try:
-            await asyncio.wait_for(
-                self._until(telemetry, lambda h: h.is_global_position_ok and h.is_home_position_ok), READY_TIMEOUT_S
+        if started:
+            home = await self._new_home(system, telemetry, self.takeoff)
+        else:
+            try:
+                await asyncio.wait_for(
+                    self._until(telemetry, lambda h: h.is_global_position_ok and h.is_home_position_ok),
+                    READY_TIMEOUT_S,
+                )
+            except TimeoutError as e:
+                raise Px4Unavailable(
+                    "PX4 has no GPS fix or home position yet. Wait until it has started, then try again."
+                ) from e
+            home = await telemetry.home()
+            here = await telemetry.position()
+            home = await self._home_at_takeoff(
+                system, telemetry, (home.latitude_deg, home.longitude_deg), (here.latitude_deg, here.longitude_deg)
             )
-        except TimeoutError as e:
-            raise Px4Unavailable(
-                "PX4 has no GPS fix or home position yet. Wait until it has started, then try again."
-            ) from e
-        home = await telemetry.home()
-        here = await telemetry.position()
-        home = await self._home_at_takeoff(
-            system, telemetry, (home.latitude_deg, home.longitude_deg), (here.latitude_deg, here.longitude_deg)
-        )
         reason = home_check(home, self._waypoints)
         if reason:
             raise Px4Unavailable(reason)
@@ -200,11 +229,27 @@ class Px4MavlinkSource:
                 ) from e
         self._system = system
 
+    async def _start_px4_if_off(self) -> bool:
+        """Before connecting: stop the other kinds of PX4 SITL, and start this one at the takeoff point when it is
+        not running. True if it was started."""
+        if self.launcher is None or self.takeoff is None:
+            return False
+        try:
+            await self.launcher.prepare()
+            for other in self.others:
+                await other.stop()
+            if await self.launcher.running():
+                return False
+            await self.launcher.restart_at(*self.takeoff)
+        except Px4RestartFailed as e:
+            raise Px4Unavailable(str(e)) from e
+        return True
+
     async def _home_at_takeoff(
         self, system, telemetry, home: tuple[float, float], here: tuple[float, float] | None = None
     ) -> tuple[float, float]:
         """PX4's home, moved to the takeoff point first if needed: PX4 SITL takes its home only when it starts, so
-        it is restarted there (Docker). here: where the vehicle stands; PX4 resets its home there when it arms, so
+        it is restarted there (launcher). here: where the vehicle stands; PX4 resets its home there when it arms, so
         after landing elsewhere (a landing point) it is restarted too. Returns the home PX4 will fly from."""
         if self.takeoff is None and home_check(home, self._waypoints) is None:
             return home  # no point chosen: PX4 flies from where it is when the area is in reach
@@ -212,18 +257,21 @@ class Px4MavlinkSource:
         away = max(distance_m(home, wanted), distance_m(here or home, wanted))
         if away <= TAKEOFF_MATCH_M:
             return home
-        if self.docker is None:
+        if self.launcher is None:
             if self.takeoff is None:
                 return home  # home_check then explains how far the area is
             raise Px4Unavailable(
-                f"PX4 is {away:.0f} m from the takeoff point. Restart PX4 there: docker stop "
-                f"{Px4Docker().container}, then docker run with PX4_HOME_LAT={wanted[0]:.6f} "
-                f"PX4_HOME_LON={wanted[1]:.6f} (README, 'PX4 SITL + Gazebo')."
+                f"PX4 is {away:.0f} m from the takeoff point. Restart PX4 there, with PX4_HOME_LAT={wanted[0]:.6f} "
+                f"PX4_HOME_LON={wanted[1]:.6f}, and try again (README, 'PX4 SITL + Gazebo')."
             )
         try:
-            await self.docker.restart_at(*wanted)
+            await self.launcher.restart_at(*wanted)
         except Px4RestartFailed as e:
             raise Px4Unavailable(str(e)) from e
+        return await self._new_home(system, telemetry, wanted)
+
+    async def _new_home(self, system, telemetry, wanted: tuple[float, float]) -> tuple[float, float]:
+        """After PX4 SITL was started at the takeoff point: its home there, once it has a GPS fix and holds still."""
 
         async def ready() -> tuple[float, float]:
             # The same MAVSDK system reconnects to the new PX4; wait for a home at the takeoff point, then a GPS fix.
@@ -245,7 +293,7 @@ class Px4MavlinkSource:
             return await asyncio.wait_for(ready(), RESTART_TIMEOUT_S)
         except TimeoutError as e:
             raise Px4Unavailable(
-                f"PX4 was restarted at the takeoff point but was not ready within {RESTART_TIMEOUT_S:.0f} s. "
+                f"PX4 was started at the takeoff point but was not ready within {RESTART_TIMEOUT_S:.0f} s. "
                 "Try again in a moment."
             ) from e
 

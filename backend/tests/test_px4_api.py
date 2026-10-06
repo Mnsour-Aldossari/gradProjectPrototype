@@ -19,9 +19,9 @@ class FakePx4(SimulatedSource):
 
     speed_factor = 0.0  # as fast as possible
 
-    def __init__(self, config: SimulationConfig, url: str, takeoff=None, docker=None, landing=None) -> None:
+    def __init__(self, config: SimulationConfig, url: str, takeoff=None, launcher=None, landing=None, others=()) -> None:
         super().__init__(config, speed_factor=self.speed_factor)
-        self.url, self.takeoff, self.docker = url, takeoff, docker
+        self.url, self.takeoff, self.launcher, self.others = url, takeoff, launcher, others
 
     async def connect(self) -> None:
         pass
@@ -231,7 +231,7 @@ def test_px4_is_restarted_at_the_takeoff_point(monkeypatch):
             link.home_at = (lat, lon)
 
     takeoff = (24.13990, 47.26200)
-    source = _source(takeoff=takeoff, docker=FakeDocker())
+    source = _source(takeoff=takeoff, launcher=FakeDocker())
     link = _FakePx4Link((47.397742, 8.545594))  # PX4's default home, Zurich
     home = asyncio.run(source._home_at_takeoff(link, link, link.home_at))
     assert restarted == [takeoff] and home == takeoff
@@ -301,7 +301,7 @@ def test_px4_a_few_metres_from_the_takeoff_point_is_restarted_there(monkeypatch)
             link.home_at = (lat, lon)
 
     takeoff = (24.13990, 47.26200)
-    source = _source(takeoff=takeoff, docker=FakeDocker())
+    source = _source(takeoff=takeoff, launcher=FakeDocker())
     link = _FakePx4Link((24.13990, 47.26206))  # 6 m east
     assert asyncio.run(source._home_at_takeoff(link, link, link.home_at)) == takeoff and restarted == [takeoff]
 
@@ -317,7 +317,7 @@ def test_px4_standing_away_from_its_home_is_restarted_at_the_takeoff_point(monke
             link.home_at = (lat, lon)
 
     takeoff = (24.13990, 47.26200)
-    source = _source(takeoff=takeoff, docker=FakeDocker())
+    source = _source(takeoff=takeoff, launcher=FakeDocker())
     link = _FakePx4Link(takeoff)
     assert asyncio.run(source._home_at_takeoff(link, link, takeoff, here=(24.13990, 47.26220))) == takeoff
     assert restarted == [takeoff]
@@ -333,6 +333,6 @@ def test_after_a_restart_the_old_home_reported_for_a_moment_is_not_taken(monkeyp
         async def restart_at(self, lat, lon):
             asyncio.get_running_loop().call_later(0.3, lambda: setattr(link, "home_at", (lat, lon)))
 
-    source = _source(takeoff=takeoff, docker=FakeDocker())
+    source = _source(takeoff=takeoff, launcher=FakeDocker())
     link = _FakePx4Link(old)
     assert asyncio.run(source._home_at_takeoff(link, link, old)) == takeoff
