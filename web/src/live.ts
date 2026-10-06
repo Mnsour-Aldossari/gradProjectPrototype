@@ -22,7 +22,15 @@ export interface LiveState {
 type Event =
   | { type: 'snapshot'; mission: Mission; detections: Detection[]; track: LatLon[]; last_telemetry: Telemetry | null }
   | ({ type: 'telemetry' } & Telemetry)
-  | { type: 'mission'; status: Mission['status']; progress: number; battery_pct: number | null; error: string | null }
+  | {
+      type: 'mission'
+      status: Mission['status']
+      phase?: Mission['phase']
+      uav_source?: Mission['uav_source']
+      progress: number
+      battery_pct: number | null
+      error: string | null
+    }
   | { type: 'detection_created' | 'detection_updated'; detection: Detection }
   | { type: 'alert'; detection: Detection }
   | { type: 'detection_removed'; id: number }
@@ -78,6 +86,8 @@ function reducer(state: LiveState, action: Action): LiveState {
             mission: {
               ...state.mission,
               status: action.status,
+              phase: action.phase ?? null,
+              uav_source: action.uav_source ?? state.mission.uav_source,
               progress: action.progress,
               battery_pct: action.battery_pct,
               error: action.error,

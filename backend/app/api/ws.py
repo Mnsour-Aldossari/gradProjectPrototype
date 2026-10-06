@@ -7,9 +7,9 @@ import contextlib
 from collections import defaultdict
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
-from app.models import Detection, Mission, TelemetryPoint, User
+from app.models import Detection, Mission, SensorReading, TelemetryPoint, User
 from app.schemas import DetectionRead
 from app.security import decode_token
 
@@ -56,16 +56,20 @@ def detection_event(kind: str, detection: Detection) -> dict:
     return {"type": kind, "detection": DetectionRead.model_validate(detection).model_dump(mode="json")}
 
 
-def _snapshot(session: Session, mission: Mission) -> dict:
+def _snapshot(session: Session, mission: Mission, runner) -> dict:
     from .missions import mission_read  # avoid import cycle
 
     detections = session.exec(select(Detection).where(Detection.mission_id == mission.id).order_by(Detection.id)).all()
     points = session.exec(
         select(TelemetryPoint).where(TelemetryPoint.mission_id == mission.id).order_by(TelemetryPoint.t_s)
     ).all()
+    # When the survey lines began (first sensor reading), as in the live telemetry events.
+    survey_start_s = session.exec(
+        select(func.min(SensorReading.t_s)).where(SensorReading.mission_id == mission.id)
+    ).one()
     return {
         "type": "snapshot",
-        "mission": mission_read(session, mission, with_stats=True).model_dump(mode="json"),
+        "mission": mission_read(session, mission, with_stats=True, runner=runner).model_dump(mode="json"),
         "detections": [DetectionRead.model_validate(d).model_dump(mode="json") for d in detections],
         "track": [[p.lat, p.lon] for p in points],
         "last_telemetry": None
@@ -78,6 +82,8 @@ def _snapshot(session: Session, mission: Mission) -> dict:
             "heading_deg": points[-1].heading_deg,
             "ground_speed_mps": points[-1].ground_speed_mps,
             "battery_pct": points[-1].battery_pct,
+            "survey_start_s": survey_start_s,
+            "paused_s": runner.paused_s(mission.id),
         },
     }
 
@@ -94,7 +100,7 @@ async def mission_events(websocket: WebSocket, mission_id: int, token: str = Que
             return
         hub: Hub = app.state.hub
         queue = hub.subscribe(mission_id)  # before the snapshot, so no event falls in between
-        snapshot = _snapshot(session, mission)
+        snapshot = _snapshot(session, mission, app.state.runner)
 
     await websocket.accept()
 

@@ -4,7 +4,8 @@ import type { LiveState } from '../live'
 import type { FitPadding } from '../map/SurveyMap'
 import { usePrefs, type FieldPanel } from '../prefs'
 import { COLORS } from '../theme'
-import { CATEGORY_LABELS, SOIL_LABELS, STATUS_LABELS, VERIFICATION_LABELS, type Category, type Detection, type Mission, type Telemetry } from '../types'
+import { StatusBadge } from '../components/StatusBadge'
+import { CATEGORY_LABELS, SOIL_LABELS, VERIFICATION_LABELS, type Category, type Detection, type Mission, type Telemetry } from '../types'
 import { formatDistance } from './geo'
 import { laneProgress, remainingS, reportedCounts, type Ranked } from './mapInfo'
 
@@ -261,7 +262,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
             <HideButton panel="mission" />
           </div>
           <div className="hud-line">
-            <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+            <StatusBadge mission={mission} />
             <span className="num">{progress}%</span>
             {lanes > 0 && <span>{lane === null ? `${lanes} lanes` : `Lane ${lane} of ${lanes}`}</span>}
             <span className="hud-narrow num">{formatDuration(remainingS(mission, t))} left</span>
@@ -399,7 +400,7 @@ export function FieldMapInfo({ mission, telemetry: t, connection, reported, rank
       {shown('drone') && (
         <section className="drone-card" data-dock aria-label="UAV status">
           <div className="drone-card-head">
-            <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+            <StatusBadge mission={mission} />
             <span className="num">{progress}% of path</span>
             <HideButton panel="drone" />
           </div>

@@ -5,6 +5,7 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { DisplayMenu } from '../components/DisplayMenu'
+import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
 import { SurveyMap, type FitPadding } from '../map/SurveyMap'
@@ -204,7 +205,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           path={mission.path}
           track={state.track}
           swathWidthM={mission.line_spacing_m}
-          uav={mission.status === 'running' || mission.status === 'completed' ? t : null}
+          uav={mission.status === 'running' || mission.status === 'completed' || mission.status === 'stopped' ? t : null}
           detections={reported}
           selectedId={selectedId}
           onSelect={setSelectedId}
@@ -296,7 +297,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
               {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m
             </p>
             <div className="row spread">
-              <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+              <StatusBadge mission={mission} />
               <span className="num">{progress}% of path</span>
             </div>
             <dl className="telemetry">

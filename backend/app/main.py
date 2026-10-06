@@ -13,6 +13,7 @@ from .api.ws import Hub
 from .config import Settings
 from .db import init_db, make_engine
 from .seed import fail_interrupted_missions, seed_users
+from .uav.px4_mavlink_source import mavsdk_installed
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -55,7 +56,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/health", tags=["health"])
     def health() -> dict:
-        return {"status": "ok", "uav_source": settings.uav_source}
+        # px4_available: the server can talk to PX4 (MAVSDK installed); whether PX4 runs shows when a mission starts.
+        return {"status": "ok", "px4_available": mavsdk_installed()}
 
     return app
 

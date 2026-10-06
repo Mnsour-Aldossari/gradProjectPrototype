@@ -43,7 +43,7 @@ def wait_until_finished(client: TestClient, mission_id: int, headers: dict, time
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         mission = client.get(f"/api/missions/{mission_id}", headers=headers).json()
-        if mission["status"] in ("completed", "failed"):
+        if mission["status"] in ("completed", "stopped", "failed"):
             return mission
         time.sleep(0.05)
     raise AssertionError(f"mission {mission_id} did not finish within {timeout_s}s")

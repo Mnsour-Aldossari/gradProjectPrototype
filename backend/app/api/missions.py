@@ -12,6 +12,7 @@ from app.models import Detection, Mission, SensorReading, TelemetryPoint, User, 
 from app.schemas import (
     CategoryCounts,
     ConditionProfileRead,
+    ControlRequest,
     MissionCreate,
     MissionHistory,
     MissionHistoryItem,
@@ -25,6 +26,9 @@ from app.simulation import plan_survey
 from app.simulation.scenario import generate_scenario
 
 from .deps import CurrentUser, SessionDep, SettingsDep, SupervisorUser
+from app.uav.control import ControlRejected
+from app.uav.px4_mavlink_source import Px4Unavailable
+
 from .runner import make_source, mission_event, survey_context_for
 
 router = APIRouter(prefix="/api/missions", tags=["missions"])
@@ -59,8 +63,11 @@ def _count(session: Session, table: type, mission_id: int) -> int:
     return session.exec(select(func.count()).select_from(table).where(table.mission_id == mission_id)).one()
 
 
-def mission_read(session: Session, mission: Mission, with_stats: bool = False) -> MissionRead:
+def mission_read(session: Session, mission: Mission, with_stats: bool = False, runner=None) -> MissionRead:
+    """runner: the MissionRunner, to add the phase of a running mission."""
     out = MissionRead.model_validate(mission)
+    if runner is not None and mission.status == "running":
+        out.phase = runner.phase(mission.id)
     if with_stats:
         out.stats = MissionStats(
             telemetry_points=_count(session, TelemetryPoint, mission.id),
@@ -78,9 +85,9 @@ def list_missions(session: SessionDep, _: CurrentUser) -> list[MissionRead]:
 
 @router.get("/history", response_model=MissionHistory)
 def mission_history(session: SessionDep, _: CurrentUser) -> MissionHistory:
-    """Finished missions (completed or failed) with potential-detection counts per category."""
+    """Finished missions (completed, stopped or failed) with potential-detection counts per category."""
     missions = session.exec(
-        select(Mission).where(Mission.status.in_(("completed", "failed"))).order_by(Mission.id.desc())
+        select(Mission).where(Mission.status.in_(("completed", "stopped", "failed"))).order_by(Mission.id.desc())
     ).all()
     rows = session.exec(
         select(Detection.mission_id, Detection.method, Detection.category, Detection.status, func.count())
@@ -124,6 +131,7 @@ def mission_history(session: SessionDep, _: CurrentUser) -> MissionHistory:
             false_alarm=sum(i.verification.false_alarm for i in items),
         ),
         completed=sum(m.status == "completed" for m in missions),
+        stopped=sum(m.status == "stopped" for m in missions),
         failed=sum(m.status == "failed" for m in missions),
     )
 
@@ -165,18 +173,35 @@ def _create(session: Session, body: MissionCreate, user: User) -> Mission:
     return mission
 
 
-def _start(request: Request, session: Session, mission: Mission, speed_factor: float) -> Mission:
-    runner = request.app.state.runner
-    if mission.status != "planned" or runner.is_running(mission.id):
+def _check_can_start(request: Request, mission: Mission) -> None:
+    if mission.status != "planned" or request.app.state.runner.is_running(mission.id):
         raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
+
+
+async def _start(request: Request, session: Session, mission: Mission, speed_factor: float) -> Mission:
+    """Start the mission with the source in mission.uav_source. PX4 is reached and given the survey first; if
+    that fails the mission stays planned and the reason goes back to the user."""
+    runner = request.app.state.runner
+    _check_can_start(request, mission)
     source = make_source(mission, request.app.state.settings, speed_factor)
+    px4 = mission.uav_source == "px4"
+    if px4:
+        busy = runner.px4_mission()
+        if busy is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"PX4 is flying mission {busy}; wait until it has finished")
+        try:
+            await source.connect()
+        except Px4Unavailable as e:
+            session.rollback()  # the source choice is only kept for a mission that starts
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+        _check_can_start(request, mission)  # another request may have started it meanwhile
     mission.status = "running"
     mission.started_at = utcnow()
     session.add(mission)
     session.commit()
     session.refresh(mission)
-    request.app.state.hub.publish(mission.id, mission_event(mission))
-    runner.start(mission.id, source)
+    request.app.state.hub.publish(mission.id, mission_event(mission, "surveying"))
+    runner.start(mission.id, source, px4=px4)
     return mission
 
 
@@ -192,12 +217,14 @@ async def run_demo_scenario(
     """Create and start the fixed demo scenario. Same seed and settings every time, so the same result."""
     mission = _create(session, MissionCreate(**DEMO_SCENARIO), user)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else DEMO_SPEED_FACTOR
-    return mission_read(session, _start(request, session, mission, speed_factor))
+    mission = await _start(request, session, mission, speed_factor)  # always the simulator
+    return mission_read(session, mission, runner=request.app.state.runner)
 
 
 @router.get("/{mission_id}", response_model=MissionRead)
-def get_mission(mission_id: int, session: SessionDep, _: CurrentUser) -> MissionRead:
-    return mission_read(session, get_mission_or_404(session, mission_id), with_stats=True)
+def get_mission(mission_id: int, request: Request, session: SessionDep, _: CurrentUser) -> MissionRead:
+    mission = get_mission_or_404(session, mission_id)
+    return mission_read(session, mission, with_stats=True, runner=request.app.state.runner)
 
 
 @router.post("/{mission_id}/start", status_code=status.HTTP_202_ACCEPTED, response_model=MissionRead)
@@ -211,7 +238,27 @@ async def start_mission(
 ) -> MissionRead:
     mission = get_mission_or_404(session, mission_id)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else settings.default_speed_factor
-    return mission_read(session, _start(request, session, mission, speed_factor))
+    if body and body.uav_source is not None and mission.status == "planned":
+        mission.uav_source = body.uav_source
+    mission = await _start(request, session, mission, speed_factor)
+    return mission_read(session, mission, runner=request.app.state.runner)
+
+
+@router.post("/{mission_id}/control", status_code=status.HTTP_202_ACCEPTED, response_model=MissionRead)
+def control_mission(
+    mission_id: int, body: ControlRequest, request: Request, session: SessionDep, _: SupervisorUser
+) -> MissionRead:
+    """Pause or resume the survey, or end it early with a return home or a landing (the mission then becomes
+    stopped once the UAV is down). Works for the simulator and PX4 alike."""
+    mission = get_mission_or_404(session, mission_id)
+    runner = request.app.state.runner
+    try:
+        runner.control(mission_id, body.action)
+    except KeyError:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is {mission.status}, not flying") from None
+    except ControlRejected as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+    return mission_read(session, mission, runner=runner)
 
 
 @router.get("/{mission_id}/telemetry", response_model=list[TelemetryRead])

@@ -79,6 +79,7 @@ class MissionRead(BaseModel):
     soil_type: str
     scenario_seed: int
     status: str
+    uav_source: str
     progress: float
     battery_pct: float | None
     error: str | None
@@ -86,6 +87,8 @@ class MissionRead(BaseModel):
     created_at: UtcDatetime
     started_at: UtcDatetime | None
     completed_at: UtcDatetime | None
+    # While running: surveying, paused, returning or landing. Not stored; the mission runner knows it.
+    phase: str | None = None
     stats: MissionStats | None = None
 
     @computed_field
@@ -120,12 +123,20 @@ class MissionHistory(BaseModel):
     totals_adaptive: CategoryCounts
     totals_verification: VerificationCounts
     completed: int
+    stopped: int
     failed: int
+
+
+class ControlRequest(BaseModel):
+    action: Literal["pause", "resume", "return", "land"]
 
 
 class StartRequest(BaseModel):
     speed_factor: float | None = Field(
         None, ge=0, le=100, description="1 = real time, 10 = ten times faster, 0 = as fast as possible"
+    )
+    uav_source: Literal["simulated", "px4"] | None = Field(
+        None, description="What flies the survey: the built-in simulator, or PX4 over MAVLink (real time)"
     )
 
 

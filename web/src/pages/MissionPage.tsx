@@ -4,20 +4,23 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { CARD_ICONS, CardFrame, Glyph, type CardDrag } from '../components/CardFrame'
 import { DetectionDetail } from '../components/DetectionDetail'
+import { FlightControls } from '../components/FlightControls'
 import { SensorTrace } from '../components/SensorTrace'
 import { Splitter } from '../components/Splitter'
+import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
+import { remainingS } from '../field/mapInfo'
 import { useMissionLive } from '../live'
 import { SurveyMap } from '../map/SurveyMap'
 import { DEFAULT_MISSION_LAYOUT, MAP_HEIGHT, SIDE_WIDTH, usePrefs, type MissionCard, type MissionHideable } from '../prefs'
 import {
   CATEGORY_LABELS,
   SOIL_LABELS,
-  STATUS_LABELS,
   VERIFICATION_LABELS,
   type Category,
   type ConditionProfile,
   type Detection,
+  type UavSource,
 } from '../types'
 
 const SPEEDS = [1, 5, 10, 20]
@@ -58,6 +61,9 @@ export function MissionPage() {
   const [showClutter, setShowClutter] = useState(false)
   const [showBaseline, setShowBaseline] = useState(false)
   const [speedFactor, setSpeedFactor] = useState(10)
+  const [flyWith, setFlyWith] = useState<UavSource>('simulated')
+  // Whether the server can talk to PX4 at all (MAVSDK installed); whether PX4 runs shows when the survey starts.
+  const [px4Available, setPx4Available] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [toast, setToast] = useState<Detection | null>(null)
@@ -92,6 +98,12 @@ export function MissionPage() {
     document.addEventListener('keydown', escape)
     return () => document.removeEventListener('keydown', escape)
   }, [expanded])
+
+  useEffect(() => {
+    api<{ px4_available?: boolean }>('/api/health')
+      .then((h) => setPx4Available(h.px4_available === true))
+      .catch(() => setPx4Available(false))
+  }, [])
 
   useEffect(() => {
     api<ConditionProfile>(`/api/missions/${missionId}/profile`).then(setProfile).catch(() => setProfile(null))
@@ -146,14 +158,16 @@ export function MissionPage() {
   const selected = selectedId !== null ? state.detections[selectedId] : undefined
   const t = state.telemetry
   const elapsed = t?.t_s ?? 0
-  const remaining = Math.max(0, mission.estimated_duration_s - elapsed)
+  const remaining = remainingS(mission, t)
   const canStart = user?.role === 'supervisor' && mission.status === 'planned'
 
   async function start() {
     setStarting(true)
     setStartError(null)
     try {
-      await api(`/api/missions/${missionId}/start`, { method: 'POST', body: { speed_factor: speedFactor } })
+      // PX4 flies in real time; the playback speed is the simulator's.
+      const body = flyWith === 'px4' ? { uav_source: flyWith } : { uav_source: flyWith, speed_factor: speedFactor }
+      await api(`/api/missions/${missionId}/start`, { method: 'POST', body })
     } catch (e) {
       setStartError(e instanceof Error ? e.message : 'Could not start the survey')
     } finally {
@@ -268,31 +282,53 @@ export function MissionPage() {
     flight: (
       <CardFrame
         {...frame('flight')}
-        aside={<span className="small">{linkLabel}</span>}
+        aside={<span className="small">{mission.uav_source === 'px4' ? `PX4 SITL · ${linkLabel}` : linkLabel}</span>}
         keep={
           <>
             <div className="row spread">
-              <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+              <StatusBadge mission={mission} />
               <span className="num">{progress}% of path</span>
             </div>
             <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
               <div style={{ transform: `scaleX(${mission.progress})` }} />
             </div>
-            {mission.error && <p className="error">{mission.error}</p>}
+            {mission.error &&
+              (mission.status === 'stopped' ? (
+                <p className="small">{mission.error}. What was scanned is kept.</p>
+              ) : (
+                <p className="error">{mission.error}</p>
+              ))}
+            {user?.role === 'supervisor' && mission.status === 'running' && <FlightControls mission={mission} />}
             {canStart && (
               <div className="start">
                 <label className="field inline">
-                  <span>Playback speed</span>
-                  <select value={speedFactor} onChange={(e) => setSpeedFactor(Number(e.target.value))}>
-                    {SPEEDS.map((s) => (
-                      <option key={s} value={s}>
-                        {s === 1 ? 'Real time' : `${s}× faster`}
-                      </option>
-                    ))}
+                  <span>Fly with</span>
+                  <select value={flyWith} onChange={(e) => setFlyWith(e.target.value as UavSource)}>
+                    <option value="simulated">Built-in simulator</option>
+                    <option value="px4" disabled={!px4Available}>
+                      {px4Available ? 'PX4 SITL' : 'PX4 SITL (not installed on the server)'}
+                    </option>
                   </select>
                 </label>
+                {flyWith === 'simulated' ? (
+                  <label className="field inline">
+                    <span>Playback speed</span>
+                    <select value={speedFactor} onChange={(e) => setSpeedFactor(Number(e.target.value))}>
+                      {SPEEDS.map((s) => (
+                        <option key={s} value={s}>
+                          {s === 1 ? 'Real time' : `${s}× faster`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="small start-note">
+                    PX4 flies in real time: about {Math.max(1, Math.round(mission.estimated_duration_s / 60))} min for
+                    this survey.
+                  </p>
+                )}
                 <button type="button" className="button" disabled={starting} onClick={start}>
-                  {starting ? 'Starting' : 'Start survey'}
+                  {starting ? (flyWith === 'px4' ? 'Connecting to PX4…' : 'Starting') : 'Start survey'}
                 </button>
               </div>
             )}
@@ -326,7 +362,7 @@ export function MissionPage() {
           </div>
           <div>
             <dt>Remaining</dt>
-            <dd className="num">{mission.status === 'completed' ? '0:00' : formatDuration(remaining)}</dd>
+            <dd className="num">{formatDuration(remaining)}</dd>
           </div>
         </dl>
       </CardFrame>
@@ -383,7 +419,7 @@ export function MissionPage() {
             <span>{mission.name}</span>
           </nav>
           <h1>
-            {mission.name} <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+            {mission.name} <StatusBadge mission={mission} />
           </h1>
           <p className="small">
             {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m,
@@ -398,7 +434,7 @@ export function MissionPage() {
           <label className="toggle">
             <input type="checkbox" checked={showBaseline} onChange={(e) => setShowBaseline(e.target.checked)} />
             Compare with the fixed-threshold baseline
-            {mission.status !== 'completed' && <span className="small"> (after the survey)</span>}
+            {mission.status !== 'completed' && mission.status !== 'stopped' && <span className="small"> (after the survey)</span>}
           </label>
           <button
             type="button"
@@ -510,7 +546,7 @@ export function MissionPage() {
             path={mission.path}
             track={state.track}
             swathWidthM={mission.line_spacing_m}
-            uav={mission.status === 'running' || mission.status === 'completed' ? t : null}
+            uav={mission.status === 'running' || mission.status === 'completed' || mission.status === 'stopped' ? t : null}
             detections={visible}
             selectedId={selectedId}
             onSelect={select}

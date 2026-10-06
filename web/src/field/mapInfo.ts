@@ -20,9 +20,22 @@ export function laneProgress(mission: Mission, t: Telemetry | null): { lane: num
   return { lane: Math.min(lanes, Math.floor(t.waypoint_seq / 2) + 1), lanes }
 }
 
-/** Same figure as the supervisor's Flight card: planned duration minus flight time so far. */
+/**
+ * Time left in the survey, shared by the supervisor's Flight card and the field map. The simulator flies the planned
+ * duration exactly. PX4 is slower than the plan (a stop at every lane end), so once it is under way the rest is
+ * estimated from its own pace on the survey lines, timed from the first reading so takeoff does not count.
+ */
 export function remainingS(mission: Mission, t: Telemetry | null): number {
-  return mission.status === 'completed' ? 0 : Math.max(0, mission.estimated_duration_s - (t?.t_s ?? 0))
+  if (mission.status === 'completed' || mission.status === 'stopped') return 0
+  if (mission.phase === 'returning' || mission.phase === 'landing') return 0
+  const elapsed = t?.t_s ?? 0
+  const done = t?.progress ?? mission.progress
+  if (mission.uav_source === 'px4' && done >= 0.05 && done < 1) {
+    // Time spent paused does not count towards the pace.
+    const surveying = elapsed - (t?.survey_start_s ?? 0) - (t?.paused_s ?? 0)
+    return Math.max(0, (surveying * (1 - done)) / done)
+  }
+  return Math.max(0, mission.estimated_duration_s - elapsed)
 }
 
 /** Counts over the detections the field view reports (adaptive, not likely clutter). */
