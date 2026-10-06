@@ -7,6 +7,7 @@ import { DetectionDetail } from '../components/DetectionDetail'
 import { SensorTrace } from '../components/SensorTrace'
 import { Splitter } from '../components/Splitter'
 import { formatDuration } from '../format'
+import { remainingS } from '../field/mapInfo'
 import { useMissionLive } from '../live'
 import { SurveyMap } from '../map/SurveyMap'
 import { DEFAULT_MISSION_LAYOUT, MAP_HEIGHT, SIDE_WIDTH, usePrefs, type MissionCard, type MissionHideable } from '../prefs'
@@ -156,7 +157,7 @@ export function MissionPage() {
   const selected = selectedId !== null ? state.detections[selectedId] : undefined
   const t = state.telemetry
   const elapsed = t?.t_s ?? 0
-  const remaining = Math.max(0, mission.estimated_duration_s - elapsed)
+  const remaining = remainingS(mission, t)
   const canStart = user?.role === 'supervisor' && mission.status === 'planned'
 
   async function start() {
@@ -354,7 +355,7 @@ export function MissionPage() {
           </div>
           <div>
             <dt>Remaining</dt>
-            <dd className="num">{mission.status === 'completed' ? '0:00' : formatDuration(remaining)}</dd>
+            <dd className="num">{formatDuration(remaining)}</dd>
           </div>
         </dl>
       </CardFrame>

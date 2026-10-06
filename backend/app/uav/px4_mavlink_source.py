@@ -140,6 +140,8 @@ class Px4MavlinkSource:
         try:
             await mission.set_return_to_launch_after_mission(True)
             await mission.upload_mission(MissionPlan([_mission_item(w) for w in self._waypoints]))
+            # PX4 resumes an identical mission where it was interrupted; a new survey starts at the first lane.
+            await mission.set_current_mission_item(0)
         except MissionError as e:
             raise Px4Unavailable(f"PX4 did not accept the survey: {e}") from e
         # After a flight PX4 stays in Return (or Land) mode, where it refuses to arm; Hold mode can arm.

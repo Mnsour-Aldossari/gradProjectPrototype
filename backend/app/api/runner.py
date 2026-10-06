@@ -84,11 +84,14 @@ def _telemetry_row(mission_id: int, f: TelemetryFrame) -> TelemetryPoint:
     )
 
 
-def _telemetry_event(f: TelemetryFrame) -> dict:
+def _telemetry_event(f: TelemetryFrame, survey_start_s: float | None) -> dict:
+    """survey_start_s: flight time of the first sensor reading. PX4 takes off and flies to the first lane before
+    that, so the page times the rest of the survey from here, not from takeoff."""
     p = f.position
     return {
         "type": "telemetry",
         "t_s": p.time_boot_ms / 1000,
+        "survey_start_s": survey_start_s,
         "lat": p.lat / 1e7,
         "lon": p.lon / 1e7,
         "relative_alt_m": p.relative_alt / 1000,
@@ -223,6 +226,7 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
     last: TelemetryFrame | None = None
     frames_since_detect = 0
     last_telemetry_event = 0.0
+    survey_start_s: float | None = None
     try:
         # aclosing: a cancelled run still lets the source finish (PX4 returns to launch).
         async with contextlib.aclosing(source.frames()) as frames:
@@ -231,6 +235,8 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
                 if f.sensor is not None:
                     lat, lon = f.position.lat / 1e7, f.position.lon / 1e7
                     t_s = f.position.time_boot_ms / 1000
+                    if survey_start_s is None:
+                        survey_start_s = t_s
                     alt = f.position.relative_alt / 1000
                     rows.append(
                         SensorReading(
@@ -252,7 +258,7 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
 
                 now = time.monotonic()
                 if now - last_telemetry_event >= TELEMETRY_EVENT_INTERVAL_S:
-                    hub.publish(mission_id, _telemetry_event(f))
+                    hub.publish(mission_id, _telemetry_event(f, survey_start_s))
                     last_telemetry_event = now
 
                 if len(rows) >= FLUSH_ROWS:
@@ -270,7 +276,7 @@ async def run_mission(engine: Engine, hub: Hub, mission_id: int, source: Telemet
 
         _flush(engine, mission_id, rows, last)
         if last is not None:
-            hub.publish(mission_id, _telemetry_event(last))
+            hub.publish(mission_id, _telemetry_event(last, survey_start_s))
         detector.add(pending_readings)
         for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
             hub.publish(mission_id, event)

@@ -7,9 +7,9 @@ import contextlib
 from collections import defaultdict
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
-from app.models import Detection, Mission, TelemetryPoint, User
+from app.models import Detection, Mission, SensorReading, TelemetryPoint, User
 from app.schemas import DetectionRead
 from app.security import decode_token
 
@@ -63,6 +63,10 @@ def _snapshot(session: Session, mission: Mission) -> dict:
     points = session.exec(
         select(TelemetryPoint).where(TelemetryPoint.mission_id == mission.id).order_by(TelemetryPoint.t_s)
     ).all()
+    # When the survey lines began (first sensor reading), as in the live telemetry events.
+    survey_start_s = session.exec(
+        select(func.min(SensorReading.t_s)).where(SensorReading.mission_id == mission.id)
+    ).one()
     return {
         "type": "snapshot",
         "mission": mission_read(session, mission, with_stats=True).model_dump(mode="json"),
@@ -78,6 +82,7 @@ def _snapshot(session: Session, mission: Mission) -> dict:
             "heading_deg": points[-1].heading_deg,
             "ground_speed_mps": points[-1].ground_speed_mps,
             "battery_pct": points[-1].battery_pct,
+            "survey_start_s": survey_start_s,
         },
     }
 

@@ -105,3 +105,50 @@ def test_real_mavsdk_reports_no_px4_quickly(monkeypatch):
     source = Px4MavlinkSource(config, url="udpin://0.0.0.0:14597")
     with pytest.raises(Px4Unavailable, match="No PX4 answered"):
         asyncio.run(source.connect())
+
+
+def test_cancelled_run_lets_the_source_finish(tmp_path, monkeypatch):
+    """When the backend shuts down mid-flight, the source's cleanup runs (for PX4: return to launch)."""
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    finished = []
+
+    class EndlessPx4(FakePx4):
+        speed_factor = 1.0
+
+        async def frames(self):
+            try:
+                async for f in super().frames():
+                    yield f
+            finally:
+                finished.append(True)
+
+    monkeypatch.setattr("app.api.runner.Px4MavlinkSource", EndlessPx4)
+    settings = Settings(database_url=f"sqlite:///{(tmp_path / 'c.db').as_posix()}", secret_key="test-secret")
+    with TestClient(create_app(settings)) as c:
+        headers = auth_headers(c, "supervisor")
+        mission_id = create(c, headers)
+        assert c.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers).status_code == 202
+        assert not finished
+    assert finished == [True]  # leaving the block shut the app down and cancelled the run
+
+
+def test_live_view_knows_when_the_survey_lines_began(client, monkeypatch):
+    """survey_start_s (first sensor reading) comes in live telemetry and in the snapshot after a reload, so the page
+    can time the survey without takeoff. The stand-in reads from the start, like the simulator."""
+    monkeypatch.setattr("app.api.runner.Px4MavlinkSource", FakePx4)
+    headers = auth_headers(client, "supervisor")
+    mission_id = create(client, headers)
+    token = headers["Authorization"].removeprefix("Bearer ")
+    with client.websocket_connect(f"/ws/missions/{mission_id}?token={token}") as ws:
+        assert ws.receive_json()["last_telemetry"] is None
+        client.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers)
+        while (event := ws.receive_json())["type"] != "telemetry":
+            pass
+        assert event["survey_start_s"] == 0.0
+    wait_until_finished(client, mission_id, headers)
+    with client.websocket_connect(f"/ws/missions/{mission_id}?token={token}") as ws:
+        assert ws.receive_json()["last_telemetry"]["survey_start_s"] == 0.0

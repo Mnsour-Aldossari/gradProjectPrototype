@@ -133,3 +133,11 @@ def test_tracker_on_closely_spaced_lanes():
     assert tracker.arrival_m < 0.25  # less than half the 0.5 m gap between lane ends
     seen = [tracker.update(x, y) for x, y in walk(tight.plan.waypoints_xy, step_m=0.1)]
     assert set(seen) == set(range(1, tracker.total + 1))
+
+
+def test_tracker_follows_a_mission_resumed_part_way(sim):
+    """PX4 resumed an interrupted identical mission at a later lane: the tracker picks it up there."""
+    tracker = WaypointTracker(sim.plan)
+    later = sim.plan.waypoints_xy[4:]
+    seen = [tracker.update(x, y) for x, y in walk(later)]
+    assert seen[0] == 5 and seen[-1] == tracker.total

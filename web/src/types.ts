@@ -90,6 +90,8 @@ export interface Telemetry {
   waypoint_seq?: number
   waypoint_total?: number
   progress?: number
+  /** Flight time of the first sensor reading: the survey lines start there, after takeoff. */
+  survey_start_s?: number | null
   md?: number | null
   gpr?: number | null
 }
