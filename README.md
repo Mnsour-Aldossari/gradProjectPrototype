@@ -217,7 +217,9 @@ in the browser and is never sent to the server.
 
 ## PostgreSQL (optional)
 
-SQLite stays the default: without `DATABASE_URL` nothing changes and `backend/uav.db` is used. To run on PostgreSQL
+SQLite stays the default: without `DATABASE_URL` nothing changes and `backend/uav.db` is used. In the app, the
+supervisor's **Database** menu item opens a page with these steps (copyable commands, which database is running now);
+once `DATABASE_UI_URL` is set it opens that address instead, in a new tab. To run on PostgreSQL
 instead, start a server and point the backend at it. For a trial, in Docker:
 
 ```bash

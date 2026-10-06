@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, HomeRoute, RequireAuth } from './auth'
 import { FieldPage } from './field/FieldPage'
+import { DatabasePage } from './pages/DatabasePage'
 import { EvaluationPage } from './pages/EvaluationPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { Layout } from './pages/Layout'
@@ -54,6 +55,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="missions/:id" element={<MissionPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="evaluation" element={<EvaluationPage />} />
+              <Route path="database" element={<DatabasePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

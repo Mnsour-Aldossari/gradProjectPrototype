@@ -77,13 +77,19 @@ export function Layout() {
             <Icon d={ICONS.evaluation} />
             <span className="nav-label">Evaluation</span>
           </NavLink>
-          {user?.role === 'supervisor' && user.database_ui_url && (
-            <a href={user.database_ui_url} target="_blank" rel="noreferrer" title={tip('Database (opens in a new tab)')}>
-              <Icon d={ICONS.database} />
-              <span className="nav-label">Database</span>
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-          )}
+          {user?.role === 'supervisor' &&
+            (user.database_ui_url ? (
+              <a href={user.database_ui_url} target="_blank" rel="noreferrer" title={tip('Database (opens in a new tab)')}>
+                <Icon d={ICONS.database} />
+                <span className="nav-label">Database</span>
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            ) : (
+              <NavLink to="/database" title={tip('Database')}>
+                <Icon d={ICONS.database} />
+                <span className="nav-label">Database</span>
+              </NavLink>
+            ))}
         </nav>
         <div className="side-grow" />
         <p className="sim-note" title={tip(`Simulated data. ${SIM_NOTE}`)}>
