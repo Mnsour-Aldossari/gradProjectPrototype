@@ -36,7 +36,7 @@ createRoot(document.getElementById('root')!).render(
               path="/missions/:id/3d"
               element={
                 <RequireAuth>
-                  <Suspense fallback={<main className="view3d view3d-empty"><p>Loading the 3D view…</p></main>}>
+                  <Suspense fallback={<main className="v3d v3d-empty"><p>Loading the 3D view…</p></main>}>
                     <View3DPage />
                   </Suspense>
                 </RequireAuth>
