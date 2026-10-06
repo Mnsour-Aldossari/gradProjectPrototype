@@ -103,8 +103,11 @@ Notes:
   `PX4_HOME_LAT` / `PX4_HOME_LON` at that area; otherwise Start says so and the mission stays planned.
 - If PX4 is not running, Start reports it after about 10 s and the mission stays planned. One PX4 mission flies at
   a time; the simulator is not affected. **Run demo scenario** always uses the simulator.
-- After the survey PX4 returns to launch and lands. If the backend stops during a flight, PX4's link-loss failsafe
-  holds for 5 s, then returns and lands.
+- After the survey PX4 returns to launch and lands; the map follows it (Returning home, no readings) and the mission
+  is Completed once it is down. If the backend stops during a flight, PX4's link-loss failsafe holds for 5 s, then
+  returns and lands.
+- After a restart at the takeoff point, PX4 takes off only once its position has held still there for 10 s (a new
+  PX4 SITL starts at its default home in Zurich and jumps).
 
 ## Flight controls during a survey
 
@@ -162,8 +165,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **158 passed, 2 xfailed** with `requirements-px4.txt` installed (without it one PX4 test is
-skipped: 157 passed, 1 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **161 passed, 2 xfailed** with `requirements-px4.txt` installed (without it one PX4 test is
+skipped: 160 passed, 1 skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.
