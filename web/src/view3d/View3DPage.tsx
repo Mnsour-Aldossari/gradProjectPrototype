@@ -1,21 +1,57 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
+import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { FlightControls } from '../components/FlightControls'
 import { Select } from '../components/Select'
 import { StatusBadge } from '../components/StatusBadge'
-import { remainingS } from '../field/mapInfo'
+import { laneProgress, remainingS } from '../field/mapInfo'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
 import { usePrefs } from '../prefs'
-import type { Category, Detection, LatLon, Telemetry } from '../types'
+import {
+  CATEGORY_LABELS,
+  VERIFICATION_LABELS,
+  type Category,
+  type Detection,
+  type LatLon,
+  type Telemetry,
+  type VerificationStatus,
+} from '../types'
 import { toXY, type Frame } from './geo'
 import { countAt, poseAt, revealTime, type Pose } from './replay'
-import { World, type CameraMode } from './scene'
+import { World, type CameraMode, type Layer } from './scene'
 
 const REPLAY_SPEEDS = [1, 5, 10, 20]
-const CAMERA_LABELS: Record<CameraMode, string> = { follow: 'Follow', orbit: 'Orbit', top: 'Top' }
+const CAMERAS: { mode: CameraMode; label: string }[] = [
+  { mode: 'orbit', label: '3D Orbit' },
+  { mode: 'top', label: 'Top-down' },
+  { mode: 'follow', label: 'Follow UAV' },
+]
+const CATEGORY_ORDER: Category[] = ['high', 'suspect', 'clutter']
+const VERIFY: VerificationStatus[] = ['confirmed_by_team', 'false_alarm', 'pending']
+
+type LayerKey = Layer | 'clutter'
+const LAYERS: { key: LayerKey; label: string; swatch: string }[] = [
+  { key: 'flown', label: 'Flown path', swatch: 'sw-flown' },
+  { key: 'planned', label: 'Planned lanes', swatch: 'sw-planned' },
+  { key: 'scanned', label: 'Scanned area', swatch: 'sw-scanned' },
+  { key: 'footprint', label: 'Sensor footprint', swatch: 'sw-footprint' },
+  { key: 'buffers', label: 'Safety buffers', swatch: 'sw-buffer' },
+  { key: 'clutter', label: 'Likely clutter', swatch: 'sw-clutter' },
+  { key: 'imagery', label: 'Terrain imagery', swatch: 'sw-imagery' },
+]
+const DEFAULT_LAYERS: Record<LayerKey, boolean> = {
+  flown: true,
+  planned: true,
+  scanned: true,
+  footprint: true,
+  buffers: true,
+  clutter: false,
+  imagery: false,
+}
+const SCALE_STEPS = [1, 2, 5, 10, 20, 50, 100, 200]
 
 interface StoredPoint {
   t_s: number
@@ -25,11 +61,21 @@ interface StoredPoint {
   heading_deg: number
   ground_speed_mps: number
   battery_pct: number
+  waypoint_seq?: number
 }
 
 function toPose(frame: Frame, p: StoredPoint | Telemetry): Pose {
   const [x, y] = toXY(frame, p.lat, p.lon)
-  return { t: p.t_s, x, y, alt: p.relative_alt_m, heading: p.heading_deg, speed: p.ground_speed_mps, battery: p.battery_pct }
+  return {
+    t: p.t_s,
+    x,
+    y,
+    alt: p.relative_alt_m,
+    heading: p.heading_deg,
+    speed: p.ground_speed_mps,
+    battery: p.battery_pct,
+    seq: p.waypoint_seq,
+  }
 }
 
 /** The whole stored track, page by page. */
@@ -43,19 +89,56 @@ async function loadTrack(missionId: number): Promise<StoredPoint[]> {
   }
 }
 
-function isDark(): boolean {
-  return document.documentElement.dataset.theme === 'dark'
+/** Layer choices, kept per user in this browser (it may be unavailable: then they last until reload). */
+function useLayers(username: string | undefined): [Record<LayerKey, boolean>, (k: LayerKey) => void] {
+  const key = `uav.view3d.layers.v1.${username ?? ''}`
+  const [layers, setLayers] = useState<Record<LayerKey, boolean>>(() => {
+    try {
+      return { ...DEFAULT_LAYERS, ...JSON.parse(localStorage.getItem(key) ?? '{}') }
+    } catch {
+      return DEFAULT_LAYERS
+    }
+  })
+  const toggle = (k: LayerKey) =>
+    setLayers((l) => {
+      const next = { ...l, [k]: !l[k] }
+      try {
+        localStorage.setItem(key, JSON.stringify(next))
+      } catch {
+        // storage unavailable: the choice lasts until reload
+      }
+      return next
+    })
+  return [layers, toggle]
+}
+
+/** The live sensor signal: metal detector and radar, each scaled to its own range over the last 30 s. */
+function SignalChart({ md, gpr }: { md: number[]; gpr: number[] }) {
+  const w = 264
+  const h = 48
+  const line = (values: number[]) => {
+    const max = Math.max(0.05, ...values)
+    return values.map((v, i) => `${((i / Math.max(1, values.length - 1)) * w).toFixed(1)},${(h - 3 - (v / max) * (h - 8)).toFixed(1)}`).join(' ')
+  }
+  return (
+    <svg className="v3d-signal" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="Metal detector and radar over the last 30 seconds">
+      {md.length > 1 && <polyline points={line(md)} className="sig-md" vectorEffect="non-scaling-stroke" />}
+      {gpr.length > 1 && <polyline points={line(gpr)} className="sig-gpr" vectorEffect="non-scaling-stroke" />}
+    </svg>
+  )
 }
 
 /**
- * The survey in 3D, for the supervisor: the UAV over the satellite ground, the track it flew, the ground scanned and
- * pins where potential detections were reported. Live while the survey flies; a replay once it has ended.
- * A visual view only: the flight itself is the simulator's or PX4's, and the detections are the same as on the map.
+ * The survey in 3D, for the supervisor, after the "Mission view" design: a top bar with the cameras and the flight
+ * commands, a Mission panel (coverage, figures, live signal, layers), a Detections panel, a timeline with the
+ * detections on it, compass, zoom and scale, and labels over the scene. Live while the survey flies; a replay once it
+ * has ended. A visual view only: the flight is the simulator's or PX4's, the detections are the same as on the map.
  */
 export default function View3DPage() {
   const missionId = Number(useParams().id)
+  const { user } = useAuth()
   const { state, replaceDetection, reconnect } = useMissionLive(missionId)
-  const { prefs } = usePrefs()
+  usePrefs() // the panels follow the user's theme
   const holder = useRef<HTMLDivElement>(null)
   const world = useRef<World | null>(null)
   const poses = useRef<Pose[]>([])
@@ -64,24 +147,34 @@ export default function View3DPage() {
   const [trackReady, setTrackReady] = useState(false)
   const [trackCount, setTrackCount] = useState(0) // re-renders as live poses arrive
   const [camera, setCamera] = useState<CameraMode>('orbit')
-  const [showClutter, setShowClutter] = useState(false)
+  const [layers, toggleLayer] = useLayers(user?.username)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [fullDetail, setFullDetail] = useState(false)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
   const [toast, setToast] = useState<Detection | null>(null)
   const [replayT, setReplayT] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(10)
+  const [panel, setPanel] = useState<'mission' | 'detections' | null>(null) // on narrow screens
+  // Over-the-scene elements moved every frame without re-rendering.
+  const labelEls = useRef(new Map<string, HTMLDivElement>())
+  const labelSpots = useRef<{ key: string; x: number; y: number; h: number }[]>([])
+  const compass = useRef<SVGGElement>(null)
+  const scaleBar = useRef<HTMLDivElement>(null)
+  const scaleText = useRef<HTMLSpanElement>(null)
+  const page = useRef<HTMLElement>(null)
+  const topBar = useRef<HTMLElement>(null)
 
   const mission = state.mission
   const ended = mission?.status === 'completed' || mission?.status === 'stopped' || mission?.status === 'failed'
   const live = mission?.status === 'running'
 
-  // The scene, once the mission (its area and path) is known.
+  // The scene, once the mission (its area, path and PX4 points) is known.
   const areaKey = mission ? JSON.stringify([mission.area, mission.uav_source, mission.takeoff_point, mission.landing_point]) : null
   useEffect(() => {
     if (!mission || !holder.current) return
     let w: World
     try {
-      // PX4's takeoff pad, and its landing pad when it lands elsewhere.
       const px4 = mission.uav_source === 'px4'
       const takeoff: LatLon | null = px4 ? (mission.takeoff_point ?? null) : null
       const landing: LatLon | null = px4 && mission.landing_lat !== null ? (mission.landing_point ?? null) : null
@@ -90,7 +183,28 @@ export default function View3DPage() {
       setWebglError(true)
       return
     }
-    w.onPick = (id) => setSelectedId(id)
+    w.onPick = (id) => {
+      setSelectedId(id)
+      setFullDetail(false)
+    }
+    w.onFrame = () => {
+      // Labels follow what they mark; compass and scale bar follow the camera.
+      for (const s of labelSpots.current) {
+        const el = labelEls.current.get(s.key)
+        if (!el) continue
+        const p = s.key === 'uav' ? w.dronePose() : null
+        const spot = p ? w.project(p.x, p.y, p.alt) : w.project(s.x, s.y, s.h)
+        if (spot) {
+          el.style.transform = `translate(${spot.x.toFixed(1)}px, ${spot.y.toFixed(1)}px)`
+          el.style.visibility = 'visible'
+        } else el.style.visibility = 'hidden'
+      }
+      compass.current?.setAttribute('transform', `rotate(${(-w.azimuth()).toFixed(1)} 22 22)`)
+      const mpp = w.metresPerPixel()
+      const metres = SCALE_STEPS.find((m) => m / mpp >= 60) ?? SCALE_STEPS[SCALE_STEPS.length - 1]
+      if (scaleBar.current) scaleBar.current.style.width = `${Math.min(160, metres / mpp).toFixed(0)}px`
+      if (scaleText.current && scaleText.current.textContent !== `${metres} m`) scaleText.current.textContent = `${metres} m`
+    }
     world.current = w
     poses.current = []
     setTrackReady(false)
@@ -102,6 +216,7 @@ export default function View3DPage() {
         const stored = points.map((p) => toPose(w.frame, p))
         const lastStored = stored.length ? stored[stored.length - 1].t : -Infinity
         poses.current = [...stored, ...poses.current.filter((p) => p.t > lastStored)]
+        w.resetTrack() // live frames drawn so far now sit after the stored track
         setTrackReady(true)
         setTrackCount(poses.current.length)
       })
@@ -111,10 +226,17 @@ export default function View3DPage() {
       w.dispose()
       world.current = null
     }
-    // The scene depends on the area only; other mission fields change during the flight.
+    // The scene depends on the area and the PX4 points only; other mission fields change during the flight.
   }, [areaKey, missionId])
 
-  // Follow the UAV by default while it flies; look at the whole area otherwise.
+  // Layers to the scene.
+  useEffect(() => {
+    const w = world.current
+    if (!w) return
+    for (const l of LAYERS) if (l.key !== 'clutter') w.setLayer(l.key, layers[l.key])
+  }, [layers, trackReady])
+
+  // Follow the UAV by default while it flies.
   const startedLive = useRef(false)
   useEffect(() => {
     if (live && !startedLive.current) {
@@ -126,16 +248,6 @@ export default function View3DPage() {
   useEffect(() => {
     world.current?.setCamera(camera)
   }, [camera, trackReady])
-
-  useEffect(() => {
-    world.current?.setDark(isDark())
-  }, [prefs.theme, trackReady])
-  useEffect(() => {
-    const q = window.matchMedia('(prefers-color-scheme: dark)')
-    const update = () => world.current?.setDark(isDark())
-    q.addEventListener('change', update)
-    return () => q.removeEventListener('change', update)
-  }, [])
 
   // Live frames: add to the track and glide the UAV there.
   const t = state.telemetry
@@ -198,27 +310,30 @@ export default function View3DPage() {
     return () => cancelAnimationFrame(frame)
   }, [playing, speed, first, lastT])
 
-  // Pins for the reported detections (adaptive; likely clutter on request). In a replay, from when the UAV passed.
+  // When the UAV first passed each detection: for the timeline, and in a replay for when its pin appears.
   const adaptive = useMemo(() => Object.values(state.detections).filter((d) => d.method === 'adaptive'), [state.detections])
   const reveal = useMemo(() => {
     const w = world.current
     const m = new Map<number, number>()
-    if (!w || !ended || !trackReady || !mission) return m
+    if (!w || !trackReady || !mission || !poses.current.length) return m
     const reach = Math.max(1, mission.line_spacing_m / 2)
     for (const d of adaptive) {
       const [x, y] = toXY(w.frame, d.lat, d.lon)
       m.set(d.id, revealTime(poses.current, x, y, reach))
     }
     return m
-  }, [adaptive, ended, trackReady, mission])
+    // trackCount: the live track grows.
+  }, [adaptive, trackReady, mission, trackCount])
   const visible = useMemo(
     () =>
-      adaptive.filter(
-        (d) =>
-          (showClutter || d.category !== 'clutter') &&
-          (replayT === null || !ended || (reveal.get(d.id) ?? 0) <= replayT),
-      ),
-    [adaptive, showClutter, replayT, ended, reveal],
+      adaptive
+        .filter(
+          (d) =>
+            (layers.clutter || d.category !== 'clutter') &&
+            (replayT === null || !ended || (reveal.get(d.id) ?? 0) <= replayT),
+        )
+        .sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category) || b.confidence - a.confidence),
+    [adaptive, layers.clutter, replayT, ended, reveal],
   )
   const markersShown = useRef(false)
   useEffect(() => {
@@ -238,6 +353,18 @@ export default function View3DPage() {
     world.current?.selectMarker(selectedId)
   }, [selectedId, trackReady])
 
+  // Panels and buttons start below the top bar, which wraps to more lines on narrow screens.
+  const hasMission = mission !== null
+  useEffect(() => {
+    const bar = topBar.current
+    if (!bar) return
+    const place = () => page.current?.style.setProperty('--v3d-below-top', `${bar.offsetHeight + 14}px`)
+    const observer = new ResizeObserver(place)
+    observer.observe(bar)
+    place()
+    return () => observer.disconnect()
+  }, [hasMission])
+
   const latestAlert = state.alerts[0]
   useEffect(() => {
     if (!latestAlert) return
@@ -248,7 +375,10 @@ export default function View3DPage() {
 
   useEffect(() => {
     const escape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedId(null)
+      if (e.key === 'Escape') {
+        setSelectedId(null)
+        setPanel(null)
+      }
     }
     document.addEventListener('keydown', escape)
     return () => document.removeEventListener('keydown', escape)
@@ -256,7 +386,7 @@ export default function View3DPage() {
 
   if (!mission) {
     return (
-      <main className="view3d view3d-empty">
+      <main className="v3d v3d-empty">
         {state.connection === 'failed' ? (
           <p>
             Cannot reach the mission.{' '}
@@ -271,17 +401,87 @@ export default function View3DPage() {
     )
   }
 
-  const selected = selectedId !== null ? state.detections[selectedId] : undefined
+  const w = world.current
+  // In a replay the selected detection shows only once the UAV has found it.
+  const selected = selectedId !== null && visible.some((d) => d.id === selectedId) ? state.detections[selectedId] : undefined
   const replaying = ended && replayT !== null && poses.current.length > 0
-  const pose = replaying ? poseAt(poses.current, replayT) : null
+  const pose = replaying ? poseAt(poses.current, replayT) : t && w ? toPose(w.frame, t) : null
+  const height = pose?.alt
+  const groundSpeed = pose?.speed
+  const battery = pose?.battery
+  const lanesTotal = Math.floor((t?.waypoint_total ?? mission.path.length) / 2)
+  const lane = replaying
+    ? pose?.seq !== undefined
+      ? Math.min(lanesTotal, Math.floor(pose.seq / 2) + 1)
+      : null
+    : laneProgress(mission, t).lane
+  // In a replay: waypoints reached so far (the end of a completed survey is all of it).
+  const coverage = replaying
+    ? mission.status === 'completed' && (replayT ?? 0) >= lastT
+      ? 1
+      : Math.min(1, Math.max(0, (pose?.seq ?? 1) - 1) / Math.max(1, mission.path.length - 1))
+    : mission.status === 'completed'
+      ? 1
+      : mission.progress
+  const remaining = replaying ? Math.max(0, lastT - (replayT ?? 0)) : remainingS(mission, t)
+  const elapsed = replaying ? (replayT ?? first) - first : t ? t.t_s : 0
+  const total = replaying ? lastT - first : live ? (t?.t_s ?? 0) + remainingS(mission, t) : lastT - first
   const counts: Record<Category, number> = { high: 0, suspect: 0, clutter: 0 }
-  visible.forEach((d) => counts[d.category]++)
+  adaptive.forEach((d) => counts[d.category]++)
+
+  const xyOf = (d: Detection): [number, number] => (w ? toXY(w.frame, d.lat, d.lon) : [0, 0])
+  const fromUav = (d: Detection) => {
+    if (!pose) return null
+    const [x, y] = xyOf(d)
+    return Math.round(Math.hypot(x - pose.x, y - pose.y))
+  }
+  const whenSeen = (d: Detection) => {
+    const r = reveal.get(d.id)
+    return r === undefined ? null : formatDuration(r - first)
+  }
+
+  // Labels over the scene: the UAV and the reported detections (and the selected one, whatever its category).
+  const labelled = visible.filter((d) => d.category !== 'clutter' || d.id === selectedId).slice(0, 12)
+  labelSpots.current = [
+    ...(pose ? [{ key: 'uav', x: 0, y: 0, h: 0 }] : []),
+    ...labelled.map((d) => {
+      const [x, y] = xyOf(d)
+      return { key: `d${d.id}`, x, y, h: 1.9 }
+    }),
+  ]
+  const labelRef = (key: string) => (el: HTMLDivElement | null) => {
+    if (el) labelEls.current.set(key, el)
+    else labelEls.current.delete(key)
+  }
+
+  function pick(d: Detection) {
+    setSelectedId(d.id)
+    setFullDetail(false)
+    const [x, y] = xyOf(d)
+    world.current?.focus(x, y)
+  }
+
+  async function verify(d: Detection, status: VerificationStatus) {
+    setVerifyError(null)
+    try {
+      replaceDetection(await api<Detection>(`/api/detections/${d.id}`, { method: 'PATCH', body: { status, notes: d.notes } }))
+    } catch (e) {
+      setVerifyError(e instanceof Error ? e.message : 'Could not save the verification')
+    }
+  }
+
+  const evidence = (d: Detection) => {
+    const md = typeof d.features.md_evidence === 'number' && d.features.md_evidence >= 1
+    const gpr = typeof d.features.gpr_evidence === 'number' && d.features.gpr_evidence >= 1
+    return md && gpr ? 'Metal + radar' : md ? 'Metal' : gpr ? 'Radar' : 'Weak'
+  }
 
   return (
-    <main className="view3d">
-      <div className="view3d-canvas" ref={holder} />
+    <main className={`v3d${panel ? ` panel-${panel}` : ''}`} ref={page}>
+      <div className="v3d-canvas" ref={holder} />
+      <div className="v3d-vignette" aria-hidden="true" />
       {webglError && (
-        <div className="view3d-message">
+        <div className="v3d-message">
           <p>This browser cannot show 3D graphics (WebGL is off or not supported).</p>
           <Link className="button" to={`/missions/${missionId}`}>
             Back to the Map
@@ -289,44 +489,83 @@ export default function View3DPage() {
         </div>
       )}
 
-      <header className="view3d-top">
-        <Link className="button secondary" to={`/missions/${missionId}`}>
-          ← Mission
-        </Link>
-        <h1>
-          <span>{mission.name}</span> <StatusBadge mission={mission} />
-        </h1>
-        <span className="small view3d-source">
-          {mission.uav_source === 'px4' ? 'PX4 SITL' : 'Simulator'}
-          {live && state.connection !== 'open' ? ' · Reconnecting…' : ''}
-        </span>
-      </header>
+      {/* Labels over the scene */}
+      <div className="v3d-labels" aria-hidden="true">
+        {pose && (
+          <div className="v3d-label v3d-label-uav" ref={labelRef('uav')}>
+            <span className="v3d-label-head">UAV{lane !== null ? ` · Lane ${lane}` : ''}</span>
+            <span className="num">
+              {height !== undefined ? `${height.toFixed(1)} m AGL` : '–'} · {groundSpeed !== undefined ? `${groundSpeed.toFixed(1)} m/s` : '–'}
+            </span>
+          </div>
+        )}
+        {labelled.map((d) => (
+          <div key={d.id} className={`v3d-label v3d-label-${d.category}${d.id === selectedId ? ' selected' : ''}`} ref={labelRef(`d${d.id}`)}>
+            <span className="v3d-label-head num">#{d.id}</span>
+            {d.id === selectedId && <span className="v3d-label-cat">{CATEGORY_LABELS[d.category]}</span>}
+            <span className="num">{d.confidence.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
 
-      <div className="view3d-tools">
-        <div className="view3d-seg" role="group" aria-label="Camera">
-          {(['follow', 'orbit', 'top'] as CameraMode[]).map((m) => (
+      {/* Top bar */}
+      <header className="v3d-top" ref={topBar}>
+        <Link className="v3d-back" to={`/missions/${missionId}`} aria-label="Back to the mission page">
+          <svg viewBox="0 0 26 26" aria-hidden="true">
+            <rect x="5" y="5" width="16" height="16" rx="2" transform="rotate(45 13 13)" />
+            <circle cx="13" cy="13" r="3" />
+          </svg>
+          <span>Mission</span>
+        </Link>
+        <span className="v3d-divider" aria-hidden="true" />
+        <div className="v3d-title">
+          <h1>{mission.name}</h1>
+          <span className="small">
+            Lawnmower · {lanesTotal} lanes · {mission.line_spacing_m} m spacing · {mission.uav_source === 'px4' ? 'PX4 SITL' : 'Simulator'}
+            {live && state.connection !== 'open' ? ' · Reconnecting…' : ''}
+          </span>
+        </div>
+        <StatusBadge mission={mission} />
+        <span className="v3d-grow" />
+        <div className="v3d-seg" role="group" aria-label="Camera">
+          {CAMERAS.map((c) => (
             <button
-              key={m}
+              key={c.mode}
               type="button"
-              aria-pressed={camera === m}
-              disabled={m === 'follow' && !live && !replaying}
+              aria-pressed={camera === c.mode}
+              disabled={c.mode === 'follow' && !live && !replaying}
               onClick={() => {
-                setCamera(m)
-                world.current?.setCamera(m)
+                setCamera(c.mode)
+                world.current?.setCamera(c.mode)
               }}
             >
-              {CAMERA_LABELS[m]}
+              {c.label}
             </button>
           ))}
         </div>
-        <label className="view3d-check">
-          <input type="checkbox" checked={showClutter} onChange={(e) => setShowClutter(e.target.checked)} />
-          Likely clutter
-        </label>
-      </div>
+        <span className="v3d-grow" />
+        <span className="v3d-clock num">T+ {formatDuration(elapsed)}</span>
+        <div className="v3d-panel-toggles">
+          <button type="button" aria-pressed={panel === 'mission'} onClick={() => setPanel((p) => (p === 'mission' ? null : 'mission'))}>
+            Mission
+          </button>
+          <button
+            type="button"
+            aria-pressed={panel === 'detections'}
+            onClick={() => setPanel((p) => (p === 'detections' ? null : 'detections'))}
+          >
+            Detections
+          </button>
+        </div>
+        {live && (
+          <div className="v3d-commands">
+            <FlightControls mission={mission} />
+          </div>
+        )}
+      </header>
 
       {toast && (
-        <button type="button" className="toast" onClick={() => setSelectedId(toast.id)}>
+        <button type="button" className="toast v3d-toast" onClick={() => setSelectedId(toast.id)}>
           <span className="swatch swatch-high" aria-hidden="true" />
           <span>
             <strong>New high-priority potential detection</strong>
@@ -335,94 +574,306 @@ export default function View3DPage() {
         </button>
       )}
 
-      {selected && (
-        <aside className="view3d-detail card card-pad" aria-label="Detection">
-          <DetectionDetail detection={selected} onClose={() => setSelectedId(null)} onUpdated={replaceDetection} />
-        </aside>
-      )}
+      {/* Mission panel */}
+      <aside className="v3d-panel v3d-left" aria-label="Mission">
+        <section className="v3d-block">
+          <div className="v3d-row">
+            <span className="v3d-caps">Area coverage</span>
+            <span className="v3d-big num">{Math.round(coverage * 100)}%</span>
+          </div>
+          <div className="v3d-bar" aria-hidden="true">
+            <div style={{ transform: `scaleX(${coverage})` }} />
+          </div>
+          <span className="small num">
+            {lane !== null ? `Lane ${lane} of ${lanesTotal}` : `${lanesTotal} lanes`}
+            {mission.status === 'planned' ? ' · not started' : ` · ${replaying ? 'left in replay' : 'ETA'} ${formatDuration(remaining)}`}
+          </span>
+        </section>
 
-      <section className="view3d-hud" aria-label="Flight">
-        <dl className="view3d-figures">
+        <div className="v3d-tiles">
           <div>
-            <dt>Height</dt>
-            <dd className="num">{pose ? pose.alt.toFixed(2) : t ? t.relative_alt_m.toFixed(2) : '–'} m</dd>
+            <span>Height</span>
+            <strong className="num">{height !== undefined ? `${height.toFixed(2)} m` : '–'}</strong>
           </div>
           <div>
-            <dt>Speed</dt>
-            <dd className="num">{pose ? pose.speed.toFixed(1) : t ? t.ground_speed_mps.toFixed(1) : '–'} m/s</dd>
+            <span>Ground speed</span>
+            <strong className="num">{groundSpeed !== undefined ? `${groundSpeed.toFixed(1)} m/s` : '–'}</strong>
           </div>
           <div>
-            <dt>Battery</dt>
-            <dd className="num">{pose ? Math.round(pose.battery) : t ? t.battery_pct : '–'}%</dd>
+            <span>Battery</span>
+            <strong className={`num${battery !== undefined ? (battery < 25 ? ' bad' : ' good') : ''}`}>
+              {battery !== undefined ? `${Math.round(battery)}%` : '–'}
+            </strong>
           </div>
-          {replaying ? (
-            <div>
-              <dt>Flight time</dt>
-              <dd className="num">
-                {formatDuration((replayT ?? 0) - first)} / {formatDuration(lastT - first)}
-              </dd>
-            </div>
+          <div>
+            <span>Source</span>
+            <strong>{mission.uav_source === 'px4' ? 'PX4 SITL' : 'Simulator'}</strong>
+          </div>
+        </div>
+
+        <section className="v3d-block">
+          <div className="v3d-row">
+            <span className="v3d-caps">Sensor signal</span>
+            <span className="small">
+              <i className="v3d-key sig-md" /> Metal <i className="v3d-key sig-gpr" /> Radar
+            </span>
+          </div>
+          {live ? (
+            <SignalChart md={state.trace.md} gpr={state.trace.gpr} />
           ) : (
-            <>
-              <div>
-                <dt>Path</dt>
-                <dd className="num">{Math.round(mission.progress * 100)}%</dd>
-              </div>
-              <div>
-                <dt>Remaining</dt>
-                <dd className="num">{formatDuration(remainingS(mission, t))}</dd>
-              </div>
-            </>
+            <p className="small v3d-note">The signal shows live while the survey flies.</p>
           )}
-          <div>
-            <dt>Detections</dt>
-            <dd className="num view3d-counts">
-              <span title="High priority">
-                <i className="swatch swatch-high" aria-hidden="true" /> {counts.high}
-              </span>
-              <span title="Needs verification">
-                <i className="swatch swatch-suspect" aria-hidden="true" /> {counts.suspect}
-              </span>
-            </dd>
-          </div>
-        </dl>
+        </section>
 
-        {live && <FlightControls mission={mission} />}
-        {mission.status === 'planned' && (
-          <p className="small view3d-note">The survey has not started. Start it from the mission page.</p>
+        <section className="v3d-block">
+          <span className="v3d-caps">Layers</span>
+          <ul className="v3d-layers">
+            {LAYERS.map((l) => (
+              <li key={l.key}>
+                <button type="button" role="switch" aria-checked={layers[l.key]} onClick={() => toggleLayer(l.key)}>
+                  <span className={`v3d-swatch ${l.swatch}`} aria-hidden="true" />
+                  <span className="v3d-grow">{l.label}</span>
+                  <span className="v3d-switch" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </aside>
+
+      {/* Detections panel */}
+      <aside className="v3d-panel v3d-right" aria-label="Detections">
+        <div className="v3d-row">
+          <h2>Detections</h2>
+          <span className="v3d-chips">
+            <span className="v3d-chip high">{counts.high} High priority</span>
+            <span className="v3d-chip suspect">{counts.suspect} To verify</span>
+          </span>
+        </div>
+        {visible.length === 0 ? (
+          <p className="small v3d-note">{mission.status === 'planned' ? 'Detections appear here during the survey.' : 'Nothing reported yet.'}</p>
+        ) : (
+          <ul className="v3d-detections">
+            {visible.map((d) => {
+              const far = fromUav(d)
+              const seen = whenSeen(d)
+              return (
+                <li key={d.id}>
+                  <button type="button" className={`v3d-det${d.id === selectedId ? ' selected' : ''}`} onClick={() => pick(d)}>
+                    <span className={`v3d-diamond ${d.category}`} aria-hidden="true" />
+                    <span className="v3d-det-body">
+                      <span className="v3d-row">
+                        <span className="num v3d-det-id">#{d.id}</span>
+                        <span className="num">{d.confidence.toFixed(2)}</span>
+                      </span>
+                      <span className="v3d-meter" aria-hidden="true">
+                        <span className={d.category} style={{ width: `${Math.round(Math.min(1, d.confidence) * 100)}%` }} />
+                      </span>
+                      <span className="small">
+                        {CATEGORY_LABELS[d.category]}
+                        {far !== null ? ` · ${far} m from UAV` : ''}
+                        {seen ? ` · ${seen}` : ''}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
         )}
-        {mission.status === 'stopped' && mission.error && <p className="small view3d-note">{mission.error}.</p>}
 
-        {replaying && (
-          <div className="view3d-replay">
+        {selected && (
+          <section className={`v3d-card ${selected.category}`} aria-label={`Detection ${selected.id}`}>
+            {fullDetail ? (
+              <DetectionDetail detection={selected} onClose={() => setFullDetail(false)} onUpdated={replaceDetection} />
+            ) : (
+              <>
+                <div className="v3d-row">
+                  <span className="num v3d-card-id">#{selected.id}</span>
+                  <span className={`v3d-card-cat ${selected.category}`}>{CATEGORY_LABELS[selected.category]}</span>
+                </div>
+                <dl className="v3d-card-grid">
+                  <div>
+                    <dt>Score</dt>
+                    <dd className="num">{selected.confidence.toFixed(2)}</dd>
+                  </div>
+                  <div>
+                    <dt>Est. depth</dt>
+                    <dd className="num">{selected.est_depth_m !== null ? `${Math.round(selected.est_depth_m * 100)} cm` : '–'}</dd>
+                  </div>
+                  <div>
+                    <dt>Evidence</dt>
+                    <dd>{evidence(selected)}</dd>
+                  </div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{VERIFICATION_LABELS[selected.status]}</dd>
+                  </div>
+                </dl>
+                <span className="small num">
+                  {selected.lat.toFixed(5)}° N, {selected.lon.toFixed(5)}° E
+                </span>
+                <div className="v3d-verify" role="group" aria-label="Verification">
+                  {VERIFY.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      aria-pressed={selected.status === s}
+                      className={s === 'confirmed_by_team' ? 'primary' : ''}
+                      onClick={() => verify(selected, s)}
+                    >
+                      {VERIFICATION_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+                {verifyError && (
+                  <p className="error" role="alert">
+                    {verifyError}
+                  </p>
+                )}
+                <div className="v3d-row">
+                  <button type="button" className="link-button" onClick={() => setFullDetail(true)}>
+                    Full details
+                  </button>
+                  <button type="button" className="link-button" onClick={() => setSelectedId(null)}>
+                    Close
+                  </button>
+                </div>
+                <p className="small v3d-note">A potential detection. Trained personnel must verify it before any conclusion.</p>
+              </>
+            )}
+          </section>
+        )}
+      </aside>
+
+      {/* Compass, zoom and scale */}
+      <div className="v3d-compass" title="North">
+        <svg viewBox="0 0 44 44" aria-label="Compass">
+          <circle cx="22" cy="22" r="19" />
+          <g ref={compass}>
+            <path className="north" d="M22 6 L27 22 L22 20 L17 22 Z" />
+            <path className="south" d="M22 38 L27 22 L22 24 L17 22 Z" />
+            <text x="22" y="5" textAnchor="middle">
+              N
+            </text>
+          </g>
+        </svg>
+      </div>
+      <div className="v3d-view-buttons">
+        <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => world.current?.zoom(0.75)}>
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            <path d="M9 3v12M3 9h12" />
+          </svg>
+        </button>
+        <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => world.current?.zoom(1.33)}>
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            <path d="M3 9h12" />
+          </svg>
+        </button>
+        <button type="button" aria-label="Fit survey area" title="Fit survey area" onClick={() => world.current?.fit()}>
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            <path d="M2 6V2h4M12 2h4v4M16 12v4h-4M6 16H2v-4" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="accent"
+          aria-label="Recenter on UAV"
+          title="Recenter on UAV"
+          disabled={!pose}
+          onClick={() => world.current?.recenter()}
+        >
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            <circle cx="9" cy="9" r="5" />
+            <circle cx="9" cy="9" r="1.5" className="fill" />
+            <path d="M9 1v3M9 14v3M1 9h3M14 9h3" />
+          </svg>
+        </button>
+      </div>
+      <div className="v3d-scale" aria-hidden="true">
+        <div ref={scaleBar} />
+        <span ref={scaleText} className="num">
+          10 m
+        </span>
+      </div>
+
+      {/* Timeline and legend */}
+      <footer className="v3d-bottom" aria-label="Timeline">
+        <div className="v3d-timeline">
+          {replaying ? (
             <button
               type="button"
-              className="button"
+              className="v3d-play"
               aria-label={playing ? 'Pause replay' : 'Play replay'}
               onClick={() => {
                 if (!playing && (replayT ?? 0) >= lastT) setReplayT(first)
                 setPlaying((p) => !p)
               }}
             >
-              {playing ? 'Pause' : 'Replay'}
+              <svg viewBox="0 0 14 14" aria-hidden="true">
+                {playing ? <path d="M3 2h3v10H3zM8 2h3v10H8z" /> : <path d="M3 1.5v11l9-5.5z" />}
+              </svg>
             </button>
-            <input
-              type="range"
-              aria-label="Replay time"
-              min={first}
-              max={lastT}
-              step={0.2}
-              value={replayT ?? lastT}
-              onChange={(e) => setReplayT(Number(e.target.value))}
-            />
-            <label className="view3d-speed">
+          ) : (
+            <span className={`v3d-live${live ? ' on' : ''}`}>{live ? 'LIVE' : mission.status === 'planned' ? 'PLANNED' : 'NO TRACK'}</span>
+          )}
+          <span className="num v3d-time">{formatDuration(elapsed)}</span>
+          <div className="v3d-scrub">
+            <div className="v3d-scrub-track" />
+            <div className="v3d-scrub-fill" style={{ width: `${total > 0 ? Math.min(100, (elapsed / total) * 100) : 0}%` }} />
+            {adaptive
+              .filter((d) => d.category !== 'clutter' && reveal.has(d.id) && total > 0)
+              .map((d) => (
+                <span
+                  key={d.id}
+                  className={`v3d-tick ${d.category}`}
+                  style={{ left: `${Math.min(100, ((reveal.get(d.id)! - first) / total) * 100)}%` }}
+                  title={`#${d.id} at ${formatDuration(reveal.get(d.id)! - first)}`}
+                />
+              ))}
+            {replaying && (
+              <input
+                type="range"
+                aria-label="Replay time"
+                min={first}
+                max={lastT}
+                step={0.2}
+                value={replayT ?? lastT}
+                onChange={(e) => setReplayT(Number(e.target.value))}
+              />
+            )}
+            {!replaying && total > 0 && <span className="v3d-scrub-thumb" style={{ left: `${Math.min(100, (elapsed / total) * 100)}%` }} />}
+          </div>
+          <span className="num v3d-time dim">{formatDuration(total)}</span>
+          {replaying && (
+            <label className="v3d-speed">
               <span className="sr-only">Replay speed</span>
               <Select value={speed} onChange={setSpeed} options={REPLAY_SPEEDS.map((s) => ({ value: s, label: `${s}×` }))} />
             </label>
-          </div>
-        )}
-      </section>
-      <p className="view3d-credit small">Imagery © Esri, Maxar, Earthstar Geographics · Visual view of the survey</p>
+          )}
+        </div>
+        <div className="v3d-legend">
+          <span>
+            <i className="lg-flown" /> Flown path
+          </span>
+          <span>
+            <i className="lg-planned" /> Planned lane
+          </span>
+          <span>
+            <i className="lg-scanned" /> Scanned area
+          </span>
+          <span>
+            <i className="v3d-diamond high" /> High priority
+          </span>
+          <span>
+            <i className="v3d-diamond suspect" /> Needs verification
+          </span>
+          <span>
+            <i className="lg-buffer" /> Safety buffer (5 m, display only)
+          </span>
+        </div>
+      </footer>
+      <p className="v3d-credit small">Visual view of the survey{layers.imagery ? ' · Imagery © Esri, Maxar, Earthstar Geographics' : ''}</p>
     </main>
   )
 }

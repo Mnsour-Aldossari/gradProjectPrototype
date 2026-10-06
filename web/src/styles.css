@@ -3544,21 +3544,27 @@ summary,
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ---------- 3D view (view3d/View3DPage.tsx): the scene fills the screen, panels float over it ---------- */
+/* ---------- 3D view (view3d/View3DPage.tsx), after the "Mission view" design ----------
+   The scene is always dark (view3d/palette.ts); the bars and panels over it take the app's theme. */
 
-.view3d {
+.v3d {
+  --v3d-panel: color-mix(in srgb, var(--surface) 92%, transparent);
+  --v3d-line: color-mix(in srgb, var(--ink) 10%, transparent);
+  --v3d-soft: color-mix(in srgb, var(--ink) 5%, transparent);
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: var(--paper);
+  background: #0b1220;
   color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
-.view3d-empty {
+.v3d-empty {
   display: grid;
   place-items: center;
+  color: #e6eaf2;
 }
-.view3d-canvas,
-.view3d-canvas canvas {
+.v3d-canvas,
+.v3d-canvas canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -3566,197 +3572,1021 @@ summary,
   display: block;
   touch-action: none;
 }
-.view3d-message {
+.v3d-vignette {
   position: absolute;
   inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 75% 75% at 52% 55%, transparent 55%, rgb(11 18 32 / 0.85) 100%);
+}
+.v3d-message {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
   display: grid;
   place-content: center;
   gap: 12px;
   padding: 16px;
   text-align: center;
+  color: #e6eaf2;
 }
-.view3d-top,
-.view3d-tools,
-.view3d-hud {
+.v3d .num {
+  font-variant-numeric: tabular-nums;
+}
+.v3d-grow {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.v3d-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.v3d-caps {
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.v3d-note {
+  margin: 0;
+}
+
+/* Top bar */
+.v3d-top {
   position: absolute;
-  z-index: 2;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
-  backdrop-filter: blur(6px);
-}
-.view3d-top {
-  top: max(12px, env(safe-area-inset-top));
-  left: 12px;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  max-width: calc(100% - 24px);
-  padding: 8px 12px 8px 8px;
+  gap: 16px;
+  min-height: 56px;
+  padding: 6px 16px;
+  padding-top: max(6px, env(safe-area-inset-top));
+  background: var(--v3d-panel);
+  border-bottom: 1px solid var(--v3d-line);
+  backdrop-filter: blur(8px);
 }
-.view3d-top h1 {
-  display: flex;
+.v3d-back {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-  margin: 0;
-  font-size: calc(17px * var(--text-scale));
+  min-height: 44px;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
 }
-.view3d-top h1 > span:first-child {
+.v3d-back svg {
+  width: 26px;
+  height: 26px;
+}
+.v3d-back rect {
+  fill: none;
+  stroke: var(--survey);
+  stroke-width: 2;
+}
+.v3d-back circle {
+  fill: var(--hazard);
+}
+.v3d-back:hover span {
+  text-decoration: underline;
+}
+.v3d-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--v3d-line);
+}
+.v3d-title {
+  display: grid;
+  min-width: 0;
+}
+.v3d-title h1 {
+  margin: 0;
+  overflow: hidden;
+  font-size: calc(14px * var(--text-scale));
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v3d-title .small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.view3d-source {
-  white-space: nowrap;
-}
-.view3d-top .button {
-  white-space: nowrap;
-}
-.view3d-tools {
-  top: max(12px, env(safe-area-inset-top));
-  right: 12px;
+.v3d-seg {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px;
-}
-.view3d-seg {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
+  padding: 3px;
+  border: 1px solid var(--v3d-line);
   border-radius: var(--radius-sm);
-  background: var(--tint);
+  background: var(--v3d-soft);
 }
-.view3d-seg button {
+.v3d-seg button,
+.v3d-panel-toggles button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  font: 500 calc(12.5px * var(--text-scale)) var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.v3d-seg button:hover,
+.v3d-panel-toggles button:hover {
+  color: var(--ink);
+}
+.v3d-seg button[aria-pressed='true'],
+.v3d-panel-toggles button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 600;
+}
+.v3d-seg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.v3d-clock {
+  color: var(--ink-2);
+  font-size: calc(13px * var(--text-scale));
+  white-space: nowrap;
+}
+.v3d-panel-toggles {
+  display: none;
+  gap: 4px;
+}
+/* Flight commands, compact in the bar; the status badge already says paused or returning. */
+.v3d-commands .flight-controls {
+  flex-wrap: nowrap;
+  margin: 0;
+}
+.v3d-commands .flight-controls .button {
   min-height: 36px;
   padding: 0 12px;
+  font-size: calc(12.5px * var(--text-scale));
+}
+.v3d-commands .flight-ending {
+  display: none;
+}
+.v3d-commands .error {
+  position: absolute;
+  top: 100%;
+  right: 16px;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.v3d-toast {
+  top: var(--v3d-below-top, 72px);
+  right: 328px;
+  left: auto;
+  z-index: 5;
+}
+
+/* Side panels */
+.v3d-panel {
+  position: absolute;
+  z-index: 3;
+  top: var(--v3d-below-top, 72px);
+  width: 296px;
+  max-height: calc(100% - var(--v3d-below-top, 72px) - 150px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--v3d-line);
+  border-radius: var(--radius);
+  background: var(--v3d-panel);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(8px);
+}
+.v3d-left {
+  left: 16px;
+}
+.v3d-right {
+  right: 16px;
+  gap: 12px;
+}
+.v3d-block {
+  display: grid;
+  gap: 8px;
+}
+.v3d-big {
+  font-size: calc(20px * var(--text-scale));
+  font-weight: 600;
+}
+.v3d-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--v3d-line);
+}
+.v3d-bar div {
+  height: 100%;
+  background: var(--survey);
+  transform-origin: left;
+  transition: transform 0.3s linear;
+}
+.v3d-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.v3d-tiles div {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--v3d-soft);
+}
+.v3d-tiles span {
+  color: var(--ink-2);
+  font-size: calc(11px * var(--text-scale));
+}
+.v3d-tiles strong {
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 500;
+}
+.v3d-tiles .good {
+  color: var(--ok);
+}
+.v3d-tiles .bad {
+  color: var(--hazard);
+}
+.v3d-signal {
+  display: block;
+  width: 100%;
+  height: 48px;
+  border-radius: 6px;
+  background: var(--v3d-soft);
+}
+.v3d-signal polyline {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.sig-md {
+  stroke: var(--ink);
+  background: var(--ink);
+}
+.sig-gpr {
+  stroke: var(--survey);
+  background: var(--survey);
+}
+.v3d-key {
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  margin: 0 2px 3px 6px;
+  vertical-align: middle;
+}
+.v3d-layers {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.v3d-layers button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 4px;
   border: 0;
   border-radius: 6px;
   background: none;
   color: var(--ink);
-  font: 600 calc(13px * var(--text-scale)) var(--font);
+  font: 500 calc(13px * var(--text-scale)) var(--font);
+  text-align: left;
   cursor: pointer;
 }
-.view3d-seg button[aria-pressed='true'] {
-  background: var(--survey-fill);
+.v3d-layers button:hover {
+  background: var(--v3d-soft);
+}
+.v3d-swatch {
+  flex: none;
+  width: 14px;
+  height: 10px;
+}
+.sw-flown,
+.lg-flown {
+  height: 0;
+  border-top: 2px solid var(--survey);
+}
+.sw-planned,
+.lg-planned {
+  height: 0;
+  border-top: 1.5px dashed color-mix(in srgb, var(--ink) 60%, transparent);
+}
+.sw-scanned,
+.lg-scanned {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--survey) 35%, transparent);
+}
+.sw-footprint {
+  width: 12px;
+  height: 8px;
+  border: 1.5px solid var(--survey);
+  border-radius: 50%;
+}
+.sw-buffer,
+.lg-buffer {
+  width: 14px;
+  height: 10px;
+  border: 1px dashed var(--hazard);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hazard) 20%, transparent);
+}
+.sw-clutter {
+  width: 10px;
+  height: 10px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--clutter);
+}
+.sw-imagery {
+  border-radius: 2px;
+  background: #6b5d45;
+}
+.v3d-switch {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--v3d-line);
+  transition: background-color 0.15s;
+}
+.v3d-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  transition: transform 0.15s, background-color 0.15s;
+}
+[aria-checked='true'] > .v3d-switch {
+  background: var(--survey);
+}
+[aria-checked='true'] > .v3d-switch::after {
+  background: #fff;
+  transform: translateX(12px);
+}
+
+/* Detections */
+.v3d-right h2 {
+  margin: 0;
+  font-size: calc(14px * var(--text-scale));
+}
+.v3d-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.v3d-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.v3d-chip.high {
+  background: color-mix(in srgb, var(--hazard) 16%, transparent);
+  color: var(--hazard);
+}
+.v3d-chip.suspect {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+}
+.v3d-detections {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.v3d-det {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid var(--v3d-line);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.v3d-det:hover {
+  background: var(--v3d-soft);
+}
+.v3d-det.selected {
+  border-color: color-mix(in srgb, var(--ink) 25%, transparent);
+  background: var(--v3d-soft);
+}
+.v3d-det-body {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+.v3d-det-body .small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v3d-det-id {
+  font-weight: 600;
+}
+.v3d-diamond {
+  display: inline-block;
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin: 0 3px;
+  transform: rotate(45deg);
+}
+.v3d-diamond.high {
+  background: var(--hazard);
+}
+.v3d-diamond.suspect {
+  border: 2px solid var(--amber);
+}
+.v3d-diamond.clutter {
+  background: var(--clutter);
+}
+.v3d-meter {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--v3d-line);
+}
+.v3d-meter span {
+  display: block;
+  height: 100%;
+}
+.v3d-meter .high {
+  background: var(--hazard);
+}
+.v3d-meter .suspect {
+  background: var(--amber);
+}
+.v3d-meter .clutter {
+  background: var(--clutter);
+}
+.v3d-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--v3d-line);
+  border-radius: 10px;
+  background: var(--v3d-soft);
+}
+.v3d-card.high {
+  border-color: color-mix(in srgb, var(--hazard) 40%, transparent);
+  background: color-mix(in srgb, var(--hazard) 7%, transparent);
+}
+.v3d-card.suspect {
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+}
+.v3d-card-id {
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 600;
+}
+.v3d-card-cat {
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.v3d-card-cat.high {
+  color: var(--hazard);
+}
+.v3d-card-cat.suspect {
+  color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+}
+.v3d-card-cat.clutter {
+  color: var(--ink-2);
+}
+.v3d-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+}
+.v3d-card-grid dt {
+  color: var(--ink-2);
+  font-size: calc(11px * var(--text-scale));
+}
+.v3d-card-grid dd {
+  margin: 0;
+  font-size: calc(13px * var(--text-scale));
+}
+.v3d-verify {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.v3d-verify button {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: 600 calc(12px * var(--text-scale)) var(--font);
+  cursor: pointer;
+}
+.v3d-verify button:hover {
+  background: var(--v3d-soft);
+}
+.v3d-verify button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+.v3d-verify button.primary[aria-pressed='false'] {
+  border-color: var(--hazard-fill);
+  background: var(--hazard-fill);
   color: #fff;
 }
-.view3d-seg button:disabled {
-  opacity: 0.45;
-  cursor: default;
+.v3d-card .detail {
+  display: grid;
+  gap: 8px;
 }
-.view3d-check {
+
+/* Labels over the scene (positioned every frame) */
+.v3d-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.v3d-label {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-right: 6px;
-  font-size: calc(13px * var(--text-scale));
+  margin: -34px 0 0 14px;
+  padding: 4px 8px;
+  border: 1px solid;
+  border-radius: 6px;
+  background: rgb(11 18 32 / 0.88);
+  color: #e6eaf2;
+  font-size: 11px;
   white-space: nowrap;
+  visibility: hidden;
+}
+.v3d-label-head {
+  font-weight: 600;
+}
+.v3d-label-high {
+  border-color: rgb(249 112 102 / 0.7);
+}
+.v3d-label-high .v3d-label-head {
+  color: #f97066;
+}
+.v3d-label-suspect {
+  border-color: rgb(253 176 34 / 0.55);
+}
+.v3d-label-suspect .v3d-label-head {
+  color: #fdb022;
+}
+.v3d-label-clutter {
+  border-color: rgb(148 163 184 / 0.5);
+}
+.v3d-label.selected {
+  padding: 6px 10px;
+  font-size: 12px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.4);
+}
+.v3d-label-cat {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.v3d-label-uav {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: -58px 0 0 22px;
+  padding: 6px 10px;
+  border-color: rgb(107 155 255 / 0.55);
+}
+.v3d-label-uav .v3d-label-head {
+  color: #a9c4ff;
+}
+
+/* Compass, view buttons, scale */
+.v3d-compass {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--v3d-below-top, 72px) + 4px);
+  left: 332px;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--v3d-line);
+  border-radius: 50%;
+  background: var(--v3d-panel);
+}
+.v3d-compass svg {
+  width: 44px;
+  height: 44px;
+}
+.v3d-compass circle {
+  fill: none;
+  stroke: var(--ink);
+  stroke-opacity: 0.15;
+}
+.v3d-compass .north {
+  fill: var(--hazard);
+}
+.v3d-compass .south {
+  fill: var(--ink-2);
+  fill-opacity: 0.5;
+}
+.v3d-compass text {
+  fill: var(--ink);
+  font: 700 7px var(--font);
+}
+.v3d-view-buttons {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--v3d-below-top, 72px) + 4px);
+  right: 328px;
+  display: grid;
+  gap: 6px;
+}
+.v3d-view-buttons button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--v3d-line);
+  border-radius: var(--radius-sm);
+  background: var(--v3d-panel);
+  color: var(--ink);
   cursor: pointer;
 }
-.view3d .toast {
-  top: 72px;
+.v3d-view-buttons button:hover {
+  background: var(--surface);
 }
-.view3d-detail {
+.v3d-view-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.v3d-view-buttons button.accent {
+  border-color: color-mix(in srgb, var(--survey) 55%, transparent);
+  color: var(--survey);
+}
+.v3d-view-buttons svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.v3d-view-buttons svg .fill {
+  fill: currentColor;
+}
+.v3d-scale {
+  position: absolute;
+  z-index: 2;
+  left: 332px;
+  bottom: 144px;
+  display: grid;
+  gap: 4px;
+  color: #e6eaf2;
+  font-size: 11px;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+}
+.v3d-scale div {
+  width: 88px;
+  height: 6px;
+  border: 1.5px solid #e6eaf2;
+  border-top: 0;
+}
+
+/* Timeline and legend */
+.v3d-bottom {
   position: absolute;
   z-index: 3;
-  top: 72px;
-  right: 12px;
-  width: min(360px, calc(100% - 24px));
-  max-height: calc(100% - 260px);
-  overflow: auto;
-  overscroll-behavior: contain;
-}
-.view3d-hud {
-  left: 50%;
-  bottom: max(12px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  left: 328px;
+  right: 328px;
+  bottom: max(16px, env(safe-area-inset-bottom));
   display: grid;
   gap: 10px;
-  width: min(760px, calc(100% - 24px));
-  padding: 10px 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--v3d-line);
+  border-radius: var(--radius);
+  background: var(--v3d-panel);
+  backdrop-filter: blur(8px);
 }
-.view3d-figures {
+.v3d-timeline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.v3d-play {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--surface);
+  cursor: pointer;
+}
+.v3d-play svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.v3d-live {
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid var(--v3d-line);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.v3d-live.on {
+  border-color: color-mix(in srgb, var(--survey) 45%, transparent);
+  background: color-mix(in srgb, var(--survey) 12%, transparent);
+  color: var(--survey);
+}
+.v3d-time {
+  flex: none;
+  font-size: calc(12px * var(--text-scale));
+}
+.v3d-time.dim {
+  color: var(--ink-2);
+}
+.v3d-scrub {
+  position: relative;
+  flex: 1;
+  height: 24px;
+  min-width: 80px;
+}
+.v3d-scrub-track,
+.v3d-scrub-fill {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+}
+.v3d-scrub-track {
+  right: 0;
+  background: var(--v3d-line);
+}
+.v3d-scrub-fill {
+  background: var(--survey);
+}
+.v3d-tick {
+  position: absolute;
+  top: 5px;
+  width: 3px;
+  height: 14px;
+  margin-left: -1.5px;
+  border-radius: 1px;
+  pointer-events: none;
+}
+.v3d-tick.high {
+  background: var(--hazard);
+}
+.v3d-tick.suspect {
+  background: var(--amber);
+}
+.v3d-scrub-thumb {
+  position: absolute;
+  top: 5px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--survey) 30%, transparent);
+}
+.v3d-scrub input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  background: none;
+  appearance: none;
+  cursor: pointer;
+}
+.v3d-scrub input[type='range']::-webkit-slider-runnable-track {
+  height: 24px;
+  background: none;
+}
+.v3d-scrub input[type='range']::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: 5px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--survey) 30%, transparent);
+  appearance: none;
+}
+.v3d-scrub input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--survey) 30%, transparent);
+}
+.v3d-scrub input[type='range']:focus-visible {
+  outline: 2px solid var(--survey);
+  outline-offset: 2px;
+}
+.v3d-speed .select-button {
+  min-height: 36px;
+  padding: 4px 8px;
+}
+.v3d-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 20px;
-  margin: 0;
-}
-.view3d-figures dt {
+  align-items: center;
+  gap: 6px 18px;
   color: var(--ink-2);
   font-size: calc(12px * var(--text-scale));
 }
-.view3d-figures dd {
-  margin: 0;
-  font-weight: 700;
-  font-size: calc(16px * var(--text-scale));
-  font-variant-numeric: tabular-nums;
+.v3d-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
-.view3d-counts {
-  display: flex;
-  gap: 10px;
-}
-.view3d-counts .swatch {
+.v3d-legend i {
   display: inline-block;
-  width: 10px;
+  width: 18px;
   height: 10px;
 }
-.view3d-note {
-  margin: 0;
+.v3d-legend .v3d-diamond {
+  width: 9px;
+  height: 9px;
 }
-.view3d-replay {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.view3d-replay .button {
-  min-width: 92px;
-  min-height: 44px;
-}
-.view3d-replay input[type='range'] {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--survey-fill);
-}
-.view3d-speed .select-button {
-  min-height: 44px;
-}
-.view3d-credit {
+.v3d-credit {
   position: absolute;
+  z-index: 1;
   right: 8px;
   bottom: 2px;
-  z-index: 1;
   margin: 0;
-  color: #fff;
+  color: #e6eaf2;
   font-size: 11px;
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
   pointer-events: none;
 }
-@media (max-width: 760px) {
-  .view3d-top {
-    right: 12px;
+
+/* Narrower screens: the panels open from the top bar, one at a time. */
+@media (max-width: 1100px) {
+  .v3d-top {
+    flex-wrap: wrap;
+    gap: 6px 12px;
   }
-  .view3d-source {
+  .v3d-top .v3d-grow {
     display: none;
   }
-  .view3d-tools {
-    top: calc(max(12px, env(safe-area-inset-top)) + 66px);
-    left: 12px;
-    right: auto;
+  .v3d-title {
+    flex: 1 1 200px;
   }
-  .view3d .toast,
-  .view3d-detail {
-    top: calc(max(12px, env(safe-area-inset-top)) + 130px);
+  .v3d-panel-toggles {
+    display: flex;
   }
-  .view3d-detail {
-    max-height: calc(100% - 340px);
+
+  .v3d-panel {
+    display: none;
+    max-height: calc(100% - var(--v3d-below-top, 72px) - 160px);
   }
-  .view3d-credit {
+  .v3d.panel-mission .v3d-left,
+  .v3d.panel-detections .v3d-right {
+    display: flex;
+  }
+  .v3d-compass {
+    left: 16px;
+  }
+  .v3d-view-buttons {
+    right: 16px;
+  }
+  .v3d-scale {
+    left: 16px;
+  }
+  .v3d-bottom {
+    left: 16px;
+    right: 16px;
+  }
+  .v3d-toast {
+    right: 72px;
+  }
+  .v3d.panel-mission .v3d-compass {
+    display: none;
+  }
+  .v3d.panel-detections .v3d-view-buttons {
     display: none;
   }
 }
+@media (max-width: 760px) {
+  .v3d-top {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 6px 10px;
+  }
+  .v3d-divider,
+  .v3d-top .v3d-grow,
+  .v3d-title .small,
+  .v3d-clock {
+    display: none;
+  }
+  .v3d-title {
+    flex: 1;
+  }
+  .v3d-seg {
+    order: 3;
+  }
+  .v3d-panel-toggles {
+    order: 4;
+  }
+  .v3d-commands {
+    order: 5;
+    width: 100%;
+  }
+  .v3d-commands .flight-controls .button {
+    flex: 1;
+  }
+  .v3d-seg button,
+  .v3d-panel-toggles button {
+    padding: 0 10px;
+  }
+  .v3d-panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 96px);
+    width: auto;
+    max-height: 55vh;
+  }
+  .v3d-compass {
+    width: 52px;
+    height: 52px;
+    left: 8px;
+  }
+  .v3d-view-buttons {
+    right: 8px;
+  }
+  .v3d-bottom {
+    left: 8px;
+    right: 8px;
+    padding: 10px 12px;
+  }
+  .v3d-legend,
+  .v3d-scale,
+  .v3d-credit {
+    display: none;
+  }
+  .v3d-scale {
+    bottom: 96px;
+  }
+  .v3d-toast {
+    left: 68px;
+    right: 60px;
+    max-width: none;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

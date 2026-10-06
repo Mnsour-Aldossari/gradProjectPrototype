@@ -8,6 +8,7 @@ export interface Pose {
   heading: number // degrees, 0 = north, clockwise
   speed: number // m/s
   battery: number // %
+  seq?: number // waypoint being flown to
 }
 
 /** Index of the last pose at or before t (0 if t is before the first). */
@@ -41,6 +42,7 @@ export function poseAt(poses: Pose[], t: number): Pose {
     heading: lerpAngle(a.heading, b.heading, u),
     speed: a.speed + (b.speed - a.speed) * u,
     battery: a.battery + (b.battery - a.battery) * u,
+    seq: a.seq,
   }
 }
 
