@@ -12,6 +12,7 @@ import { formatDuration } from '../format'
 import { remainingS } from '../field/mapInfo'
 import { useMissionLive } from '../live'
 import { SurveyMap } from '../map/SurveyMap'
+import { TakeoffPoint, distanceM } from '../map/TakeoffPoint'
 import { DEFAULT_MISSION_LAYOUT, MAP_HEIGHT, SIDE_WIDTH, usePrefs, type MissionCard, type MissionHideable } from '../prefs'
 import {
   CATEGORY_LABELS,
@@ -20,6 +21,7 @@ import {
   type Category,
   type ConditionProfile,
   type Detection,
+  type LatLon,
   type UavSource,
 } from '../types'
 
@@ -64,6 +66,12 @@ export function MissionPage() {
   const [flyWith, setFlyWith] = useState<UavSource>('simulated')
   // Whether the server can talk to PX4 at all (MAVSDK installed); whether PX4 runs shows when the survey starts.
   const [px4Available, setPx4Available] = useState(false)
+  // Whether the server restarts PX4 SITL (Docker) at the takeoff point by itself.
+  const [px4Restarts, setPx4Restarts] = useState(false)
+  // Takeoff point saved from this page (undefined: as the mission says); picking: the next map click sets it.
+  const [takeoff, setTakeoff] = useState<LatLon | null | undefined>(undefined)
+  const [picking, setPicking] = useState(false)
+  const [takeoffError, setTakeoffError] = useState<string | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [toast, setToast] = useState<Detection | null>(null)
@@ -100,8 +108,11 @@ export function MissionPage() {
   }, [expanded])
 
   useEffect(() => {
-    api<{ px4_available?: boolean }>('/api/health')
-      .then((h) => setPx4Available(h.px4_available === true))
+    api<{ px4_available?: boolean; px4_restarts?: boolean }>('/api/health')
+      .then((h) => {
+        setPx4Available(h.px4_available === true)
+        setPx4Restarts(h.px4_restarts === true)
+      })
       .catch(() => setPx4Available(false))
   }, [])
 
@@ -160,6 +171,30 @@ export function MissionPage() {
   const elapsed = t?.t_s ?? 0
   const remaining = remainingS(mission, t)
   const canStart = user?.role === 'supervisor' && mission.status === 'planned'
+  // PX4's takeoff point: chosen on the map, or the start of the survey path.
+  const pathStart = mission.path[0] ?? mission.area[0]
+  const chosen: LatLon | null =
+    takeoff !== undefined ? takeoff : mission.takeoff_lat !== null ? [mission.takeoff_lat, mission.takeoff_lon!] : null
+  const takeoffPoint = chosen ?? pathStart
+  const takeoffFromStart = Math.round(distanceM(takeoffPoint, pathStart))
+  const showTakeoff = (canStart && flyWith === 'px4') || (mission.status !== 'planned' && mission.uav_source === 'px4')
+
+  async function saveTakeoff(p: LatLon | null) {
+    setPicking(false)
+    if (p && distanceM(p, pathStart) > 900) {
+      setTakeoffError(
+        `That point is ${(distanceM(p, pathStart) / 1000).toFixed(1)} km from the start of the survey; PX4 accepts up to 900 m. Choose a point nearer the area.`,
+      )
+      return
+    }
+    setTakeoffError(null)
+    try {
+      await api(`/api/missions/${missionId}/takeoff`, { method: 'PUT', body: p ? { lat: p[0], lon: p[1] } : {} })
+      setTakeoff(p)
+    } catch (e) {
+      setTakeoffError(e instanceof Error ? e.message : 'The takeoff point was not saved')
+    }
+  }
 
   async function start() {
     setStarting(true)
@@ -310,6 +345,32 @@ export function MissionPage() {
                     </option>
                   </select>
                 </label>
+                {flyWith === 'px4' && (
+                  <div className="takeoff-row">
+                    <span className="takeoff-label">Takeoff point</span>
+                    <span className="small">
+                      {chosen ? `${takeoffFromStart} m from the survey start` : 'Start of the survey'}
+                    </span>
+                    <button type="button" className="link-button" onClick={() => setPicking((x) => !x)}>
+                      {picking ? 'Cancel' : 'Set on map'}
+                    </button>
+                    {chosen && !picking && (
+                      <button type="button" className="link-button" onClick={() => saveTakeoff(null)}>
+                        Reset
+                      </button>
+                    )}
+                    {picking && (
+                      <p className="small takeoff-hint" role="status">
+                        Click the map where PX4 should take off, within 900 m of the survey. You can also drag the H.
+                      </p>
+                    )}
+                    {takeoffError && (
+                      <p className="error takeoff-hint" role="alert">
+                        {takeoffError}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {flyWith === 'simulated' ? (
                   <label className="field inline">
                     <span>Playback speed</span>
@@ -325,6 +386,7 @@ export function MissionPage() {
                   <p className="small start-note">
                     PX4 flies in real time: about {Math.max(1, Math.round(mission.estimated_duration_s / 60))} min for
                     this survey.
+                    {px4Restarts && ' If PX4 is elsewhere it is restarted at the takeoff point first (about a minute).'}
                   </p>
                 )}
                 <button type="button" className="button" disabled={starting} onClick={start}>
@@ -550,7 +612,16 @@ export function MissionPage() {
             detections={visible}
             selectedId={selectedId}
             onSelect={select}
-          />
+          >
+            {showTakeoff && (
+              <TakeoffPoint
+                point={takeoffPoint}
+                picking={picking}
+                editable={canStart && flyWith === 'px4'}
+                onPick={saveTakeoff}
+              />
+            )}
+          </SurveyMap>
           <Legend showBaseline={showBaseline} />
           <button
             type="button"

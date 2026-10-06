@@ -38,6 +38,9 @@ export interface Mission {
   scenario_seed: number
   status: MissionStatus
   uav_source: UavSource
+  /** Where PX4 takes off; null: the first point of the survey path. */
+  takeoff_lat: number | null
+  takeoff_lon: number | null
   progress: number
   battery_pct: number | null
   error: string | null

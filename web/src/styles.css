@@ -884,9 +884,44 @@ textarea {
 }
 
 .det-icon,
-.uav-icon {
+.uav-icon,
+.takeoff-icon {
   background: none;
   border: 0;
+}
+/* PX4's takeoff point on the map: an H pad. */
+.takeoff-icon span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #1d2a24;
+  color: #fff;
+  font: 700 15px var(--font);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+}
+.leaflet-marker-draggable.takeoff-icon span {
+  cursor: grab;
+}
+.picking-takeoff,
+.picking-takeoff .leaflet-interactive {
+  cursor: crosshair !important;
+}
+.takeoff-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  flex: 1 1 100%;
+}
+.takeoff-label {
+  font-weight: 600;
+}
+.takeoff-hint {
+  flex: 1 1 100%;
+  margin: 0;
 }
 .det-icon svg,
 .uav-icon svg {

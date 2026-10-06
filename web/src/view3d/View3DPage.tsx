@@ -8,7 +8,7 @@ import { remainingS } from '../field/mapInfo'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
 import { usePrefs } from '../prefs'
-import type { Category, Detection, Telemetry } from '../types'
+import type { Category, Detection, LatLon, Telemetry } from '../types'
 import { toXY, type Frame } from './geo'
 import { countAt, poseAt, revealTime, type Pose } from './replay'
 import { World, type CameraMode } from './scene'
@@ -75,12 +75,18 @@ export default function View3DPage() {
   const live = mission?.status === 'running'
 
   // The scene, once the mission (its area and path) is known.
-  const areaKey = mission ? JSON.stringify(mission.area) : null
+  const areaKey = mission ? JSON.stringify([mission.area, mission.uav_source, mission.takeoff_lat, mission.takeoff_lon]) : null
   useEffect(() => {
     if (!mission || !holder.current) return
     let w: World
     try {
-      w = new World(holder.current, mission.area, mission.path, mission.line_spacing_m)
+      const takeoff: LatLon | null =
+        mission.uav_source !== 'px4'
+          ? null
+          : mission.takeoff_lat !== null
+            ? [mission.takeoff_lat, mission.takeoff_lon!]
+            : (mission.path[0] ?? null)
+      w = new World(holder.current, mission.area, mission.path, mission.line_spacing_m, takeoff)
     } catch {
       setWebglError(true)
       return

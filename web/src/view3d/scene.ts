@@ -16,6 +16,34 @@ const TRACK_COLOR = 0x38bdf8
 /** Scene position of a point in the area's metres (east, north) at a height. */
 const at = (x: number, y: number, h = 0) => new THREE.Vector3(x, h, -y)
 
+/** PX4's takeoff point: a dark pad with a white H, as on the map. */
+function takeoffPad(x: number, y: number): THREE.Mesh {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')!
+  g.fillStyle = '#1d2a24'
+  g.beginPath()
+  g.arc(64, 64, 60, 0, Math.PI * 2)
+  g.fill()
+  g.strokeStyle = '#ffffff'
+  g.lineWidth = 6
+  g.stroke()
+  g.fillStyle = '#ffffff'
+  g.font = 'bold 72px sans-serif'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.fillText('H', 64, 68)
+  const texture = new THREE.CanvasTexture(c)
+  texture.colorSpace = THREE.SRGBColorSpace
+  const pad = new THREE.Mesh(
+    new THREE.CircleGeometry(1.2, 40),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
+  )
+  pad.rotation.x = -Math.PI / 2
+  pad.position.set(x, 0.045, -y)
+  return pad
+}
+
 /** A growable line or ribbon buffer: the positions only ever get appended. */
 class Growable {
   array: Float32Array
@@ -76,6 +104,7 @@ export class World {
     area: LatLon[],
     path: LatLon[],
     private readonly swathWidthM: number,
+    takeoff: LatLon | null = null,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true }) // throws without WebGL; the page shows a message
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -138,6 +167,7 @@ export class World {
     this.scene.add(this.trackLine)
 
     this.scene.add(this.markers.group)
+    if (takeoff) this.scene.add(takeoffPad(...toXY(this.frame, takeoff[0], takeoff[1])))
 
     this.drone = buildDrone()
     this.drone.group.visible = false
