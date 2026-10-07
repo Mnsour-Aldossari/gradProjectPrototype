@@ -503,10 +503,7 @@ class MissionRunner:
     def control(self, mission_id: int, action: Action) -> Phase:
         """Pass a supervisor command to the running mission. KeyError if it is not running; ControlRejected if the
         command does not apply now."""
-        phase = self._controls[mission_id].request(action)
-        with Session(self._engine) as session:
-            self._hub.publish(mission_id, mission_event(session.get(Mission, mission_id), phase))
-        return phase
+        return self._controls[mission_id].request(action)
 
     def start(self, mission_id: int, source: TelemetrySource, *, px4: bool = False) -> None:
         control = FlightControl()

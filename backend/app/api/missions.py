@@ -359,11 +359,13 @@ def control_mission(
     mission = get_mission_or_404(session, mission_id)
     runner = request.app.state.runner
     try:
-        runner.control(mission_id, body.action)
+        phase = runner.control(mission_id, body.action)
     except KeyError:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is {mission.status}, not flying") from None
     except ControlRejected as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+    # The live views show the command at once, from the mission just read (no other trip to the database).
+    request.app.state.hub.publish(mission_id, mission_event(mission, phase))
     return mission_read(session, mission, runner=runner)
 
 
