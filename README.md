@@ -23,6 +23,7 @@ The current version is a prototype and is not ready for public deployment; see
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
 | `backend/tests/` | PyTest suite | — |
 | `web/` | React + TypeScript dashboard: mission planning, live satellite map, detection review and verification. Responsive, used on phones by field staff | REST/WebSocket API only |
+| `scripts/` | `start_dev.cmd` (calls `start_dev.ps1`): one-click start of the backend and the web dashboard for development on Windows | `backend/`, `web/` |
 | `docs/` | `ARCHITECTURE.md` (report section 4.1, diagrams, future phases, security notes), `DEMO_SCRIPT.md` (Arabic demo script), `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json` | — |
 
 Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames), or PX4 → `uav.Px4MavlinkSource` → `api.runner` → database + `detection.AdaptiveDetector` (every 5 s of flight) → WebSocket events → web.
@@ -46,6 +47,25 @@ instead of `.venv/Scripts/` (not tested).
    ```bash
    git clone https://github.com/Mnsour-Aldossari/gradProjectPrototype.git uav-landmine-prototype
    ```
+
+   **One click:** double-click `scripts\start_dev.cmd`, then go to step 4. It does steps 2 and 3 for you:
+
+   - checks that Python 3.11+ and Node.js are installed, and that ports 8000 and 5180 are free; if not, it stops with
+     a message saying what to do (it never closes anything that is running);
+   - the first time, creates `backend/.venv` with `requirements.txt` and installs the web packages (`npm ci`); later
+     starts install again only when `backend/requirements.txt` or `web/package-lock.json` has changed;
+   - opens the backend and the web dashboard in two Windows Terminal tabs, **Backend** and **Web** (two PowerShell
+     windows where Windows Terminal is not installed, or with `scripts\start_dev.ps1 -PlainWindows`); the dashboard
+     starts once http://localhost:8000/api/health answers;
+   - opens http://localhost:5180 in the browser once the dashboard answers.
+
+   Ctrl+C in a tab stops that server. The backend uses SQLite (`backend/uav.db`) unless `DATABASE_URL` is set in the
+   terminal that runs `start_dev.cmd` (a double-click does not see a `set` made in a terminal; tried with a SQLite
+   `DATABASE_URL`, not yet with PostgreSQL). Measured on Windows 11
+   in a fresh copy of the repository: **44 s** the first time (installing; pip's and npm's download caches were
+   already filled on that PC, so a first install on a new PC takes longer), **3 s** afterwards.
+
+   By hand instead:
 
 2. Backend, in a first terminal:
 
@@ -368,6 +388,12 @@ Works (implemented and tested with PyTest and/or in the browser):
   reorders (drag or arrows), folds and hides the cards and resizes the column or the map, and **Expand map** gives the
   map the whole page. Flight cannot be hidden, so Start survey stays reachable; **Reset this page** and
   **Reset to default** undo it.
+- One-click start `scripts\start_dev.cmd` (Windows 11, Windows PowerShell 5.1): tried in a fresh copy of the
+  repository in a folder whose path has a space, with Windows Terminal tabs and with plain PowerShell windows; a
+  second start installed nothing, a changed `requirements.txt` was installed again, the Web tab waited for the
+  backend, `DATABASE_URL` reached the backend, and it refused to start with port 8000 or 5180 in use (also IPv6
+  only) and named what was missing with Python or Node.js taken off `PATH` (also with only the Microsoft Store's
+  `python` shortcut). Not tried: a PC that never had Python or Node.js installed, another Windows version, PowerShell 7.
 
 Not working, not run, or only partly checked:
 
