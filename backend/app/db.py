@@ -2,15 +2,46 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Engine, inspect, text
+import time
+
+from sqlalchemy import Engine, event, exc, inspect, text
 from sqlmodel import SQLModel, create_engine
 
 from . import models  # noqa: F401  (registers the tables on SQLModel.metadata)
 
+IDLE_PING_S = 60.0  # a pooled connection unused for longer is checked before it is used again
+
 
 def make_engine(database_url: str) -> Engine:
-    connect_args = {"check_same_thread": False, "timeout": 30} if database_url.startswith("sqlite") else {}
-    return create_engine(database_url, connect_args=connect_args)
+    if database_url.startswith("sqlite"):
+        return create_engine(database_url, connect_args={"check_same_thread": False, "timeout": 30})
+    engine = create_engine(database_url)
+    ping_after_idle(engine)
+    return engine
+
+
+def ping_after_idle(engine: Engine) -> None:
+    """Before a pooled connection that sat unused for IDLE_PING_S is handed out, check that the server still has it,
+    and connect again if not. A hosted PostgreSQL that sleeps when nobody uses it (Neon's free plan, after 5 minutes)
+    drops its connections, and the first request after a pause would fail. A connection in steady use is not
+    checked: each check is a round trip, which counts with a database far away (pool_pre_ping checks every time)."""
+
+    @event.listens_for(engine, "checkin")
+    def returned(dbapi_connection, record) -> None:
+        if dbapi_connection is not None:
+            record.info["idle_since"] = time.monotonic()
+
+    @event.listens_for(engine, "checkout")
+    def taken(dbapi_connection, record, proxy) -> None:
+        idle_since = record.info.get("idle_since")
+        if idle_since is None or time.monotonic() - idle_since <= IDLE_PING_S:
+            return
+        try:
+            engine.dialect.do_ping(dbapi_connection)
+        except Exception as e:
+            # The pool connects again. A server that dropped this connection (asleep, restarted) dropped the others
+            # in the pool too, so they are all replaced, as pool_pre_ping does.
+            raise exc.InvalidatePoolError() from e
 
 
 # Columns added after the first release, as (table, column, SQL type and default). create_all() makes new tables
