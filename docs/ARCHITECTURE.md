@@ -29,7 +29,7 @@ narrow interface. The prototype has five layers:
 4. **Detection and classification engine.** A pure Python library with no web-framework or database
    dependencies. It contains a fixed-threshold baseline and the adaptive classifier (see
    [Adaptive detection pipeline](#adaptive-detection-pipeline)).
-5. **Data layer.** SQLModel/SQLAlchemy tables using only portable column types. SQLite by default; PostgreSQL through `DATABASE_URL` (tested in Docker and used with a hosted one, Neon).
+5. **Data layer.** SQLModel/SQLAlchemy tables using only portable column types. SQLite by default; PostgreSQL through `DATABASE_URL` (tested in Docker and used with a hosted one, Neon). The schema is built and changed by Alembic migrations (`backend/migrations/`), which the backend runs at startup.
 
 Two user interfaces sit on top and talk to the backend only through REST and WebSocket:
 

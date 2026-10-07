@@ -6,6 +6,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY migrations ./migrations
+COPY alembic.ini .
 COPY scripts ./scripts
 
 # SQLite file lives in /data so a volume can keep it between container restarts.

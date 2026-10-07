@@ -21,6 +21,7 @@ The current version is a prototype and is not ready for public deployment; see
 | `backend/scripts/calibrate.py` | Parameter calibration on tuning seeds only | `evaluation/` |
 | `backend/app/api/` | REST endpoints, WebSocket hub (`/ws/missions/{id}`), auth, background mission runner (live adaptive detections) | all of the above + DB |
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
+| `backend/migrations/`, `alembic.ini` | Database migrations (Alembic), run by the backend at startup | `models.py` |
 | `backend/tests/` | PyTest suite | — |
 | `web/` | React + TypeScript dashboard: mission planning, live satellite map, detection review and verification. Responsive, used on phones by field staff | REST/WebSocket API only |
 | `docs/` | `ARCHITECTURE.md` (report section 4.1, diagrams, future phases, security notes), `DEMO_SCRIPT.md` (Arabic demo script), `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json` | — |
@@ -232,7 +233,8 @@ Then in the terminal that starts the backend (cmd), before it:
 set DATABASE_URL=postgresql+psycopg://uav:uav@127.0.0.1:5433/uav
 ```
 
-The tables are created on the first start and the demo accounts added; the database starts empty, and the missions
+The tables are created by the migrations on the first start (next section) and the demo accounts added; the database
+starts empty, and the missions
 in `uav.db` stay there. To go back to SQLite, start the backend without `DATABASE_URL`. `GET /api/health` says which
 one is running (`"database": "postgresql"` or `"sqlite"`). Use `127.0.0.1`, not `localhost`: on the PC where this was
 tried, `localhost` made the connection hang. The whole stack on PostgreSQL: `docker compose -f docker-compose.yml
@@ -274,6 +276,28 @@ ahead each time. Neon's free plan puts the database to sleep after 5 minutes wit
 a pooled connection unused for over 60 s is checked before it is used, so the first request after a pause does not
 fail.
 
+## Database migrations (Alembic)
+
+The tables come from the migrations in `backend/migrations/versions/` (Alembic). The backend runs them itself at
+startup (`alembic upgrade head`), on SQLite and PostgreSQL alike; there is nothing to run by hand. The first one,
+`0001_baseline`, makes the tables exactly as `app/models.py` had them in v1.8.
+
+A database made before migrations existed (a `uav.db` from v1.0 to v1.8: it has the tables but no `alembic_version`)
+is handled once, at its first start: the five `missions` columns added in v1.3–v1.5 (`uav_source`, the takeoff and
+landing points) are added if it lacks them, then, if it has every table and column of the baseline, it is marked as
+being at `0001` and keeps all its rows. If something else is missing, the backend stops with a message naming it and
+leaves the database unchanged.
+
+Changing a table, from `backend/` (on `DATABASE_URL`, or `uav.db` when it is not set):
+
+```bash
+.venv/Scripts/python -m alembic current                                   # where the database is
+.venv/Scripts/python -m alembic revision --autogenerate -m "what changed"  # after editing app/models.py
+```
+
+Read the new file in `migrations/versions/` before committing it (on SQLite, Alembic copies a table to change its
+columns: `render_as_batch`). The next start of the backend applies it.
+
 ## Tests and type check
 
 ```bash
@@ -281,9 +305,9 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **197 passed, 2 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped ones run
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **199 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
-too). This includes the mandatory tests T1–T3 on the evaluation seeds. The
+Expected result: **202 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **203 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
 normal test.
@@ -311,9 +335,10 @@ cd backend
 ```
 
 The reset removes all missions, telemetry, sensor readings and detections and leaves only the two demo users
-(supervisor and field operator, re-created by the same seeding the server runs at startup). Stop the backend before
-running it. `backups/` is git-ignored. It only touches the database in `DATABASE_URL`; the automatic backup is made
-for SQLite only. (Not re-run while this README was reviewed.)
+(supervisor and field operator, re-created by the same seeding the server runs at startup). It drops every table,
+`alembic_version` too, and runs the migrations again. Stop the backend before running it. `backups/` is git-ignored.
+It only touches the database in `DATABASE_URL`; the automatic backup is made for SQLite only. (`--yes` was tried on a
+PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this README was reviewed.)
 
 ## Main API endpoints
 
@@ -356,6 +381,10 @@ Works (implemented and tested with PyTest and/or in the browser):
   (desktop and phone size); with PX4 SITL + Gazebo (headless Docker image), tried by hand in the browser.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
+- Database migrations (Alembic), run at startup: tried on SQLite and on PostgreSQL 17 in Docker with a new database,
+  a database as v1.2 and v1.8 left it, and a copy of the development PC's `uav.db` (58 missions, 115,030 telemetry
+  points, 111,226 readings, 400 detections: every row kept, the missions listed by the API afterwards), and in the
+  backend's Docker image. Not tried: Neon, and a migration after the baseline (there is none yet).
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
   verification, comparison with the baseline, mission history, evaluation page.
 - Field view `/field` at phone size: alerts, nearest potential detections, verification.
