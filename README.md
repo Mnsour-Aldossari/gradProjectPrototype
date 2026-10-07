@@ -254,6 +254,26 @@ open to the internet. The `users` table holds the password hashes: do not show i
 The code uses only portable column types. Run the tests on PostgreSQL with `TEST_DATABASE_URL` set to the server
 (a database in it; the tests create and drop their own schemas).
 
+### A hosted PostgreSQL (e.g. Neon)
+
+Copy the connection string from the provider (Neon: **Connect**), change its start from `postgresql://` to
+`postgresql+psycopg://`, and keep `sslmode=require`. In cmd, put the whole assignment in double quotes: the `&` in
+the address would otherwise end the command there.
+
+```bash
+set "DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST/neondb?sslmode=require&channel_binding=require"
+```
+
+The connection string holds the database password: do not paste it in chats or commit it, and reset the password
+(Neon: **Reset password**) if it was shared. Each query then crosses the internet: from the PC where this was tried,
+93 ms per round trip to Neon in Frankfurt, so a page takes about 0.4–0.9 s instead of a few milliseconds. A flight is
+not held up by it: the backend writes the flight from a worker thread, never in the event loop that sends the live
+view. Measured with PostgreSQL in Docker behind a 93 ms delay, the demo at 20× in the browser: the UAV marker moved
+110 times in 12 s, at most 0.14 s apart, in even steps; before this, 8 times in 12 s, up to 1.9 s apart, jumping
+ahead each time. Neon's free plan puts the database to sleep after 5 minutes without use and drops its connections;
+a pooled connection unused for over 60 s is checked before it is used, so the first request after a pause does not
+fail.
+
 ## Tests and type check
 
 ```bash
@@ -261,8 +281,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **192 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **193 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+Expected result: **197 passed, 2 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped ones run
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **199 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
 too). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -356,7 +376,7 @@ Not working, not run, or only partly checked:
 | Docker | `docker-compose.yml`, `backend/Dockerfile`, `web/Dockerfile`, `web/nginx.conf`: the images were built and the containers run with `docker compose up --build -d` (Docker Desktop, Windows 11), also with `docker-compose.postgres.yml`; on http://localhost:8080 `/api/health` answered ok, signing in worked and the demo scenario ran to the end with its data stored (on PostgreSQL), and the data survived a restart of the backend container. Not tried: a hosted deployment of the containers. |
 | Postman | `postman/uav-prototype.postman_collection.json` (six requests) **has not been opened in Postman**. The same requests and test scripts were replayed against the running backend with a small Node script that mimics `pm`, and all passed. |
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
-| PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. Not tried: PostGIS, a hosted PostgreSQL (e.g. Render's), a large amount of data, and moving the missions of an existing `uav.db` over. |
+| PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. A hosted PostgreSQL (Neon's free plan, Frankfurt) was used from the development PC: it worked, but during flights the UAV froze on the page and then jumped ahead. That was fixed (the flight is written from a worker thread) and measured with PostgreSQL in Docker behind the same 93 ms delay; not yet tried again on Neon itself. Not tried: PostGIS, a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |

@@ -24,7 +24,8 @@ narrow interface. The prototype has five layers:
    - a REST API for authentication, missions, telemetry, detections, verification and evaluation;
    - a WebSocket hub that pushes live events to connected clients;
    - a background *mission runner* that consumes a `TelemetrySource`, stores the data and runs the detection
-     engine while the UAV flies.
+     engine while the UAV flies. It writes to the database from a worker thread, never in the event loop that sends
+     the live events, so a database far away (a hosted PostgreSQL) cannot hold up the live view.
 4. **Detection and classification engine.** A pure Python library with no web-framework or database
    dependencies. It contains a fixed-threshold baseline and the adaptive classifier (see
    [Adaptive detection pipeline](#adaptive-detection-pipeline)).
@@ -111,14 +112,14 @@ sequenceDiagram
     API-->>Web: 202 Accepted
     loop every frame (5 Hz simulated)
         Source-->>Runner: TelemetryFrame (position, battery, mission, sensor sample)
-        Runner->>DB: store telemetry + sensor readings (batched)
+        Runner-)DB: store telemetry + sensor readings (batched, from a worker thread)
         Runner->>Hub: telemetry event
         Hub-->>Web: telemetry (UAV marker, scanned swath, sensor trace)
     end
     loop every 5 s of flight
         Runner->>Engine: new readings
         Engine-->>Runner: candidates (high / suspect / clutter + explanation)
-        Runner->>DB: create / update / remove adaptive detections
+        Runner-)DB: create / update / remove adaptive detections (worker thread, latest candidates)
         Runner->>Hub: detection events, alert for new high priority
         Hub-->>Web: markers + alert
         Hub-->>Field: markers + alert
