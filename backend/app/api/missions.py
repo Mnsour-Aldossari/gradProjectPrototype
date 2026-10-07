@@ -65,8 +65,16 @@ def get_mission_or_404(session: Session, mission_id: int) -> Mission:
     return mission
 
 
-def _count(session: Session, table: type, mission_id: int) -> int:
-    return session.exec(select(func.count()).select_from(table).where(table.mission_id == mission_id)).one()
+def _stats(session: Session, mission_id: int) -> MissionStats:
+    """The three counts in one query: each query is a round trip, which counts with a database far away."""
+
+    def count(table: type):
+        return select(func.count()).select_from(table).where(table.mission_id == mission_id).scalar_subquery()
+
+    telemetry, sensor, detections = session.exec(
+        select(count(TelemetryPoint), count(SensorReading), count(Detection))
+    ).one()
+    return MissionStats(telemetry_points=telemetry, sensor_readings=sensor, detections=detections)
 
 
 def mission_read(session: Session, mission: Mission, with_stats: bool = False, runner=None) -> MissionRead:
@@ -83,11 +91,7 @@ def mission_read(session: Session, mission: Mission, with_stats: bool = False, r
     if runner is not None and mission.status == "running":
         out.phase = runner.phase(mission.id)
     if with_stats:
-        out.stats = MissionStats(
-            telemetry_points=_count(session, TelemetryPoint, mission.id),
-            sensor_readings=_count(session, SensorReading, mission.id),
-            detections=_count(session, Detection, mission.id),
-        )
+        out.stats = _stats(session, mission.id)
     return out
 
 
