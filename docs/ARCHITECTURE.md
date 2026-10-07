@@ -29,7 +29,7 @@ narrow interface. The prototype has five layers:
 4. **Detection and classification engine.** A pure Python library with no web-framework or database
    dependencies. It contains a fixed-threshold baseline and the adaptive classifier (see
    [Adaptive detection pipeline](#adaptive-detection-pipeline)).
-5. **Data layer.** SQLModel/SQLAlchemy tables using only portable column types. The prototype runs on SQLite.
+5. **Data layer.** SQLModel/SQLAlchemy tables using only portable column types. SQLite by default; PostgreSQL through `DATABASE_URL` (tested in Docker and used with a hosted one, Neon).
 
 Two user interfaces sit on top and talk to the backend only through REST and WebSocket:
 
@@ -68,7 +68,7 @@ flowchart TB
         AD["Adaptive classifier"]
     end
 
-    DB[("Database<br/>SQLite (tested)")]
+    DB[("Database<br/>SQLite (default) or PostgreSQL")]
 
     subgraph UI["User interfaces (React + TypeScript)"]
         WEB["Supervisor dashboard"]
@@ -227,7 +227,7 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | Detection engine as a pure library | It can be unit-tested and evaluated offline on thousands of simulated surveys, and could later be wrapped as a ROS 2 node or a separate service. |
 | **Mobile access as a Progressive Web App** (`/field`), not a native app | One code base and one API serve the supervisor dashboard and the field view. The field view is mobile-first and installable from the browser. This was enough for the prototype's goals and the available time. A native Flutter app remains a future option on the same API. |
 | WebSocket for live updates | Telemetry, detections and alerts change several times per second during a survey; pushing them avoids polling and keeps the supervisor and field screens consistent. |
-| Portable database types; SQLite in the prototype | Polygons and feature maps are stored as JSON, so the schema is meant to run on PostgreSQL by changing `DATABASE_URL`. **This has not been tested on PostgreSQL.** |
+| Portable database types; SQLite by default | Polygons and feature maps are stored as JSON, so the same schema runs on PostgreSQL by changing `DATABASE_URL`. Tested on PostgreSQL 17 in Docker (all tests pass on it) and used with a hosted PostgreSQL (Neon). |
 | Simulation-based evaluation with a tuning / evaluation seed split | It allows repeatable, honest comparison of the baseline and the adaptive method; results are labelled as simulated. |
 
 ## Implementation status
@@ -238,7 +238,7 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | `TelemetrySource` + `SimulatedSource` | Implemented and tested |
 | FastAPI REST API, WebSocket hub, mission runner | Implemented and tested (PyTest + browser) |
 | Baseline and adaptive classification | Implemented, calibrated on tuning seeds, evaluated on separate seeds |
-| SQLite database | Implemented and tested |
+| Database: SQLite (default) or PostgreSQL | Implemented and tested on both |
 | Supervisor web dashboard (React + TypeScript + Leaflet) | Implemented and tested in the browser |
 | 3D view (`web/src/view3d/`, three.js) | Implemented and tested in the browser with the simulator (live and replay); a visual view of the same data as the map, in the backend's local metre frame. Not yet opened during a PX4 flight |
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
