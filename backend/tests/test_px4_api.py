@@ -108,13 +108,19 @@ def test_real_mavsdk_reports_no_px4_quickly(monkeypatch):
 
 
 def test_cancelled_run_lets_the_source_finish(database_url, monkeypatch):
-    """When the backend shuts down mid-flight, the source's cleanup runs (for PX4: return to launch)."""
+    """When the backend shuts down mid-flight, the source's cleanup runs (for PX4: return to launch), and the
+    mission is stored as failed."""
+    import threading
+
     from fastapi.testclient import TestClient
+    from sqlmodel import Session
 
     from app.config import Settings
+    from app.db import make_engine
     from app.main import create_app
+    from app.models import Mission
 
-    finished = []
+    flying, finished = threading.Event(), []
 
     class EndlessPx4(FakePx4):
         speed_factor = 1.0
@@ -122,6 +128,7 @@ def test_cancelled_run_lets_the_source_finish(database_url, monkeypatch):
         async def frames(self):
             try:
                 async for f in super().frames():
+                    flying.set()
                     yield f
             finally:
                 finished.append(True)
@@ -132,8 +139,14 @@ def test_cancelled_run_lets_the_source_finish(database_url, monkeypatch):
         headers = auth_headers(c, "supervisor")
         mission_id = create(c, headers)
         assert c.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers).status_code == 202
+        assert flying.wait(10)  # the run reads the mission (in a worker thread) before it flies
         assert not finished
     assert finished == [True]  # leaving the block shut the app down and cancelled the run
+    engine = make_engine(database_url)
+    with Session(engine) as session:
+        mission = session.get(Mission, mission_id)
+        assert (mission.status, mission.error) == ("failed", "Mission run was cancelled")
+    engine.dispose()
 
 
 def test_live_view_knows_when_the_survey_lines_began(client, monkeypatch):

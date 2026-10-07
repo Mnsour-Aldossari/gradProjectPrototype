@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import secrets
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -202,11 +203,22 @@ def _check_can_start(request: Request, mission: Mission) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
 
 
+def _mark_running(session: Session, mission: Mission) -> None:
+    mission.status = "running"
+    mission.started_at = utcnow()
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+
+
 async def _start(
     request: Request, session: Session, mission: Mission, speed_factor: float, gazebo: bool = False
 ) -> Mission:
     """Start the mission with the source in mission.uav_source. PX4 is reached and given the survey first; if
-    that fails the mission stays planned and the reason goes back to the user. gazebo: PX4 in Gazebo's window."""
+    that fails the mission stays planned and the reason goes back to the user. gazebo: PX4 in Gazebo's window.
+
+    The database is used from worker threads here, as in the runner: these endpoints run in the event loop, which
+    keeps the live views of other flights moving."""
     runner = request.app.state.runner
     _check_can_start(request, mission)
     source = make_source(mission, request.app.state.settings, speed_factor, gazebo=gazebo)
@@ -218,16 +230,13 @@ async def _start(
         try:
             await source.connect()
         except Px4Unavailable as e:
-            session.rollback()  # the source choice is only kept for a mission that starts
+            await asyncio.to_thread(session.rollback)  # the source choice is only kept for a mission that starts
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    async with runner.starting:
         _check_can_start(request, mission)  # another request may have started it meanwhile
-    mission.status = "running"
-    mission.started_at = utcnow()
-    session.add(mission)
-    session.commit()
-    session.refresh(mission)
-    request.app.state.hub.publish(mission.id, mission_event(mission, "surveying"))
-    runner.start(mission.id, source, px4=px4)
+        await asyncio.to_thread(_mark_running, session, mission)
+        request.app.state.hub.publish(mission.id, mission_event(mission, "surveying"))
+        runner.start(mission.id, source, px4=px4)
     return mission
 
 
@@ -257,7 +266,7 @@ async def run_demo_scenario(
     request: Request, session: SessionDep, user: SupervisorUser, body: StartRequest | None = None
 ) -> MissionRead:
     """Create and start the fixed demo scenario. Same seed and settings every time, so the same result."""
-    mission = _create(session, MissionCreate(**DEMO_SCENARIO), user)
+    mission = await asyncio.to_thread(_create, session, MissionCreate(**DEMO_SCENARIO), user)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else DEMO_SPEED_FACTOR
     mission = await _start(request, session, mission, speed_factor)  # always the simulator
     return mission_read(session, mission, runner=request.app.state.runner)
@@ -278,7 +287,7 @@ async def start_mission(
     _: SupervisorUser,
     body: StartRequest | None = None,
 ) -> MissionRead:
-    mission = get_mission_or_404(session, mission_id)
+    mission = await asyncio.to_thread(get_mission_or_404, session, mission_id)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else settings.default_speed_factor
     gazebo = body is not None and body.gazebo
     if gazebo and (body.uav_source or mission.uav_source) != "px4":
