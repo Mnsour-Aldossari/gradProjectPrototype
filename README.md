@@ -20,6 +20,7 @@ The current version is a prototype and is not ready for public deployment; see
 | `backend/app/evaluation/` | Evaluation protocol (tuning vs. evaluation seeds) and harness that runs simulated surveys through both methods | `simulation/`, `detection/` |
 | `backend/scripts/calibrate.py` | Parameter calibration on tuning seeds only | `evaluation/` |
 | `backend/app/api/` | REST endpoints, WebSocket hub (`/ws/missions/{id}`), auth, background mission runner (live adaptive detections) | all of the above + DB |
+| `backend/app/report/` | The mission report as a PDF (fpdf2) and the search for a font with Arabic letters | `simulation/` (the survey's frame), DB models |
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
 | `backend/migrations/`, `alembic.ini` | Database migrations (Alembic), run by the backend at startup | `models.py` |
 | `backend/tests/` | PyTest suite | — |
@@ -191,6 +192,41 @@ The percentage is the share of the lanes' length read without gaps; the reason a
 the badges. A sensor that stops sending never stops the flight: frames without a reading only leave a gap. When a
 flight fails, the readings taken before are stored and counted.
 
+## Sensor heatmap and PDF report
+
+**Heatmap.** **Heatmap: MD / GPR / Hide** above the mission map colours the ground read so far with the metal
+detector's or the radar's readings, live while the UAV flies (refreshed every 3 s) and for a finished mission (the
+same page, opened from History). One row per lane, one cell per 0.5 m of lane; a cell shows the strongest reading in
+it. Values are divided by a fixed full scale (MD 1.0, GPR 0.4, the same for every mission) and capped at 1; the colour
+is one blue from pale (weak) to dark (strong), on a square-root scale so the soil's background still shows. The legend
+says the units are normalized and the data simulated; hovering the map shows the value under the pointer. A big
+survey gets fewer, bigger cells (at most 200 rows and 20,000 cells); the 60 × 40 m demo is 21 × 122 cells for its
+3,293 readings (34 KB). The choice is kept per user in the browser with the other display settings (**Reset to
+default** clears it). While the heatmap shows, it replaces the white band of ground scanned.
+
+**PDF report.** **Download report** on the mission page (from the start of the survey; a report made during the flight says so) and **PDF** in History's last
+column, for the supervisor only (the field operator gets 403). It holds the mission's name and dates, what flew it,
+the flight status and the sensor status with its note, a map to scale (area, planned lanes, track flown, detections
+with their numbers, north arrow, scale bar), a summary (potential detections per category; confirmed by team, false
+alarm and awaiting verification), and a table of the adaptive detections: number, category, score, latitude,
+longitude and verification. Every page ends with "Simulated data — potential detections for verification by trained
+personnel" and the same in Arabic. Headings are in English and Arabic; Arabic mission names are shaped and read from
+the right.
+
+It is made on the server (`backend/app/report/`) with **fpdf2** (2.8.9, pure Python, LGPL-3.0), with **uharfbuzz**
+(HarfBuzz) shaping the Arabic letters. Why there and with that:
+
+- On the server, the server decides who may have the report, and a test can open the file and read every page. The
+  same file comes out on any browser or phone, and the map is drawn from the stored data, without satellite tiles,
+  so nothing is fetched from outside.
+- fpdf2 installs from wheels on Python 3.14 for Windows and Linux with nothing else to set up, shapes Arabic through
+  HarfBuzz and lays out right-to-left text itself. WeasyPrint (HTML to PDF) would need GTK/Pango installed on
+  Windows.
+
+No font is shipped: the report uses Arial on Windows (Segoe UI or Tahoma if Arial is missing) and DejaVu Sans on
+Linux and in the Docker image, which have Arabic letters. `REPORT_FONT` (and `REPORT_FONT_BOLD`) names another .ttf
+file; without a font that has Arabic letters the report answers 503 and says so.
+
 ## 3D view
 
 The **3D** button on the mission map (supervisor) opens `/missions/{id}/3d`, laid out after the "Mission view"
@@ -242,6 +278,7 @@ in the browser and is never sent to the server.
 | `PX4_GAZEBO_DISTRO` | `Ubuntu-22.04` | the WSL distribution where PX4-Autopilot is built, for **PX4 SITL + Gazebo window** |
 | `PX4_GAZEBO_DIR` | `PX4-Autopilot` | PX4-Autopilot's folder in that distribution, in the user's home or an absolute path |
 | `PX4_URL` | `udpin://0.0.0.0:14540` | where MAVSDK listens for PX4, for missions flown with PX4 |
+| `REPORT_FONT`, `REPORT_FONT_BOLD` | unset | a .ttf font with Arabic letters (and its bold) for the PDF report; unset: Arial on Windows, DejaVu Sans on Linux |
 
 ## PostgreSQL (optional)
 
@@ -332,8 +369,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **229 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **230 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+Expected result: **240 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **241 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -385,6 +422,8 @@ PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this READM
 | GET | `/api/missions/{id}/telemetry` | any user |
 | GET | `/api/missions/{id}/detections?method=adaptive` | any user |
 | GET | `/api/missions/{id}/profile` | any user — how the adaptive classifier is configured for the mission |
+| GET | `/api/missions/{id}/heatmap` | any user — the readings so far as a grid of normalized peaks, one row per lane (simulated data) |
+| GET | `/api/missions/{id}/report.pdf` | supervisor — the mission report as a PDF; 503 if the server has no font with Arabic letters |
 | WS | `/ws/missions/{id}?token=...` | snapshot, then live telemetry, detections, alerts, status |
 | PATCH | `/api/detections/{id}` | any user; `pending` / `confirmed_by_team` / `false_alarm` |
 | GET | `/api/evaluation` | any user — baseline vs adaptive on the evaluation seeds (simulated data) |
@@ -414,6 +453,17 @@ Works (implemented and tested with PyTest and/or in the browser):
   Completed with the landing confirmed from MAVSDK and Sensors Complete (100%, 856 readings); Land after 75 s gave
   Stopped, Partial (36%). Not tried: a real PX4 failsafe (the reason is taken from PX4's status messages mentioning
   "failsafe"), Gazebo's window.
+- Sensor heatmap: tested with PyTest (lanes as rows, strongest reading per cell, the full scale, fewer cells for a big
+  survey) and in the browser on the demo with the simulator, at desktop and phone size, light and dark: it filled in
+  lane by lane during the flight, MD and GPR and Hide switch it, the value shows on hover, and the choice stayed after
+  a reload.
+- PDF report: tested with PyTest on SQLite and PostgreSQL (a valid PDF for the supervisor with the notice in English
+  and Arabic and "Page n of m" on every page, the detections' coordinates and scores, an Arabic mission name, 80
+  detections over several pages; 403 for the field operator, 401 without a token, 503 without a font). In the browser
+  the mission page's and History's buttons fetched the PDF (the file was not saved), the field operator had no
+  button, and the report came out for each of the 59 missions in a copy of the development PC's database (simulator
+  and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
+  mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
 - Database migrations (Alembic), run at startup: tried on SQLite and on PostgreSQL 17 in Docker with a new database,

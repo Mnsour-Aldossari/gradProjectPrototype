@@ -21,7 +21,8 @@ narrow interface. The prototype has five layers:
    because GPR and MD readings are not MAVLink messages. The prototype implements `SimulatedSource` and
    `Px4MavlinkSource` (PX4 SITL + Gazebo over MAVLink, through MAVSDK), chosen per mission.
 3. **Application layer (backend).** A FastAPI service with:
-   - a REST API for authentication, missions, telemetry, detections, verification and evaluation;
+   - a REST API for authentication, missions, telemetry, detections, verification and evaluation, the sensor
+     readings as a heatmap grid, and the mission report as a PDF (made on the server with fpdf2, `backend/app/report/`);
    - a WebSocket hub that pushes live events to connected clients;
    - a background *mission runner* that consumes a `TelemetrySource`, stores the data and runs the detection
      engine while the UAV flies. It writes to the database from a worker thread, never in the event loop that sends
@@ -246,6 +247,8 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | 3D view (`web/src/view3d/`, three.js) | Implemented and tested in the browser with the simulator (live and replay); a visual view of the same data as the map, in the backend's local metre frame. Not yet opened during a PX4 flight |
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
 | Mission history page (counts per category, verification progress) | Implemented and tested in the browser |
+| Sensor heatmap (MD / GPR) on the mission map | Implemented; tested with PyTest and in the browser with the simulator (live and finished) |
+| PDF mission report (supervisor) | Implemented; tested with PyTest (SQLite and PostgreSQL), in the browser and in the Docker image |
 | Evaluation page and generated results | Implemented |
 | PX4 / MAVLink source (`Px4MavlinkSource`) | Implemented and flown on small surveys with PX4 1.17.0 SITL (headless Docker image) and PX4 v1.18.0-beta1 SITL in Gazebo's window (WSL); see [PX4 SITL + Gazebo](#px4-sitl--gazebo). Not tried with a real vehicle; QGroundControl only by hand |
 

@@ -58,6 +58,9 @@ class Settings:
     # Where PX4-Autopilot is built in WSL (make px4_sitl gz_x500): the distribution, and the folder in its home.
     px4_gazebo_distro: str = "Ubuntu-22.04"
     px4_gazebo_dir: str = "PX4-Autopilot"
+    # A .ttf font with Arabic letters for the PDF report (and its bold); empty: Arial on Windows, DejaVu Sans on Linux.
+    report_font: str = ""
+    report_font_bold: str = ""
     token_ttl_s: int = 12 * 3600
     cors_origins: tuple[str, ...] = ("http://localhost:5180", "http://127.0.0.1:5180")
 
@@ -75,4 +78,6 @@ class Settings:
             database_ui_url=database_ui_url(os.environ.get("DATABASE_UI_URL", "")),
             px4_gazebo_distro=os.environ.get("PX4_GAZEBO_DISTRO", "Ubuntu-22.04"),
             px4_gazebo_dir=os.environ.get("PX4_GAZEBO_DIR", "PX4-Autopilot"),
+            report_font=os.environ.get("REPORT_FONT", ""),
+            report_font_bold=os.environ.get("REPORT_FONT_BOLD", ""),
         )

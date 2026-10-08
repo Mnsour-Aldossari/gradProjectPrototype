@@ -1,6 +1,9 @@
 # Backend image (FastAPI + simulator + detection engine). NOT built or run yet - see README.
 FROM python:3.14-slim
 
+# DejaVu Sans has Arabic letters, for the PDF report (app/report/fonts.py).
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
