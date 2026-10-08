@@ -27,6 +27,9 @@ export interface MissionStats {
 /** What flies a survey: the built-in simulator, or PX4 (SITL + Gazebo) over MAVLink. */
 export type UavSource = 'simulated' | 'px4'
 
+/** How well the sensor readings cover the survey's lanes, apart from how the flight ended. */
+export type SensorCollection = 'complete' | 'partial' | 'failed' | 'not_started'
+
 export interface Mission {
   id: number
   name: string
@@ -52,6 +55,13 @@ export interface Mission {
   progress: number
   battery_pct: number | null
   error: string | null
+  /** null: flown before the collection was recorded (v1.8 and older). */
+  sensor_collection: SensorCollection | null
+  sensor_reading_count: number
+  /** Share of the lanes' length read without gaps, 0..1. */
+  sensor_coverage: number | null
+  /** Why the collection is not complete. */
+  sensor_note: string | null
   created_by: number | null
   created_at: string
   started_at: string | null

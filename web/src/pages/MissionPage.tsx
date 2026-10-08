@@ -8,6 +8,7 @@ import { FlightControls } from '../components/FlightControls'
 import { Select } from '../components/Select'
 import { SensorTrace } from '../components/SensorTrace'
 import { Splitter } from '../components/Splitter'
+import { SensorBadge, SensorNote } from '../components/SensorBadge'
 import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
 import { remainingS } from '../field/mapInfo'
@@ -460,7 +461,10 @@ export function MissionPage() {
         keep={
           <>
             <div className="row spread">
-              <StatusBadge mission={mission} />
+              <span className="outcome">
+                <StatusBadge mission={mission} label="Flight" />
+                <SensorBadge mission={mission} label="Sensors" />
+              </span>
               <span className="num">{progress}% of path</span>
             </div>
             <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
@@ -472,6 +476,7 @@ export function MissionPage() {
               ) : (
                 <p className="error">{mission.error}</p>
               ))}
+            <SensorNote mission={mission} />
             {user?.role === 'supervisor' && mission.status === 'running' && <FlightControls mission={mission} />}
             {canStart && (
               <div className="start">

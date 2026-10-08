@@ -682,6 +682,45 @@ textarea {
   color: #1a1a1a;
 }
 
+/* Sensor collection: outlined, so it reads apart from the flight's status next to it. */
+.sensors {
+  display: inline-block;
+  padding: 1px 9px;
+  border: 1px solid var(--input-rule);
+  border-radius: 999px;
+  white-space: nowrap;
+  font: 600 calc(12.5px * var(--text-scale)) var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.sensors-complete {
+  border-color: var(--status-ok-fg);
+  color: var(--status-ok-fg);
+}
+.sensors-partial {
+  border-color: var(--amber);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
+.sensors-failed {
+  border-color: var(--hazard);
+  color: var(--hazard);
+}
+.sensors-collecting {
+  border-color: var(--survey);
+  color: var(--survey);
+}
+.outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sensor-note {
+  margin: 0;
+}
+
 /* ---------- flight controls (supervisor, during a flight) ---------- */
 
 .flight-controls {

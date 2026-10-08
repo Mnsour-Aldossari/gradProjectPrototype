@@ -6,6 +6,7 @@ import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { DisplayMenu } from '../components/DisplayMenu'
 import { Select } from '../components/Select'
+import { SensorBadge, SensorNote } from '../components/SensorBadge'
 import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
@@ -298,9 +299,13 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
               {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m
             </p>
             <div className="row spread">
-              <StatusBadge mission={mission} />
+              <span className="outcome">
+                <StatusBadge mission={mission} label="Flight" />
+                <SensorBadge mission={mission} label="Sensors" />
+              </span>
               <span className="num">{progress}% of path</span>
             </div>
+            <SensorNote mission={mission} />
             <dl className="telemetry">
               <div>
                 <dt>Battery</dt>

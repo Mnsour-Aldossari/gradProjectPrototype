@@ -5,6 +5,7 @@ import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { FlightControls } from '../components/FlightControls'
 import { Select } from '../components/Select'
+import { SensorBadge } from '../components/SensorBadge'
 import { StatusBadge } from '../components/StatusBadge'
 import { laneProgress, remainingS } from '../field/mapInfo'
 import { formatDuration } from '../format'
@@ -525,7 +526,10 @@ export default function View3DPage() {
             {live && state.connection !== 'open' ? ' · Reconnecting…' : ''}
           </span>
         </div>
-        <StatusBadge mission={mission} />
+        <span className="outcome">
+          <StatusBadge mission={mission} label="Flight" />
+          <SensorBadge mission={mission} label="Sensors" />
+        </span>
         <span className="v3d-grow" />
         <div className="v3d-seg" role="group" aria-label="Camera">
           {CAMERAS.map((c) => (

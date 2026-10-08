@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
+import { SensorBadge } from '../components/SensorBadge'
 import { formatDate, formatDuration } from '../format'
 import { CATEGORY_LABELS, SOIL_LABELS, STATUS_LABELS, type Category, type MissionHistory } from '../types'
 
@@ -64,6 +65,7 @@ export function HistoryPage() {
               <thead>
                 <tr>
                   <th>Mission</th>
+                  <th>Sensors</th>
                   <th>Finished</th>
                   <th>Soil</th>
                   <th>Flight time</th>
@@ -87,6 +89,9 @@ export function HistoryPage() {
                           </span>
                         )}
                       </th>
+                      <td>
+                        <SensorBadge mission={m} />
+                      </td>
                       <td>{formatDate(m.completed_at)}</td>
                       <td>{SOIL_LABELS[m.soil_type]}</td>
                       <td className="num">{formatDuration(m.estimated_duration_s)}</td>
