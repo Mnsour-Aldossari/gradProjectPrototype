@@ -291,7 +291,20 @@ normal test.
 ```bash
 cd web
 npm run typecheck
+npm test
 ```
+
+`npm test` runs the web tests (Vitest, Testing Library, jsdom): **15 passed**, in about 3 s. They render the app
+without a backend: `fetch` and the WebSocket are faked (`web/src/test/fakes.tsx`), and the Leaflet map is replaced by
+a plain element that shows where the UAV is and which detections it was given (`web/src/test/setup.ts`). They cover
+signing in (each role lands on its own page, a wrong password, a field operator sent away from a supervisor page),
+planning a mission (each drawn outline is checked with `POST /api/missions/check` and its problems shown), the flight
+controls (Pause and Resume; Return Home and Land ask first; hidden from the field operator), live updates (telemetry
+moves the UAV, a new detection joins the list and the map), verification (`PATCH` with `confirmed_by_team` or
+`false_alarm` and the notes), and display settings (theme and text size saved per user and restored). The real map,
+drawing on it, and the 3D view are not covered (jsdom has no layout or WebGL). On Node.js 25 and newer, Node's own
+`localStorage` hides jsdom's; `web/vitest.config.ts` turns it off in the test workers
+(`--no-experimental-webstorage`), so `npm test` works the same on every platform.
 
 Calibration and evaluation scripts (both **overwrite files in `docs/`**, so they were not re-run while this README
 was reviewed):
@@ -356,6 +369,10 @@ Works (implemented and tested with PyTest and/or in the browser):
   (desktop and phone size); with PX4 SITL + Gazebo (headless Docker image), tried by hand in the browser.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
+- Web tests (`npm test` in `web/`, 15 tests, Node.js 26 on Windows 11): sign-in, mission planning, flight controls,
+  live updates, verification and display settings, with the backend faked. Of six deliberate breakages of the code
+  they cover, five made a test fail; the sixth changed nothing a user sees (field operators are sent from `/` to
+  `/field` as well).
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
   verification, comparison with the baseline, mission history, evaluation page.
 - Field view `/field` at phone size: alerts, nearest potential detections, verification.
