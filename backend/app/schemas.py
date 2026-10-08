@@ -114,6 +114,12 @@ class MissionRead(BaseModel):
     progress: float
     battery_pct: float | None
     error: str | None
+    # Apart from the flight: how well the readings cover the lanes (complete | partial | failed | not_started; None
+    # for missions flown before it was recorded), how many readings, the share of the lanes read, and why not all.
+    sensor_collection: str | None
+    sensor_reading_count: int
+    sensor_coverage: float | None
+    sensor_note: str | None
     created_by: int | None
     created_at: UtcDatetime
     started_at: UtcDatetime | None

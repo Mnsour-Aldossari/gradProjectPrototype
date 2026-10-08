@@ -111,6 +111,25 @@ def test_a_database_from_before_migrations_keeps_its_rows(database_url, version_
     engine.dispose()
 
 
+def test_missions_from_before_the_sensor_collection_count_their_readings(database_url):
+    """0002: a mission flown before keeps its collection unrecorded, with its readings counted; a planned one has not
+    started collecting."""
+    engine = make_engine(database_url)
+    pre_migration_database(engine, version_1_2=False)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO missions (id, name, area, path, path_length_m, altitude_m, speed_mps, line_spacing_m,"
+            " soil_type, scenario_seed, status, progress, created_at, uav_source) VALUES (2, 'Next survey', '[]',"
+            " '[]', 10, 1.5, 2, 2, 'dry_sand', 8, 'planned', 0, '2026-10-02 10:00:00', 'simulated')"
+        ))
+    init_db(engine)
+    with Session(engine) as session:
+        flown, planned = session.get(Mission, 1), session.get(Mission, 2)
+    assert (flown.sensor_collection, flown.sensor_reading_count, flown.sensor_coverage) == (None, 1, None)
+    assert (planned.sensor_collection, planned.sensor_reading_count) == ("not_started", 0)
+    engine.dispose()
+
+
 def test_a_copy_of_the_local_database_keeps_every_row(tmp_path):
     """backend/uav.db, the database the backend on this PC uses, copied first: the original is only read."""
     if not LOCAL_DB.exists():

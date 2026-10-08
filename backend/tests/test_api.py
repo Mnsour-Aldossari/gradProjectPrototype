@@ -51,13 +51,16 @@ def test_full_mission_run_stores_telemetry_readings_and_detections(client):
     assert mission["progress"] == 1.0
     stats = mission["stats"]
     assert stats["telemetry_points"] > 100
-    assert stats["sensor_readings"] == stats["telemetry_points"]
+    # A reading with every frame of the survey; none on the way down after the last lane (1.5 m at 0.5 m/s).
+    assert 0 < stats["telemetry_points"] - stats["sensor_readings"] <= 20
     assert stats["detections"] >= 1
+    assert (mission["sensor_collection"], mission["sensor_reading_count"]) == ("complete", stats["sensor_readings"])
 
     telemetry = client.get(f"/api/missions/{mission_id}/telemetry", headers=sup).json()
     assert len(telemetry) == stats["telemetry_points"]
     assert telemetry[0]["battery_pct"] >= telemetry[-1]["battery_pct"]
     assert 1.0 < telemetry[0]["relative_alt_m"] < 2.0
+    assert telemetry[-1]["relative_alt_m"] == 0.0  # landed
 
     detections = client.get(f"/api/missions/{mission_id}/detections", headers=sup).json()
     assert len(detections) == stats["detections"]

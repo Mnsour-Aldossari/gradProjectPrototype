@@ -49,6 +49,12 @@ class Mission(SQLModel, table=True):
     progress: float = 0.0
     battery_pct: float | None = None
     error: str | None = None
+    # How well the sensor readings cover the survey's lanes, apart from how the flight ended (api/collection.py):
+    # not_started | complete | partial | failed. None: flown before this was recorded (v1.8 and older).
+    sensor_collection: str | None = "not_started"
+    sensor_reading_count: int = 0
+    sensor_coverage: float | None = None  # share of the lanes' length read without gaps, 0..1
+    sensor_note: str | None = None  # why the collection is not complete
     created_by: int | None = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=utcnow)
     started_at: datetime | None = None

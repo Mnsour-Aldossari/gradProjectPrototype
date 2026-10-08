@@ -124,7 +124,7 @@ sequenceDiagram
         Hub-->>Web: markers + alert
         Hub-->>Field: markers + alert
     end
-    Runner->>DB: final adaptive sync + baseline detections, status completed
+    Runner->>DB: final adaptive sync + baseline detections, status completed (landing confirmed), sensor collection
     Field->>API: PATCH /api/detections/{id} (confirmed_by_team / false_alarm)
     API->>Hub: detection_updated
     Hub-->>Web: verification shown on the supervisor dashboard
@@ -159,6 +159,9 @@ erDiagram
         int scenario_seed
         string status "planned | running | completed | stopped | failed"
         float progress
+        string sensor_collection "complete | partial | failed | not_started"
+        int sensor_reading_count
+        float sensor_coverage
         int created_by FK
     }
     TELEMETRY_POINTS {
@@ -287,6 +290,14 @@ No sensor readings are taken while paused or on the way down. After Return Home 
 is down (PX4: disarmed), and the mission is stored as `stopped` with the reason; the detector's last update and the
 baseline run on what was scanned. The phase is not stored: it comes with the mission while it runs (REST, WebSocket
 snapshot and mission events).
+
+Whichever way a flight ends, the runner then checks the last frame before storing anything
+(`backend/app/uav/landing.py`): disarmed, landed state on the ground, within 0.35 m of the takeoff ground, under 2 s
+old and no failsafe; otherwise the mission fails with the reasons. Each frame carries a `VehicleStatus` for this
+(MAVLink HEARTBEAT armed flag, EXTENDED_SYS_STATE landed state). Separately, `backend/app/api/collection.py` grades
+the sensor collection from where the readings lie along the lanes (complete, partial, failed, not started), so a
+flight and its data are judged apart: missing readings never stop a flight, and a failed flight keeps and counts
+what was read.
 
 ## Future Phases
 

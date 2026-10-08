@@ -36,7 +36,7 @@ from .px4_plan import (
     home_check,
     survey_waypoints,
 )
-from .source import TelemetryFrame
+from .source import TelemetryFrame, VehicleStatus
 
 DISCOVERY_TIMEOUT_S = 10.0  # how long to listen for PX4's heartbeat
 READY_TIMEOUT_S = 60.0  # GPS fix and home position, a few seconds after PX4 SITL starts
@@ -329,14 +329,17 @@ class Px4MavlinkSource:
 
         telemetry, mission, action = TelemetryAsync(self._system), MissionAsync(self._system), ActionAsync(self._system)
         latest: dict[str, object] = {}
-        position_at = [0.0]
+        received: dict[str, float] = {}  # when each value last came (monotonic clock)
+        failsafe: list[str] = []  # what PX4 said when a failsafe started during this flight
 
         async def follow(name: str, stream) -> None:
             async with contextlib.aclosing(stream) as values:
                 async for value in values:
                     latest[name] = value
-                    if name == "position":
-                        position_at[0] = time.monotonic()
+                    received[name] = time.monotonic()
+                    # PX4 reports a failsafe (and its end) in its status messages; one during the flight is kept.
+                    if name == "status_text" and "failsafe" in (getattr(value, "text", "") or "").lower():
+                        failsafe.append(value.text)
 
         streams = {
             "position": telemetry.subscribe_position(),
@@ -344,9 +347,29 @@ class Px4MavlinkSource:
             "heading": telemetry.subscribe_heading(),
             "battery": telemetry.subscribe_battery(),
             "armed": telemetry.subscribe_armed(),
+            "landed": telemetry.subscribe_landed_state(),
+            "status_text": telemetry.subscribe_status_text(),
         }
         tasks = [asyncio.create_task(follow(name, stream)) for name, stream in streams.items()]
-        for set_rate in (telemetry.set_rate_position, telemetry.set_rate_velocity_ned, telemetry.set_rate_battery):
+
+        def vehicle_status() -> VehicleStatus:
+            """Armed (unknown counts as armed), landed state and failsafe, with the age of the oldest of position,
+            armed and landed state."""
+            now = time.monotonic()
+            landed = latest.get("landed")
+            return VehicleStatus(
+                armed=latest.get("armed") is not False,
+                landed_state=0 if landed is None else int(landed),
+                failsafe=failsafe[0] if failsafe else None,
+                age_s=max(now - received.get(name, -math.inf) for name in ("position", "armed", "landed")),
+            )
+
+        for set_rate in (
+            telemetry.set_rate_position,
+            telemetry.set_rate_velocity_ned,
+            telemetry.set_rate_battery,
+            telemetry.set_rate_landed_state,
+        ):
             with contextlib.suppress(Exception):  # PX4 keeps its own rate if it refuses
                 await set_rate(RATE_HZ)
 
@@ -386,7 +409,7 @@ class Px4MavlinkSource:
             for i in range(1, 2**31):
                 await asyncio.sleep(max(0.0, start + i * FRAME_PERIOD_S - loop.time()))
                 pos = latest.get("position")
-                if pos is None or time.monotonic() - position_at[0] > LINK_TIMEOUT_S:
+                if pos is None or time.monotonic() - received["position"] > LINK_TIMEOUT_S:
                     if pos is not None or loop.time() - start > LINK_TIMEOUT_S:
                         raise RuntimeError(f"Lost the link to PX4: no position for {LINK_TIMEOUT_S:.0f} s")
                     continue
@@ -416,6 +439,7 @@ class Px4MavlinkSource:
                     total=tracker.total,
                 )
                 frame = build_frame(state, loop.time() - start, self._sim, progress, scanning=control.scanning)
+                frame = dataclasses.replace(frame, status=vehicle_status())
                 if ending:
                     frame = dataclasses.replace(frame, progress=stopped_at)
                 else:

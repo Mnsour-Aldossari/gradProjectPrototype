@@ -164,6 +164,33 @@ simulator and PX4 alike:
   scanned, and its potential detections, are kept and shown in History.
 - The field view shows Paused, Returning home or Landing; only the supervisor has the buttons.
 
+## Landing confirmation and sensor collection
+
+**Landing.** A mission is **Completed** (or **Stopped**, after Return Home or Land) only when the last telemetry
+shows the UAV disarmed, reported on the ground, within 0.35 m of the takeoff ground, less than 2 s old, and without
+a failsafe (`backend/app/uav/landing.py`). Otherwise it is **Failed** with the reasons, e.g. "Landing not confirmed:
+still armed" or "Returned home by the supervisor, but the landing was not confirmed: …". With PX4 the values come
+from MAVSDK (armed, landed state, position; a failsafe from PX4's status messages); the simulator lands where the
+last lane ends (0.5 m/s straight down) and then reports itself on the ground and disarmed. The landing adds a few
+frames without readings; the readings, and so the demo's detections and the evaluation, are unchanged.
+
+**Sensor collection**, shown apart from the flight: "Flight: Completed · Sensors: Partial (62%)" on the mission's
+Flight card, the field view's Status tab, the 3D view's top bar, and a **Sensors** column in History
+(`backend/app/api/collection.py`):
+
+| Sensors | When |
+|---|---|
+| Complete (100%) | every lane read without a gap |
+| Partial (n%) | a gap (more than 3 sample spacings, at least 1 m, along a lane without a reading), the survey ended early (Return Home, Land, a failed flight, a server stop), or a pause longer than 1 minute (real time) |
+| Failed | the UAV flew but no reading came |
+| Not started | not flown yet |
+| Collecting | while it flies, with the readings so far |
+| Not recorded | missions flown with v1.8 or older (their readings are counted) |
+
+The percentage is the share of the lanes' length read without gaps; the reason and the number of readings are under
+the badges. A sensor that stops sending never stops the flight: frames without a reading only leave a gap. When a
+flight fails, the readings taken before are stored and counted.
+
 ## 3D view
 
 The **3D** button on the mission map (supervisor) opens `/missions/{id}/3d`, laid out after the "Mission view"
@@ -305,8 +332,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **202 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **203 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+Expected result: **229 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **230 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -379,6 +406,14 @@ Works (implemented and tested with PyTest and/or in the browser):
   was stopped.
 - Flight controls (Pause, Resume, Return Home, Land): with the simulator, tested with PyTest and in the browser
   (desktop and phone size); with PX4 SITL + Gazebo (headless Docker image), tried by hand in the browser.
+- Landing confirmation and sensor collection: tested with PyTest (each landing check, gaps, a sensor dropping out
+  mid-lane, no readings, a flight failing mid-survey, a server stop, a pause over a minute, migration `0002` on old
+  databases) and in the browser with the simulator (desktop and phone size, light and dark: the demo ended Completed
+  with Sensors Complete (100%) and the same detections as before; Land after 8 s gave Stopped, Partial (12%); a 65 s
+  pause gave Completed, Partial). With PX4 SITL (headless Docker image) on a 21 × 21 m survey: flown to the end,
+  Completed with the landing confirmed from MAVSDK and Sensors Complete (100%, 856 readings); Land after 75 s gave
+  Stopped, Partial (36%). Not tried: a real PX4 failsafe (the reason is taken from PX4's status messages mentioning
+  "failsafe"), Gazebo's window.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
 - Database migrations (Alembic), run at startup: tried on SQLite and on PostgreSQL 17 in Docker with a new database,
