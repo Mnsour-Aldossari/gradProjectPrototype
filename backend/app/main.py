@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, detections, evaluation, heatmap, missions, reports, ros, ws
+from .api import accuracy, auth, detections, evaluation, heatmap, missions, reports, ros, ws
 from .api.runner import MissionRunner
 from .api.ws import Hub
 from .config import Settings
@@ -60,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(reports.router)
     app.include_router(detections.router)
     app.include_router(evaluation.router)
+    app.include_router(accuracy.router)
     app.include_router(ros.router)
     app.include_router(ws.router)
 

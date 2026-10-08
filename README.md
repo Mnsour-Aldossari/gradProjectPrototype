@@ -213,6 +213,31 @@ The percentage is the share of the lanes' length read without gaps; the reason a
 the badges. A sensor that stops sending never stops the flight: frames without a reading only leave a gap. When a
 flight fails, the readings taken before are stored and counted.
 
+## Expected accuracy while planning
+
+**Plan a mission** shows, under the height, speed and lane spacing, what the detector is expected to find with those
+settings on the chosen soil: the share of the mines found (with its margin), the share of the reports that are
+mines, the share of the low-metal mines found, and false alarms per hectare. It follows every change.
+
+The numbers come from `backend/app/detection/accuracy_table.json`, which `python -m scripts.accuracy_table` (in
+`backend/`) builds: the standard test field flown on a grid (height 0.5–5 m, speed 0.5–5 m/s, lane spacing 0.5–5 m,
+630 settings with the soils) on 30 seeds of its own (3000–3029, neither tuning nor evaluation seeds), scored as the
+evaluation scores (a mine within 1.5 m reported as high priority or needs verification). Between grid points the
+counts are interpolated. About 13 minutes on 18 cores; it does not touch `docs/` or the frozen parameters.
+`GET /api/accuracy` gives one estimate, `GET /api/accuracy/grid` a whole soil.
+
+What the table shows (simulated data, the current adaptive detector):
+
+| Soil | Standard: 1.5 m, 2 m/s, 2 m lanes | Slower, closer lanes: 1.5 m, 1 m/s, 1 m lanes | Lower too: 1.0 m, 1 m/s, 1 m |
+|---|---|---|---|
+| Dry sand | 77 % found, 53 % of low-metal | 93 %, 87 % | 96 %, 91 % |
+| Wet clay | 53 %, 42 % | 70 %, 72 % | 62 %, 84 % |
+| Mineralised rocky | 68 %, 26 % | 86 %, 68 % | 70 %, 71 % |
+
+Slower flight and closer lanes help everywhere (the flight takes about four times longer). Flying lower helps the
+low-metal mines but, with this detector, loses metal mines in wet clay and rocky soil: its thresholds were calibrated
+at 1.5 m. The estimate compares settings inside the simulation; it does not predict field performance.
+
 ## Sensor heatmap and PDF report
 
 **Heatmap.** **Heatmap: MD / GPR / Hide** above the mission map colours the ground read so far with the metal
@@ -509,8 +534,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **267 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **268 passed, 2 xfailed** (with the ROS 2 switch; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
+Expected result: **272 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **273 passed, 2 xfailed** (with the accuracy estimate; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -522,7 +547,7 @@ npm run typecheck
 npm test
 ```
 
-`npm test` runs the web tests (Vitest, Testing Library, jsdom): **19 passed**, in about 3 s. They render the app
+`npm test` runs the web tests (Vitest, Testing Library, jsdom): **20 passed**, in about 3 s. They render the app
 without a backend: `fetch` and the WebSocket are faked (`web/src/test/fakes.tsx`), and the Leaflet map is replaced by
 a plain element that shows where the UAV is and which detections it was given (`web/src/test/setup.ts`). They cover
 signing in (each role lands on its own page, a wrong password, a field operator sent away from a supervisor page),
@@ -592,13 +617,14 @@ PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this READM
 | GET | `/api/missions/history` | any user — finished missions (completed, stopped, failed) with potential-detection counts per category and verification progress |
 | GET | `/api/missions/{id}` | any user (includes stored-data counts) |
 | POST | `/api/missions/{id}/start` | supervisor; body `{"speed_factor": 10, "uav_source": "simulated"}`, `{"uav_source": "px4"}` or `{"uav_source": "px4", "gazebo": true}` (Gazebo's window, WSL); 503 with the reason if PX4 cannot fly it |
-| POST | `/api/missions/check` | supervisor; the same body as creating a mission; returns the lanes and the problems for that outline without storing anything |
+| POST | `/api/missions/check` | supervisor; the same body as creating a mission; returns the lanes and the problems for that outline, and the expected accuracy with its settings, without storing anything |
 | PUT | `/api/missions/{id}/takeoff` | supervisor; body `{"lat": …, "lon": …}` (or `{}` for the default, 5 m outside the survey start) on a planned mission; 422 if over 900 m from the survey start |
 | PUT | `/api/missions/{id}/landing` | supervisor; the same body (or `{}`: land at the takeoff point); 422 if over 900 m from the survey end |
 | POST | `/api/missions/{id}/control` | supervisor; body `{"action": "pause" \| "resume" \| "return" \| "land"}` during a flight; 409 if the mission is not flying or the command does not apply now |
 | POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
 | GET | `/api/missions/{id}/telemetry` | any user |
 | GET | `/api/missions/{id}/readings?after_id=0&limit=5000` | any user — the sensor readings in the order they were taken, with their place in metres from the survey area's centre (for the ROS 2 bridge) |
+| GET | `/api/accuracy?soil_type=&altitude_m=&speed_mps=&line_spacing_m=` | any user — the detector's expected accuracy with those settings (simulated); `/api/accuracy/grid?soil_type=` every grid point of a soil |
 | GET | `/api/ros` | supervisor — can this backend start ROS 2 (Windows with WSL), and does it run |
 | POST | `/api/ros/start`, `/api/ros/stop` | supervisor — start or stop the ROS 2 nodes in WSL (the menu's **ROS 2** switch); 502 with the reason when WSL cannot |
 | GET | `/api/missions/{id}/detections?method=adaptive` | any user |

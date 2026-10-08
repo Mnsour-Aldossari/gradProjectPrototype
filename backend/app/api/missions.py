@@ -31,6 +31,7 @@ from app.simulation import SurveyPlan, plan_survey
 from app.simulation.geo import LocalFrame, is_simple, polygon_area
 from app.simulation.scenario import generate_scenario
 
+from .accuracy import accuracy_read
 from .deps import CurrentUser, SessionDep, SettingsDep, SupervisorUser
 from app.uav.control import ControlRejected
 from app.uav.px4_plan import Waypoint, default_takeoff, landing_check, takeoff_check
@@ -263,6 +264,7 @@ def check_area(body: AreaCheck, _: SupervisorUser) -> AreaCheckResult:
         height_m=round(plan.height_m, 1),
         area_m2=round(polygon_area(plan.area_xy), 1),
         estimated_duration_s=round(plan.length_m / body.speed_mps, 1),
+        accuracy=accuracy_read(body.soil_type, body.altitude_m, body.speed_mps, body.line_spacing_m),
     )
 
 

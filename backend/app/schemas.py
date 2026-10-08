@@ -71,6 +71,24 @@ class AreaCheck(MissionCreate):
     name: str = "Check"
 
 
+class AccuracyEstimate(BaseModel):
+    """The detector's expected accuracy with these survey settings (app/detection/accuracy.py). Simulated data:
+    it compares settings inside the simulation and does not predict field performance."""
+
+    soil_type: str
+    altitude_m: float
+    speed_mps: float
+    line_spacing_m: float
+    recall: float  # share of the mines found
+    recall_margin: float  # about 95 %: within recall ± this
+    precision: float  # share of the reports that are mines
+    false_alarms_per_ha: float
+    low_metal_recall: float
+    surveys: int
+    seeds: tuple[int, int]
+    method: str
+
+
 class AreaCheckResult(BaseModel):
     ok: bool
     problems: list[str]  # what to change, first the most basic
@@ -80,6 +98,7 @@ class AreaCheckResult(BaseModel):
     height_m: float
     area_m2: float
     estimated_duration_s: float
+    accuracy: AccuracyEstimate | None = None  # None without the accuracy table
 
 
 class MissionStats(BaseModel):

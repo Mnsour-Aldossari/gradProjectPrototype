@@ -151,6 +151,22 @@ export interface ConditionProfile {
   notes: string[]
 }
 
+/** The detector's expected accuracy with some survey settings (GET /api/accuracy). Simulated data. */
+export interface AccuracyEstimate {
+  soil_type: SoilType
+  altitude_m: number
+  speed_mps: number
+  line_spacing_m: number
+  recall: number
+  recall_margin: number
+  precision: number
+  false_alarms_per_ha: number
+  low_metal_recall: number
+  surveys: number
+  seeds: [number, number]
+  method: string
+}
+
 export const SOIL_LABELS: Record<SoilType, string> = {
   dry_sand: 'Dry sand',
   wet_clay: 'Wet clay',
