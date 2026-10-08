@@ -1,0 +1,56 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid (1 m)
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 80
+      Reference Frame: <Fixed Frame>
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Area, readings and detections
+      Enabled: true
+      Topic:
+        Value: /landmine/markers
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        Depth: 10
+    - Class: rviz_default_plugins/Path
+      Name: Track flown
+      Enabled: true
+      Topic:
+        Value: /uav/path
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        Depth: 1
+      Color: 31; 95; 173
+      Line Style: Lines
+    - Class: rviz_default_plugins/Pose
+      Name: UAV
+      Enabled: true
+      Topic:
+        Value: /uav/pose
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        Depth: 10
+      Shape: Arrow
+      Color: 255; 255; 255
+  Global Options:
+    Fixed Frame: survey
+    Background Color: 29; 42; 36
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Top-down
+      Scale: 12
+      X: 0
+      Y: 0
+Window Geometry:
+  Width: 1280
+  Height: 800

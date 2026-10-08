@@ -1,0 +1,3 @@
+# Files the ROS 2 side reads in WSL (bash, colcon, rosidl) keep Unix line ends on Windows checkouts too.
+ros2_ws/** text eol=lf
+*.sh text eol=lf

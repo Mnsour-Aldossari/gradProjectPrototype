@@ -21,6 +21,7 @@ The current version is a prototype and is not ready for public deployment; see
 | `backend/scripts/calibrate.py` | Parameter calibration on tuning seeds only | `evaluation/` |
 | `backend/app/api/` | REST endpoints, WebSocket hub (`/ws/missions/{id}`), auth, background mission runner (live adaptive detections) | all of the above + DB |
 | `backend/app/report/` | The mission report as a PDF (fpdf2) and the search for a font with Arabic letters | `simulation/` (the survey's frame), DB models |
+| `ros2_ws/` | ROS 2 Jazzy packages: messages (`uav_landmine_interfaces`), the mission bridge and the detector node (`uav_landmine_ros`), `build.sh` and `env.sh` | the backend's REST API and `backend/app/detection` |
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
 | `backend/migrations/`, `alembic.ini` | Database migrations (Alembic), run by the backend at startup | `models.py` |
 | `backend/tests/` | PyTest suite | — |
@@ -247,6 +248,54 @@ No font is shipped: the report uses Arial on Windows (Segoe UI or Tahoma if Aria
 Linux and in the Docker image, which have Arabic letters. `REPORT_FONT` (and `REPORT_FONT_BOLD`) names another .ttf
 file; without a font that has Arabic letters the report answers 503 and says so.
 
+## ROS 2 (optional)
+
+`ros2_ws/` holds two ROS 2 Jazzy packages that run beside the backend; the backend still flies the mission (simulator
+or PX4) and stores it as before.
+
+- `uav_landmine_interfaces`: the messages `SensorReading`, `MissionInfo`, `Detection` and `DetectionArray`.
+- `uav_landmine_ros`:
+  - **mission_bridge** follows a mission in the backend (the next one that flies, or `mission_id:=N`, flying or
+    already flown) and publishes it. Every reading goes out, in the order it was taken, paged from
+    `GET /api/missions/{id}/readings`.
+  - **landmine_detector** is the backend's adaptive detector as a node (`backend/app/detection`, unchanged). It takes
+    the readings, publishes its potential detections every 25 readings, and once more, final, when the mission has
+    ended. A real sensor publishing `SensorReading` messages could feed it the same way.
+  - **compare_with_backend** waits for the detector node's final result and compares it with what the backend
+    stored (category, number of readings, score, position); exit code 0 when they agree.
+
+| Topic | Message | What |
+|---|---|---|
+| `/mission/info` | `MissionInfo` | the mission, its status and how many readings were sent (kept for late subscribers) |
+| `/sensors/readings` | `SensorReading` | every MD/GPR reading, in the "survey" frame (metres from the area's centre, x east, y north) |
+| `/uav/fix`, `/uav/pose`, `/uav/path`, `/uav/battery` | `NavSatFix`, `PoseStamped`, `Path`, `BatteryState` | the UAV |
+| `/landmine/detections` | `DetectionArray` | the backend's adaptive detections, with their verification |
+| `/landmine/candidates` | `DetectionArray` | the detector node's |
+| `/landmine/markers` | `MarkerArray` | area, readings and both sets of detections, for RViz |
+
+Run it in the WSL Ubuntu 24.04 that has ROS 2 Jazzy (the backend on Windows is reached at `http://127.0.0.1:8000`
+through WSL's mirrored networking):
+
+```bash
+bash /mnt/c/Users/Admin/Desktop/uav-landmine-prototype/ros2_ws/build.sh
+source /mnt/c/Users/Admin/Desktop/uav-landmine-prototype/ros2_ws/env.sh
+export UAV_USERNAME=field UAV_PASSWORD='<the field password in backend/app/seed.py>'
+ros2 launch uav_landmine_ros landmine.launch.py
+```
+
+Then start a survey in the dashboard. In another WSL terminal, after `source .../ros2_ws/env.sh`:
+`ros2 topic echo /landmine/candidates`, `ros2 bag record -a`, or
+`ros2 run uav_landmine_ros compare_with_backend --ros-args -p mission_id:=<id>`. The workspace is
+`~/uav_landmine_ws`, apart from any other ROS workspace on the PC.
+
+**Fast DDS over shared memory.** On the development PC Fast DDS's UDP path delivered nothing between two processes
+(not even ROS's minimal publisher and subscriber), while shared memory did. `config/fastdds_shm.xml` selects shared
+memory only; `landmine.launch.py` and `env.sh` use it unless `FASTRTPS_DEFAULT_PROFILES_FILE` is set. So nodes in
+another WSL distribution or on another machine cannot join.
+
+**RViz.** `rviz/landmine.rviz` and `rviz:=true` are there, but RViz is not installed in that Ubuntu
+(`sudo apt install ros-jazzy-rviz2`), so they were not tried.
+
 ## 3D view
 
 The **3D** button on the mission map (supervisor) opens `/missions/{id}/3d`, laid out after the "Mission view"
@@ -389,8 +438,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **261 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **262 passed, 2 xfailed** (8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
+Expected result: **263 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **264 passed, 2 xfailed** (with the ROS readings endpoint; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -477,6 +526,7 @@ PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this READM
 | POST | `/api/missions/{id}/control` | supervisor; body `{"action": "pause" \| "resume" \| "return" \| "land"}` during a flight; 409 if the mission is not flying or the command does not apply now |
 | POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
 | GET | `/api/missions/{id}/telemetry` | any user |
+| GET | `/api/missions/{id}/readings?after_id=0&limit=5000` | any user — the sensor readings in the order they were taken, with their place in metres from the survey area's centre (for the ROS 2 bridge) |
 | GET | `/api/missions/{id}/detections?method=adaptive` | any user |
 | GET | `/api/missions/{id}/profile` | any user — how the adaptive classifier is configured for the mission |
 | GET | `/api/missions/{id}/heatmap` | any user — the readings so far as a grid of normalized peaks, one row per lane (simulated data) |
@@ -522,6 +572,11 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
+- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (7 tests: the survey frame is the backend's, the detector fed one
+  reading at a time finds what the backend's finds on two soils, the messages) and end to end against the backend
+  on Windows: the demo flown live, two finished missions replayed, and a wet-clay survey landed early (1,009
+  readings); each time the detector node's potential detections were the backend's (9, 9, 9 and 1). Ctrl+C stops
+  both nodes cleanly.
 - The ground truth stays in the simulator: the detectors, the stored data and the API do not use or give it (tested
   with PyTest on SQLite and PostgreSQL; see "The ground truth stays in the simulator").
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
@@ -562,7 +617,7 @@ Not working, not run, or only partly checked:
 | PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. A hosted PostgreSQL (Neon's free plan, Frankfurt) was used from the development PC: it worked, but during flights the UAV froze on the page and then jumped ahead. That was fixed (the flight is written from a worker thread) and measured with PostgreSQL in Docker behind the same 93 ms delay; not yet tried again on Neon itself. Not tried: PostGIS, a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
 | Scenario seed | With a mission's scenario seed and this code the buried objects of a simulated mission can be rebuilt, so the API gives it to the supervisor only (the field operator gets `null`; tested with PyTest). The supervisor still sees and chooses it, which keeps the demo and the tests repeatable. Still visible to anyone: the demo mission's name, "Demo scenario (seed 2000, dry sand)". The detectors never use the seed. |
-| ROS 2 | Not implemented; future architecture only. |
+| ROS 2 | The bridge and the detector node work (see **ROS 2**). Not tried: RViz (not installed), `ros2 bag`, a PX4 flight followed by the bridge, ROS 2 Humble, nodes on another machine (shared memory only), and PX4's own ROS 2 interface (`px4_msgs`, uXRCE-DDS), which the backend does not use. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |
  
