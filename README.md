@@ -281,8 +281,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **197 passed, 2 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped ones run
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **199 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+Expected result: **217 passed, 2 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped ones run
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **219 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
 too). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -292,6 +292,30 @@ normal test.
 cd web
 npm run typecheck
 ```
+
+### The ground truth stays in the simulator
+
+The simulator knows what is buried where (kind, position, depth, metal content) and the soil model behind the
+readings, and uses them only to make the MD and GPR readings. `backend/tests/test_ground_truth_isolation.py` checks
+that nothing after the readings uses them:
+
+- **The detectors cannot reach it:** the modules in `app/detection/` import only each other and the standard
+  library. `detection/evaluation.py`, which scores detections against the truth after they are made, is left out;
+  the mission runner and the PX4 source never import it.
+- **Other labels, same numbers, same results:** every buried object gets another kind (two kinds stop or start
+  being a mine) and keeps its numbers. The readings and the detections stay exactly the same: offline for the three
+  soil types, over PX4's positions, and through a whole mission run (every column of the stored readings and
+  detections, the REST responses and the WebSocket snapshot).
+- **No ground-truth names in what the API sends or stores:** `kind`, `is_target`, `depth_m`, `metal_mass`, the soil's
+  moisture and noise, `truth`, `target`, `mine`, `buried` and the like, also inside a longer name, appear at no depth
+  in the REST responses, the live WebSocket events, the OpenAPI document or the database tables. `est_depth_m`, the
+  detector's estimate from the radar, is allowed.
+- `/api/evaluation` is the offline evaluation on the evaluation seeds, so it names the kinds of object, by design: as
+  counts per soil type, with no positions.
+
+The tests were shown to catch deliberate leaks (8 tried: the sensor model reading the label, a detector importing
+the simulator or the scorer, the label mixed into the readings or written into the explanation by the runner, a
+`buried_kind` field, a `targets_left` event field, a `true_depth_m` column), then the code was put back.
 
 Calibration and evaluation scripts (both **overwrite files in `docs/`**, so they were not re-run while this README
 was reviewed):
@@ -355,6 +379,8 @@ Works (implemented and tested with PyTest and/or in the browser):
 - Flight controls (Pause, Resume, Return Home, Land): with the simulator, tested with PyTest and in the browser
   (desktop and phone size); with PX4 SITL + Gazebo (headless Docker image), tried by hand in the browser.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
+- The ground truth stays in the simulator: the detectors, the stored data and the API do not use or give it (tested
+  with PyTest on SQLite and PostgreSQL; see "The ground truth stays in the simulator").
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
   verification, comparison with the baseline, mission history, evaluation page.
@@ -378,6 +404,7 @@ Not working, not run, or only partly checked:
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
 | PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. A hosted PostgreSQL (Neon's free plan, Frankfurt) was used from the development PC: it worked, but during flights the UAV froze on the page and then jumped ahead. That was fixed (the flight is written from a worker thread) and measured with PostgreSQL in Docker behind the same 93 ms delay; not yet tried again on Neon itself. Not tried: PostGIS, a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
+| Scenario seed | The API gives each mission's scenario seed and the mission page shows it (the supervisor may choose it: the same seed gives the same buried objects, which keeps the demo and the tests repeatable). With the seed and this code anyone signed in, the field operator too, can rebuild the buried objects of a simulated mission. The detectors never use it. Not changed. |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |
