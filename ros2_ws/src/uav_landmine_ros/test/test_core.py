@@ -10,7 +10,7 @@ from app.evaluation.harness import simulate_scenario  # noqa: E402
 from app.evaluation.protocol import STANDARD_SURVEY  # noqa: E402
 from app.simulation import DEMO_AREA  # noqa: E402
 from app.simulation.geo import LocalFrame  # noqa: E402
-from app.detection import detect_adaptive  # noqa: E402
+from app.detection import detect_live  # noqa: E402
 
 
 def test_the_survey_frame_is_the_backends():
@@ -37,7 +37,7 @@ def test_fed_one_by_one_it_finds_what_the_backends_detector_finds():
         assert looks == len(run.readings) // 25
         assert not core.add(5, 0, 0, 0, 1.5, 9.9, 9.9, 1.0)  # a reading already taken is ignored
         found = core.found()
-        expected = detect_adaptive(run.readings, run.context)
+        expected = detect_live(run.readings, run.context)
         assert found and [(f.category, f.n_hits, f.confidence, f.x_m, f.y_m) for f in found] == [
             (c.category.value, c.n_hits, c.confidence, c.x, c.y) for c in expected
         ]

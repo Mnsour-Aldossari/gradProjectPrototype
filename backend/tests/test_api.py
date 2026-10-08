@@ -76,7 +76,7 @@ def test_full_mission_run_stores_telemetry_readings_and_detections(client):
 
 def test_live_adaptive_detections_match_the_offline_detector(client):
     """Detections built up during the flight equal a batch run over the whole survey."""
-    from app.detection import detect_adaptive
+    from app.detection import detect_live
     from app.evaluation.harness import simulate_scenario
     from app.simulation import DEMO_AREA
 
@@ -88,7 +88,7 @@ def test_live_adaptive_detections_match_the_offline_detector(client):
     live = client.get(f"/api/missions/{mission_id}/detections?method=adaptive", headers=sup).json()
 
     run = simulate_scenario("wet_clay", 77, {"area": DEMO_AREA, "altitude_m": 1.5, "speed_mps": 2.0, "line_spacing_m": 2.0})
-    offline = detect_adaptive(run.readings, run.context)
+    offline = detect_live(run.readings, run.context)
     assert sorted((d["category"], d["n_hits"]) for d in live) == sorted((c.category.value, c.n_hits) for c in offline)
 
 

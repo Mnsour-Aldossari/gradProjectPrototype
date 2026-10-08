@@ -129,3 +129,12 @@ Version 2 was designed knowing version 1's limitations on these seeds, so this t
 | **All soils** | Adaptive v2 | 257 | 200 | 75 | 0.778 | 0.727 | 0.752 | 91/141 |
 
 Run time: 14 s.
+
+## Decision after the run (added 2026-10-08, by hand)
+
+Under the rule above version 2 was not adopted: it raised 6 more false alarms than version 1 (407 against 401) over
+the 450 surveys, while finding 134 more mines (82.5 % against 72.7 %). After seeing these results the project owner
+chose to adopt version 2 anyway, judging a missed mine worse than a few false alarms. So since 2026-10-08 the app
+(live detection while a mission flies) and the ROS 2 detector node run version 2. This is the owner's decision, not
+a pass of the rule: the rule and the numbers above are left as they were. Version 1 stays the officially evaluated
+detector of [EVALUATION_RESULTS.md](EVALUATION_RESULTS.md) and of the Evaluation page.

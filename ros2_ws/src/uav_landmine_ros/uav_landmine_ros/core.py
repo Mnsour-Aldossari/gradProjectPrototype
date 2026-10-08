@@ -120,7 +120,7 @@ class DetectorCore:
         context = detection.SurveyContext(
             mission.soil_type, mission.altitude_m, mission.speed_mps, mission.line_spacing_m, mission.sample_period_s
         )
-        self._detector = detection.AdaptiveDetector(context)
+        self._detector = detection.live_detector(context)  # the one the mission runner uses
         self._pending: list = []
         self._detect_every = detect_every
         self.readings = 0

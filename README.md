@@ -226,17 +226,17 @@ evaluation scores (a mine within 1.5 m reported as high priority or needs verifi
 counts are interpolated. About 13 minutes on 18 cores; it does not touch `docs/` or the frozen parameters.
 `GET /api/accuracy` gives one estimate, `GET /api/accuracy/grid` a whole soil.
 
-What the table shows (simulated data, the current adaptive detector):
+What the table shows (simulated data, the app's detector, version 2 since 2026-10-08; the table was built again for it):
 
 | Soil | Standard: 1.5 m, 2 m/s, 2 m lanes | Slower, closer lanes: 1.5 m, 1 m/s, 1 m lanes | Lower too: 1.0 m, 1 m/s, 1 m |
 |---|---|---|---|
-| Dry sand | 77 % found, 53 % of low-metal | 93 %, 87 % | 96 %, 91 % |
-| Wet clay | 53 %, 42 % | 70 %, 72 % | 62 %, 84 % |
-| Mineralised rocky | 68 %, 26 % | 86 %, 68 % | 70 %, 71 % |
+| Dry sand | 84 % found, 69 % of low-metal | 96 %, 91 % | 99 %, 98 % |
+| Wet clay | 63 %, 62 % | 78 %, 88 % | 83 %, 94 % |
+| Mineralised rocky | 74 %, 41 % | 90 %, 76 % | 91 %, 79 % |
 
-Slower flight and closer lanes help everywhere (the flight takes about four times longer). Flying lower helps the
-low-metal mines but, with this detector, loses metal mines in wet clay and rocky soil: its thresholds were calibrated
-at 1.5 m. The estimate compares settings inside the simulation; it does not predict field performance.
+Slower flight and closer lanes help everywhere (the flight takes about four times longer), and with version 2 flying
+lower helps too. With version 1 it did not: version 1 lost metal mines below 1.5 m (in rocky soil 70 % at 1.0 m against
+86 % at 1.5 m with the same speed and lanes), which led to version 2. The estimate compares settings inside the simulation; it does not predict field performance.
 
 **The Sensors page** (menu: **Sensors**, every user) explains it all in English or Arabic (a button switches; the
 choice stays in the browser): what the metal detector and the radar sense and where each is weak, the five steps
@@ -244,7 +244,7 @@ from readings to a potential detection, the official evaluation's accuracy per s
 same estimate with sliders for height, speed and lane spacing (with the flight time per hectare, each sensor's
 signal against 1.5 m, and a chart of mines found by speed for 1, 2 and 3 m lanes), and what it cannot do yet.
 
-## Detector version 2 (tried, not adopted)
+## Detector version 2 (adopted by the owner's decision)
 
 The accuracy table showed that the adaptive detector loses metal mines when flown lower: its body-ratio rule was
 calibrated at 1.5 m. Version 2 (`backend/app/detection/adaptive_v2.py`) corrects that ratio for the sensor height and
@@ -266,8 +266,12 @@ most 0.02 lower. Run once (`scripts/evaluate_v2.py`, `docs/EVALUATION_RESULTS_V2
 | Low-metal mines found, pooled | 493 of 745 | 557 |
 
 Version 2 found more mines at every setting, but raised 6 more false alarms than version 1 over the 450 surveys, so
-the second condition failed and, as the protocol says, version 1 stays in the app. The results are reported as they
-came out; neither the rule nor the parameters were changed after the run. Simulated data.
+the second condition failed: under the rule, version 1 would have stayed. **After seeing these results the project
+owner chose to adopt version 2 anyway**, judging a missed mine worse than a few false alarms. So the app (live
+detection while a mission flies) and the ROS 2 detector node run version 2 (`detect_live` / `live_detector` in
+`app/detection/__init__.py`). This is the owner's decision, not a pass of the rule; the rule, the parameters and the
+numbers were not changed after the run. Version 1 stays the officially evaluated detector (`docs/EVALUATION_RESULTS.md`,
+the Evaluation page). Simulated data.
 
 ## Sensor heatmap and PDF report
 
@@ -566,7 +570,7 @@ cd backend
 ```
 
 Expected result: **280 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **281 passed, 2 xfailed** (with detector version 2; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **281 passed, 2 xfailed** (with detector version 2 live; in 5 full runs the ground truth's end-to-end test failed twice and passed alone 4 times out of 4, so it is still intermittent on PostgreSQL; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -704,8 +708,9 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
-- Adaptive detection version 2 (`backend/app/detection/adaptive_v2.py`), tried and **not adopted**: see **Detector
-  version 2**. The app still uses version 1.
+- Adaptive detection version 2 (`backend/app/detection/adaptive_v2.py`), used by the app and the ROS 2 detector node
+  since 2026-10-08 by the owner's decision, although it did not meet one condition of its adoption rule: see
+  **Detector version 2**. Version 1 stays the officially evaluated detector.
 - ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (22 tests: the survey frame is the backend's, the detector fed one
   reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics, the
   commands against a fake backend, PX4's modes and the PX4-versus-backend check) and end to end against the backend on Windows: the demo flown live, two finished

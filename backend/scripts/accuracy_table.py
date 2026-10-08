@@ -2,7 +2,7 @@
 
 For every soil and every combination of sensor height, speed and lane spacing on a grid, it flies the standard test
 field on the estimate seeds (app/evaluation/protocol.py: neither tuning nor evaluation seeds) and scores the app's
-detector against the simulated ground truth, as the evaluation does. It writes app/detection/accuracy_table.json; it
+live detector (detect_live: version 2) against the simulated ground truth, as the evaluation does. It writes app/detection/accuracy_table.json; it
 does not touch docs/ or the frozen parameters. Simulated data: the table compares settings inside the simulation.
 
     .venv/Scripts/python -m scripts.accuracy_table            # a few minutes on several cores
@@ -19,7 +19,7 @@ from itertools import product
 from pathlib import Path
 
 from app.detection.accuracy import ALTITUDES_M, SPACINGS_M, SPEEDS_MPS, TABLE_PATH
-from app.detection.adaptive import detect_adaptive
+from app.detection import detect_live
 from app.detection.evaluation import evaluate
 from app.evaluation.harness import simulate_scenario
 from app.evaluation.protocol import ESTIMATE_SEEDS, MATCH_RADIUS_M, SOIL_TYPES, STANDARD_SURVEY
@@ -34,7 +34,7 @@ def run_cell(cell: tuple[str, float, float, float]) -> dict:
     totals = {"surveys": 0, "targets": 0, "found": 0, "false_alarms": 0, "low_metal": 0, "low_metal_found": 0}
     for seed in ESTIMATE_SEEDS:
         run = simulate_scenario(soil, seed, survey)
-        counts = evaluate(detect_adaptive(run.readings, run.context), run.truths, MATCH_RADIUS_M)
+        counts = evaluate(detect_live(run.readings, run.context), run.truths, MATCH_RADIUS_M)
         low = counts.outcomes.get("low_metal_mine", {})
         totals["surveys"] += 1
         totals["targets"] += counts.targets
@@ -52,7 +52,7 @@ def main() -> None:
         rows = list(pool.map(run_cell, cells, chunksize=1))
     table = {
         "generated": date.today().isoformat(),
-        "method": "adaptive",
+        "method": "adaptive v2",
         "seeds": [ESTIMATE_SEEDS[0], ESTIMATE_SEEDS[-1]],
         "survey_area_m2": round(AREA_M2, 1),
         "match_radius_m": MATCH_RADIUS_M,

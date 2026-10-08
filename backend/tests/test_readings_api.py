@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from conftest import auth_headers, mission_body, wait_until_finished
 
-from app.detection import Reading, SurveyContext, detect_adaptive
+from app.detection import Reading, SurveyContext, detect_live
 from app.simulation import DEMO_AREA
 from app.simulation.geo import LocalFrame
 
@@ -38,7 +38,7 @@ def test_pages_hold_every_reading_in_order_with_the_detectors_coordinates(client
     # A detector fed from these readings finds what the runner stored, to the stored rounding.
     context = SurveyContext(body["soil_type"], body["altitude_m"], body["speed_mps"], body["line_spacing_m"], 0.2)
     fields = ("t_s", "x_m", "y_m", "relative_alt_m", "md", "gpr_amp", "gpr_twt_ns")
-    candidates = detect_adaptive([Reading(*(r[f] for f in fields)) for r in readings], context)
+    candidates = detect_live([Reading(*(r[f] for f in fields)) for r in readings], context)
     stored = client.get(f"/api/missions/{mission_id}/detections?method=adaptive", headers=sup).json()
     assert candidates
     assert sorted(

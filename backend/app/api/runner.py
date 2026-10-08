@@ -17,7 +17,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from app.config import Settings
-from app.detection import AdaptiveDetector, Candidate, Category, Reading, SurveyContext, detect_baseline
+from app.detection import Candidate, Category, Reading, SurveyContext, detect_baseline, live_detector
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, utcnow
 from app.simulation import SimulationConfig, plan_survey
 from app.simulation.geo import LocalFrame
@@ -448,7 +448,7 @@ async def run_mission(
         frame = LocalFrame.centred_on(mission.area)
         lanes = plan_survey(mission.area, mission.line_spacing_m).waypoints_xy
         sample_spacing_m = mission.speed_mps * simulation_config_for(mission).dt_s
-        detector = AdaptiveDetector(survey_context_for(mission))
+        detector = live_detector(survey_context_for(mission))
         writer = _Writer(engine, hub, mission, frame, detector.profile.link_radius_m, control)
 
         pending_readings: list[Reading] = []
