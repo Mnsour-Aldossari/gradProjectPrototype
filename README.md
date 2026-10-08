@@ -390,7 +390,7 @@ cd backend
 ```
 
 Expected result: **261 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: 264 tests; in the last full run one end-to-end test of the ground truth failed once and passed three times on its own, not yet explained; without MAVSDK two PX4 tests are skipped
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **262 passed, 2 xfailed** (8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
