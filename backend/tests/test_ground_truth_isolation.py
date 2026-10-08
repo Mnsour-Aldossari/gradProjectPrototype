@@ -182,7 +182,8 @@ def run_mission(client, headers) -> int:
     mission_id = client.post("/api/missions", json=mission_body(), headers=headers).json()["id"]
     r = client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=headers)
     assert r.status_code == 202, r.text
-    assert wait_until_finished(client, mission_id, headers)["status"] == "completed"
+    mission = wait_until_finished(client, mission_id, headers)
+    assert mission["status"] == "completed", mission["error"]
     return mission_id
 
 
@@ -227,7 +228,8 @@ def test_a_mission_over_objects_with_other_labels_stores_and_sends_the_same(clie
     second = everything_sent_about(client, sup, run_mission(client, sup))
 
     assert first["readings"] and first["detections"]
-    assert first == second
+    # Once (1 of about 20 full runs on PostgreSQL) this failed without its details; now it names what differs.
+    assert [part for part in first if first[part] != second[part]] == []
     assert len(built) == 1  # the second mission flew over the relabelled objects
     assert_only_labels_differ(build_simulation(built[0].config), built[0])
 
