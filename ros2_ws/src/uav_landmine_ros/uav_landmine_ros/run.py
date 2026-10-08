@@ -31,6 +31,11 @@ def spin(
             rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except Exception:
+        # Ctrl+C can shut ROS down while the multi-threaded executor builds its next wait set (rclpy's RCLError
+        # "context is not valid"): that is the end asked for, not a failure.
+        if rclpy.ok():
+            raise
     finally:
         try:
             if node is not None and on_exit is not None:

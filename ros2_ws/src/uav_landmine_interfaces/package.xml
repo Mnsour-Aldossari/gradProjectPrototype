@@ -3,7 +3,7 @@
 <package format="3">
   <name>uav_landmine_interfaces</name>
   <version>0.1.0</version>
-  <description>Messages, services and the action of the UAV landmine detection prototype: sensor readings, the mission followed, potential detections, starting and commanding a mission. Simulated data.</description>
+  <description>Messages, services and the action of the UAV landmine detection prototype: sensor readings, the mission followed, potential detections, starting and commanding a mission, and how PX4 stands. Simulated data.</description>
   <maintainer email="noreply@example.invalid">UAV-Based Landmine Detection System team</maintainer>
   <license>Apache-2.0</license>
 

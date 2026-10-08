@@ -3,7 +3,7 @@
 <package format="3">
   <name>uav_landmine_ros</name>
   <version>0.1.0</version>
-  <description>ROS 2 side of the UAV landmine detection prototype: a bridge that publishes a mission from the backend (position, readings, detections) and the project's adaptive detector as a node. Simulated data; every output is a potential detection.</description>
+  <description>ROS 2 side of the UAV landmine detection prototype: a bridge that publishes a mission from the backend (position, readings, detections) the project's adaptive detector as a node, commands through the backend, and a direct reader of PX4. Simulated data; every output is a potential detection.</description>
   <maintainer email="noreply@example.invalid">UAV-Based Landmine Detection System team</maintainer>
   <license>Apache-2.0</license>
 
@@ -21,6 +21,8 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>uav_landmine_interfaces</exec_depend>
+  <!-- px4_link only: PX4's messages, built by ros2_ws/build.sh (px4_msgs at PX4's version) -->
+  <exec_depend>px4_msgs</exec_depend>
   <exec_depend>python3-requests</exec_depend>
 
   <test_depend>python3-pytest</test_depend>

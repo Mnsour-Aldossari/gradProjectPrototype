@@ -11,6 +11,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MissionInfo.msg"
   "msg/Detection.msg"
   "msg/DetectionArray.msg"
+  "msg/Px4Status.msg"
   "srv/StartMission.srv"
   "srv/ControlMission.srv"
   "action/FlySurvey.action"

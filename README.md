@@ -21,7 +21,7 @@ The current version is a prototype and is not ready for public deployment; see
 | `backend/scripts/calibrate.py` | Parameter calibration on tuning seeds only | `evaluation/` |
 | `backend/app/api/` | REST endpoints, WebSocket hub (`/ws/missions/{id}`), auth, background mission runner (live adaptive detections) | all of the above + DB |
 | `backend/app/report/` | The mission report as a PDF (fpdf2) and the search for a font with Arabic letters | `simulation/` (the survey's frame), DB models |
-| `ros2_ws/` | ROS 2 Jazzy packages: messages (`uav_landmine_interfaces`), the mission bridge and the detector node (`uav_landmine_ros`), `build.sh` and `env.sh` | the backend's REST API and `backend/app/detection` |
+| `ros2_ws/` | ROS 2 Jazzy packages: messages (`uav_landmine_interfaces`), the mission bridge, the detector node, mission control and the PX4 reader (`uav_landmine_ros`), `build.sh` and `env.sh` | the backend's REST API, `backend/app/detection`, PX4's uXRCE-DDS (`px4_msgs`) |
 | `backend/app/models.py`, `db.py` | Database tables (SQLModel). Portable: SQLite by default, PostgreSQL via `DATABASE_URL` | — |
 | `backend/migrations/`, `alembic.ini` | Database migrations (Alembic), run by the backend at startup | `models.py` |
 | `backend/tests/` | PyTest suite | — |
@@ -253,7 +253,8 @@ file; without a font that has Arabic letters the report answers 503 and says so.
 `ros2_ws/` holds two ROS 2 Jazzy packages that run beside the backend; the backend still flies the mission (simulator
 or PX4) and stores it as before.
 
-- `uav_landmine_interfaces`: the messages `SensorReading`, `MissionInfo`, `Detection` and `DetectionArray`.
+- `uav_landmine_interfaces`: the messages `SensorReading`, `MissionInfo`, `Detection`, `DetectionArray` and
+  `Px4Status`, the services `StartMission` and `ControlMission`, and the action `FlySurvey`.
 - `uav_landmine_ros`:
   - **mission_bridge** follows a mission in the backend (the next one that flies, or `mission_id:=N`, flying or
     already flown) and publishes it. Every reading goes out, in the order it was taken, paged from
@@ -324,6 +325,35 @@ ros2 launch uav_landmine_ros replay.launch.py bag:=$HOME/uav_bags/<folder> rate:
 (not even ROS's minimal publisher and subscriber), while shared memory did. `config/fastdds_shm.xml` selects shared
 memory only; `landmine.launch.py` and `env.sh` use it unless `FASTRTPS_DEFAULT_PROFILES_FILE` is set. So nodes in
 another WSL distribution or on another machine cannot join.
+
+**PX4 read directly.** For a mission flown with PX4, ROS can also read PX4 itself, over uXRCE-DDS (PX4's
+`uxrce_dds_client`, started by PX4 v1.17's SITL on UDP port 8888, and the Micro XRCE-DDS Agent), next to the backend's
+MAVLink link. It only reads: the backend still flies the mission and is the only one that commands PX4 (ROS's commands
+go through it, as above). `build.sh` also builds PX4's messages (`px4_msgs` at v1.17.0, PX4's version) and the agent
+(v2.4.3) when their sources are in `~/dev/upstream` (or `UAV_PX4_MSGS_SRC`, `UAV_XRCE_AGENT_SRC`); the sources are
+linked, not changed. `px4_link` publishes:
+
+| Topic | Message | What |
+|---|---|---|
+| `/px4/fix` | `NavSatFix` | PX4's global position (`/fmu/out/vehicle_global_position`), up to 50 a second |
+| `/px4/status` | `Px4Status` | armed, on the ground (PX4's land detector), mode (`auto_mission`, `auto_rtl`, `auto_land`…), failsafe, battery |
+| `/px4/battery` | `BatteryState` | |
+| `/diagnostics` | `DiagnosticArray` | "PX4": is PX4 heard; "PX4 vs backend": metres between PX4's position and the backend's latest (MAVLink), measured to the track PX4 flew over the last 10 s since the backend's arrives a little later, and whether both say the UAV is flying or down. A warning above 1 m or when they disagree |
+
+```bash
+# PX4 in Gazebo's window from the same Ubuntu: the backend started with PX4_GAZEBO_DISTRO=Ubuntu-24.04 and
+# PX4_GAZEBO_DIR=<PX4-Autopilot's folder in that Ubuntu's home>, then a PX4 mission started with Gazebo's window
+ros2 launch uav_landmine_ros px4.launch.py                  # the agent and px4_link
+ros2 launch uav_landmine_ros px4.launch.py landmine:=true   # and the bridge, the detector and mission control
+```
+
+The agent must run in the same Ubuntu as the nodes (shared memory, below). The participant PX4 asks the agent for is
+built from PX4's own XML, which leaves out the shared-memory profile, so `px4.launch.py` gives the agent
+`FASTDDS_BUILTIN_TRANSPORTS=SHM` (`agent_transports:=DEFAULT` where UDP works). The agent's console log is off in this
+build (Ubuntu 24.04's spdlog cannot build v2.4.3's log lines). PX4 v1.16 and later add the version to some topics
+(`vehicle_status_v1`, `battery_status_v1`); `status_topic` and `battery_topic` in `config/params.yaml` name them.
+PX4 in the headless Docker image is not read this way: its `uxrce_dds_client` sends to 127.0.0.1 inside its
+container, where no agent runs.
 
 **RViz.** `rviz/landmine.rviz` and `rviz:=true` are there, but RViz is not installed in that Ubuntu
 (`sudo apt install ros-jazzy-rviz2`), so they were not tried.
@@ -604,9 +634,9 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
-- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (15 tests: the survey frame is the backend's, the detector fed one
+- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (21 tests: the survey frame is the backend's, the detector fed one
   reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics, the
-  commands against a fake backend) and end to end against the backend on Windows: the demo flown live, two finished
+  commands against a fake backend, PX4's modes and the PX4-versus-backend check) and end to end against the backend on Windows: the demo flown live, two finished
   missions replayed, and a wet-clay survey landed early (1,009 readings); each time the detector node's potential
   detections were the backend's (9, 9, 9 and 1). Ctrl+C stops both nodes cleanly. Also tried: the UAV's transform
   (`tf2_echo survey uav`), `/diagnostics`, the parameters and their descriptions, a recording of a mission (3,293
@@ -615,6 +645,12 @@ Works (implemented and tested with PyTest and/or in the browser):
   and landed with `/mission/control`: stopped, sensors partial (14%), as the dashboard showed; cancelling
   `/mission/fly` landed the UAV (goal cancelled, mission stopped); the field operator's account, an unknown command, a
   command with no mission flying and the demo with PX4 were refused with the reason.
+  PX4 read directly: a survey flown by PX4 v1.17 in Gazebo's window (WSL Ubuntu 24.04), started and landed early
+  through `/mission/start` and `/mission/control`; `px4_link` got PX4's position about 50 times a second over
+  uXRCE-DDS, within 0.02 m of the backend's MAVLink position all the way, and both said flying, then down after the
+  landing (PX4's land detector and the backend's stopped mission). Ctrl+C stops the nodes cleanly (the agent, a
+  native program, ends by the signal, which launch reports as exit code -2). The headless Docker image's PX4 does not
+  reach the agent: its `uxrce_dds_client` sends to 127.0.0.1 inside the container.
 - The ground truth stays in the simulator: the detectors, the stored data and the API do not use or give it (tested
   with PyTest on SQLite and PostgreSQL; see "The ground truth stays in the simulator").
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
@@ -655,7 +691,7 @@ Not working, not run, or only partly checked:
 | PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. A hosted PostgreSQL (Neon's free plan, Frankfurt) was used from the development PC: it worked, but during flights the UAV froze on the page and then jumped ahead. That was fixed (the flight is written from a worker thread) and measured with PostgreSQL in Docker behind the same 93 ms delay; not yet tried again on Neon itself. Not tried: PostGIS, a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
 | Scenario seed | With a mission's scenario seed and this code the buried objects of a simulated mission can be rebuilt, so the API gives it to the supervisor only (the field operator gets `null`; tested with PyTest). The supervisor still sees and chooses it, which keeps the demo and the tests repeatable. Still visible to anyone: the demo mission's name, "Demo scenario (seed 2000, dry sand)". The detectors never use the seed. |
-| ROS 2 | The bridge, the detector node, recording and replay, and commands through the backend work (see **ROS 2**). Not tried: RViz (not installed), `ros2 bag`, a PX4 flight followed by the bridge, ROS 2 Humble, nodes on another machine (shared memory only), and PX4's own ROS 2 interface (`px4_msgs`, uXRCE-DDS), which the backend does not use. |
+| ROS 2 | The bridge, the detector node, recording and replay, commands through the backend, and PX4 read directly over uXRCE-DDS (Gazebo's window in WSL) work (see **ROS 2**). Not working: PX4 in the headless Docker image does not reach the agent (it sends to its own container). Not tried: RViz (not installed), a real vehicle, ROS 2 Humble, nodes on another machine (shared memory only). ROS never commands PX4 directly; the backend does. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |
  

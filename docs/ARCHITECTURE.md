@@ -247,7 +247,7 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | 3D view (`web/src/view3d/`, three.js) | Implemented and tested in the browser with the simulator (live and replay); a visual view of the same data as the map, in the backend's local metre frame. Not yet opened during a PX4 flight |
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
 | Mission history page (counts per category, verification progress) | Implemented and tested in the browser |
-| ROS 2 (`ros2_ws/`, Jazzy) | Bridge, detector node, transforms, diagnostics, recording and replay, and commands (services `/mission/start`, `/mission/control`, action `/mission/fly`) through the backend's API. `colcon test`, and end to end against the backend: the node's potential detections equal the backend's; the commands behave as the dashboard's. RViz not tried |
+| ROS 2 (`ros2_ws/`, Jazzy) | Bridge, detector node, transforms, diagnostics, recording and replay, commands (services `/mission/start`, `/mission/control`, action `/mission/fly`) through the backend's API, and PX4 read directly over uXRCE-DDS (`px4_link`: `/px4/fix`, `/px4/status`, checked against the backend's MAVLink view). `colcon test`, and end to end against the backend: the node's potential detections equal the backend's; the commands behave as the dashboard's; PX4 in Gazebo's window read by ROS within centimetres of the backend. RViz not tried |
 | Sensor heatmap (MD / GPR) on the mission map | Implemented; tested with PyTest and in the browser with the simulator (live and finished) |
 | PDF mission report (supervisor) | Implemented; tested with PyTest (SQLite and PostgreSQL), in the browser and in the Docker image |
 | Evaluation page and generated results | Implemented |
@@ -311,7 +311,8 @@ None of the items below is implemented in the prototype, apart from the first pa
   the payload computer as a separate stream, time-aligned with position, instead of the sensor model at PX4's
   position. QGroundControl was only tried by hand.
 - **ROS 2, further.** Implemented (`ros2_ws/`): a bridge publishes a mission from the backend, the detection engine
-  runs as a ROS 2 node, unchanged, and ROS can start and command missions through the backend. Not done: feeding the
+  runs as a ROS 2 node, unchanged, ROS can start and command missions through the backend, and ROS reads PX4 itself
+  over uXRCE-DDS (read only; PX4 is commanded by the backend alone). Not done: feeding the
   backend from ROS (a real payload's readings on `/sensors/readings`), Gazebo sensor plugins.
 - **Simulated control commands.** Takeoff, landing, pause, resume and return-to-launch would first be added as
   commands to the simulated UAV, then forwarded to a PX4 source. None of them is implemented; the dashboard can

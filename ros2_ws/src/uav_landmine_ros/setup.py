@@ -28,6 +28,7 @@ setup(
             "landmine_detector = uav_landmine_ros.detector:main",
             "compare_with_backend = uav_landmine_ros.compare:main",
             "mission_control = uav_landmine_ros.control:main",
+            "px4_link = uav_landmine_ros.px4_link:main",
         ],
     },
 )
