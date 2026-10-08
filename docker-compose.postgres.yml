@@ -1,0 +1,28 @@
+# The same app on PostgreSQL instead of SQLite. Start with:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build -d
+# The database is not published on a port, so only the backend container reaches it. The default password is for a
+# local trial only; set POSTGRES_PASSWORD (in the shell or a .env file) before using this anywhere else.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: uav
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-uav}
+      POSTGRES_DB: uav
+    volumes:
+      - uav-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uav -d uav"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+psycopg://uav:${POSTGRES_PASSWORD:-uav}@postgres:5432/uav
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  uav-pgdata:

@@ -143,6 +143,63 @@ code {
   border-radius: 4px;
 }
 
+.dbhelp {
+  max-width: 820px;
+}
+.dbhelp h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+.dbhelp-now {
+  font-size: 1.05rem;
+}
+.dbhelp .dbhelp-note {
+  margin: 14px 0;
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+  background: color-mix(in srgb, var(--amber) 10%, var(--surface));
+}
+.dbhelp-steps {
+  list-style: none;
+  margin: 14px 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: calc(12px * var(--density));
+}
+.dbhelp-steps li {
+  min-width: 0;
+}
+.dbhelp-cmd {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0;
+  background: var(--tint);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.dbhelp-cmd pre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+  font-size: 0.85rem;
+}
+.dbhelp-cmd button {
+  flex: none;
+  min-height: 32px;
+}
+.dbhelp kbd {
+  font: inherit;
+  font-size: 0.85em;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0 4px;
+  background: var(--tint);
+}
+
 .num {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -625,6 +682,45 @@ textarea {
   color: #1a1a1a;
 }
 
+/* Sensor collection: outlined, so it reads apart from the flight's status next to it. */
+.sensors {
+  display: inline-block;
+  padding: 1px 9px;
+  border: 1px solid var(--input-rule);
+  border-radius: 999px;
+  white-space: nowrap;
+  font: 600 calc(12.5px * var(--text-scale)) var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.sensors-complete {
+  border-color: var(--status-ok-fg);
+  color: var(--status-ok-fg);
+}
+.sensors-partial {
+  border-color: var(--amber);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
+.sensors-failed {
+  border-color: var(--hazard);
+  color: var(--hazard);
+}
+.sensors-collecting {
+  border-color: var(--survey);
+  color: var(--survey);
+}
+.outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sensor-note {
+  margin: 0;
+}
+
 /* ---------- flight controls (supervisor, during a flight) ---------- */
 
 .flight-controls {
@@ -961,6 +1057,78 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+/* The sensor heatmap's scale, in the mission map's legend (which follows the theme). The bar has the map's colours,
+   the same in both themes. */
+.legend .heat-key {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.legend .heat-key-name {
+  font-weight: 600;
+}
+.legend .heat-key-scale {
+  position: relative;
+  display: inline-block;
+  width: 116px;
+  padding-bottom: 13px;
+}
+.heat-key-bar {
+  display: block;
+  width: 100%;
+  height: 9px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.legend .heat-key-ticks {
+  position: absolute;
+  inset: 11px 0 0;
+  display: block;
+  font-size: calc(10.5px * var(--text-scale));
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.legend .heat-key-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.legend .heat-key-ticks span:first-child {
+  transform: none;
+}
+.legend .heat-key-ticks span:last-child {
+  transform: translateX(-100%);
+}
+.legend .heat-key-note {
+  flex-basis: 100%;
+  color: var(--ink-2);
+  font-size: calc(11.5px * var(--text-scale));
+}
+/* One pixel per cell, kept sharp: each block is one stretch of lane. */
+.leaflet-pane img.heatmap-img {
+  image-rendering: pixelated;
+}
+.leaflet-tooltip.heat-tip {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.heat-toggle {
+  padding: 4px 4px 4px 12px;
+  cursor: default;
+}
+.heat-toggle .segmented.compact {
+  grid-template-columns: repeat(3, auto);
+}
+.heat-toggle .segmented.compact button {
+  min-height: 32px;
+  padding: 4px 10px;
+}
+.report-button svg {
+  width: 16px;
+  height: 16px;
+}
+.report-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
 }
 
 .map-hint,
@@ -1354,6 +1522,63 @@ textarea {
 .area-check.bad .area-check-title span {
   color: var(--hazard);
 }
+/* The detector's expected accuracy (AccuracyMeter): one bar per share. */
+.accuracy {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--tint-soft);
+}
+.accuracy p {
+  margin: 0;
+}
+.accuracy-bars {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.accuracy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 11em) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: calc(13.5px * var(--text-scale));
+}
+.accuracy-row dt {
+  color: var(--ink-2);
+}
+.accuracy-row dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+.accuracy-row .num {
+  min-width: 4.5em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.accuracy-row small {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.accuracy-bar {
+  flex: 1;
+  min-width: 40px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--tint);
+  overflow: hidden;
+}
+.accuracy-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--survey);
+}
 .drawing-area,
 .drawing-area .leaflet-interactive {
   cursor: crosshair !important;
@@ -1429,8 +1654,10 @@ textarea {
     border-radius: 0;
     border-bottom: 2px solid transparent;
     font-size: calc(12px * var(--text-scale));
+    line-height: 1.15;
     text-align: center;
-    white-space: nowrap;
+    /* Six links for the supervisor: a long name takes two lines rather than touching the next one. */
+    white-space: normal;
   }
   .nav a.active {
     background: none;
@@ -2367,9 +2594,64 @@ td.miss {
 .side-fold:hover {
   background: var(--tint-soft);
 }
-/* The phone header has no room to fold; the setting waits for a wider screen. */
+/* The supervisor's ROS 2 switch (RosButton), under the links: a dot on its icon says on (green) or off (grey). */
+.ros {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.ros-icon {
+  position: relative;
+  display: grid;
+  flex: none;
+}
+.ros-dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--clutter);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.ros-button.is-on .ros-dot {
+  background: var(--ok);
+}
+.ros-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.ros-button:focus-visible {
+  outline: 2px solid var(--survey);
+  outline-offset: -2px;
+}
+.ros-state {
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--tint);
+  color: var(--ink-2);
+  font-size: calc(12px * var(--text-scale));
+}
+.ros-button.is-on .ros-state {
+  background: var(--status-ok-bg);
+  color: var(--status-ok-fg);
+}
+.ros-error {
+  margin: 4px 0 0;
+  color: var(--hazard);
+  font-size: calc(12.5px * var(--text-scale));
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ros-error:empty {
+  display: none;
+}
+/* The phone header has no room to fold; the setting waits for a wider screen. ROS 2's switch stays on the laptop. */
 @media (max-width: 860px) {
-  .side-fold {
+  .side-fold,
+  .ros {
     display: none;
   }
 }
@@ -2389,6 +2671,8 @@ td.miss {
   .is-folded .brand-text,
   .is-folded .nav-label,
   .is-folded .side-fold-label,
+  .is-folded .ros-label,
+  .is-folded .ros-error,
   .is-folded .display-label,
   .is-folded .who-name,
   .is-folded .sign-out-label,
@@ -4619,4 +4903,122 @@ summary,
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* Sensors page (SensorsPage): English or Arabic (dir="rtl"); numbers stay left to right. */
+.sensors-page {
+  display: grid;
+  gap: calc(18px * var(--density));
+}
+.sensors-page .page-head {
+  margin-bottom: 0;
+}
+.sensors-page h1 {
+  margin: 0;
+}
+.sensors-page h2 {
+  margin: 0;
+  font-size: calc(19px * var(--text-scale));
+  text-wrap: balance;
+}
+.sensors-section {
+  display: grid;
+  gap: calc(10px * var(--density));
+}
+.sensors-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: calc(14px * var(--density));
+}
+.sensor-card h3 {
+  margin: 0 0 6px;
+  font-size: calc(16px * var(--text-scale));
+}
+.sensor-card p {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.sensor-good,
+.sensor-weak {
+  padding-inline-start: 10px;
+  border-inline-start: 3px solid var(--ok);
+}
+.sensor-weak {
+  border-inline-start-color: var(--amber);
+}
+.sensor-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 1.4em;
+}
+.sensor-steps li {
+  line-height: 1.5;
+}
+.sensors-try {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: calc(20px * var(--density));
+  align-items: start;
+}
+.sensors-controls,
+.sensors-result {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.sensors-controls p {
+  margin: 0;
+}
+.sensors-slider {
+  display: grid;
+  gap: 4px;
+  font-size: calc(14px * var(--text-scale));
+}
+.sensors-slider input {
+  width: 100%;
+  accent-color: var(--survey);
+}
+.speed-chart {
+  margin: 0;
+}
+.speed-chart figcaption {
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: calc(14px * var(--text-scale));
+}
+.speed-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.speed-chart .chart-legend {
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.speed-chart .chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.sensor-limits {
+  margin: 0;
+  padding-inline-start: 1.2em;
+  display: grid;
+  gap: 6px;
+  line-height: 1.5;
+  max-width: 85ch;
+}
+.sensors-page[dir='rtl'] {
+  font-family: 'Segoe UI', Tahoma, system-ui, sans-serif;
+}
+.sensors-page .num-table small {
+  color: var(--ink-2);
+}
+@media (max-width: 860px) {
+  .sensors-try {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

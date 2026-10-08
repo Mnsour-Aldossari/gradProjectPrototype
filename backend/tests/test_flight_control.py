@@ -94,8 +94,9 @@ def test_land_comes_down_where_it_is():
     stop, last = frames[99].position, frames[-1].position
     assert (last.lat, last.lon) == (stop.lat, stop.lon)
     assert last.relative_alt == 0
-    # Straight down at 0.5 m/s, a frame every 0.2 s.
-    assert len(frames) - 100 == math.ceil(stop.relative_alt / 1000 / 0.5 / 0.2)
+    # Straight down at 0.5 m/s, a frame every 0.2 s, then one on the ground, disarmed.
+    assert len(frames) - 100 == math.ceil(stop.relative_alt / 1000 / 0.5 / 0.2) + 1
+    assert (frames[-2].status.armed, frames[-1].status.armed, frames[-1].status.landed_state) == (True, False, 1)
 
 
 def start(client, headers) -> int:

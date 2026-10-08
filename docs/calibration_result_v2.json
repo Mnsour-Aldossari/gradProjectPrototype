@@ -1,0 +1,279 @@
+{
+  "method": "adaptive v2",
+  "data": {
+    "tuning_seeds": [
+      1000,
+      1019
+    ],
+    "soils": [
+      "dry_sand",
+      "wet_clay",
+      "mineralized_rocky"
+    ],
+    "settings": [
+      {
+        "altitude_m": 1.5,
+        "speed_mps": 2.0,
+        "line_spacing_m": 2.0
+      },
+      {
+        "altitude_m": 1.0,
+        "speed_mps": 1.0,
+        "line_spacing_m": 1.0
+      },
+      {
+        "altitude_m": 0.75,
+        "speed_mps": 2.0,
+        "line_spacing_m": 2.0
+      },
+      {
+        "altitude_m": 1.5,
+        "speed_mps": 1.0,
+        "line_spacing_m": 1.0
+      },
+      {
+        "altitude_m": 2.0,
+        "speed_mps": 2.0,
+        "line_spacing_m": 2.0
+      }
+    ],
+    "surveys": 300
+  },
+  "objective": "most mines found (high + needs verification, pooled) with false alarms <= version 1's; ties: fewer false alarms, then grid order",
+  "v1_on_the_same_surveys": {
+    "targets": 1005,
+    "found": 728,
+    "false_alarms": 276,
+    "recall": 0.7244,
+    "precision": 0.7251
+  },
+  "grid": {
+    "k_md": [
+      2.0,
+      2.5,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      8.0,
+      10.0
+    ],
+    "k_gpr": [
+      3.0,
+      3.5,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      10.0,
+      12.0
+    ],
+    "body_ratio": [
+      0.05,
+      0.075,
+      0.1,
+      0.15,
+      0.2
+    ],
+    "max_reflector_depth_m": [
+      0.06,
+      0.08,
+      0.1,
+      0.12,
+      0.15,
+      0.2,
+      0.3
+    ],
+    "smooth": [
+      false,
+      true
+    ]
+  },
+  "reliability": "version 1's, unchanged",
+  "best": {
+    "k_md": 3.0,
+    "k_gpr": 4.0,
+    "body_ratio": 0.1,
+    "max_reflector_depth_m": 0.12,
+    "smooth": false,
+    "f1": 0.7893,
+    "recall": 0.8239,
+    "precision": 0.7575,
+    "targets": 1005,
+    "found": 828,
+    "false_alarms": 265
+  },
+  "best_without_smoothing": {
+    "k_md": 3.0,
+    "k_gpr": 4.0,
+    "body_ratio": 0.1,
+    "max_reflector_depth_m": 0.12,
+    "smooth": false,
+    "f1": 0.7893,
+    "recall": 0.8239,
+    "precision": 0.7575,
+    "targets": 1005,
+    "found": 828,
+    "false_alarms": 265
+  },
+  "best_with_smoothing": {
+    "k_md": 5.0,
+    "k_gpr": 8.0,
+    "body_ratio": 0.1,
+    "max_reflector_depth_m": 0.12,
+    "smooth": true,
+    "f1": 0.7598,
+    "recall": 0.7682,
+    "precision": 0.7517,
+    "targets": 1005,
+    "found": 772,
+    "false_alarms": 255
+  },
+  "best_by_f1": {
+    "k_md": 3.0,
+    "k_gpr": 5.0,
+    "body_ratio": 0.15,
+    "max_reflector_depth_m": 0.12,
+    "smooth": false,
+    "f1": 0.7942,
+    "recall": 0.7413,
+    "precision": 0.8553,
+    "targets": 1005,
+    "found": 745,
+    "false_alarms": 126
+  },
+  "top10": [
+    {
+      "k_md": 3.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.1,
+      "max_reflector_depth_m": 0.12,
+      "smooth": false,
+      "f1": 0.7893,
+      "recall": 0.8239,
+      "precision": 0.7575,
+      "targets": 1005,
+      "found": 828,
+      "false_alarms": 265
+    },
+    {
+      "k_md": 4.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.1,
+      "max_reflector_depth_m": 0.12,
+      "smooth": false,
+      "f1": 0.7898,
+      "recall": 0.8189,
+      "precision": 0.7627,
+      "targets": 1005,
+      "found": 823,
+      "false_alarms": 256
+    },
+    {
+      "k_md": 5.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.1,
+      "max_reflector_depth_m": 0.12,
+      "smooth": false,
+      "f1": 0.7869,
+      "recall": 0.8139,
+      "precision": 0.7616,
+      "targets": 1005,
+      "found": 818,
+      "false_alarms": 256
+    },
+    {
+      "k_md": 6.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.1,
+      "max_reflector_depth_m": 0.12,
+      "smooth": false,
+      "f1": 0.7863,
+      "recall": 0.8109,
+      "precision": 0.7631,
+      "targets": 1005,
+      "found": 815,
+      "false_alarms": 253
+    },
+    {
+      "k_md": 3.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.15,
+      "max_reflector_depth_m": 0.15,
+      "smooth": false,
+      "f1": 0.7792,
+      "recall": 0.797,
+      "precision": 0.7621,
+      "targets": 1005,
+      "found": 801,
+      "false_alarms": 250
+    },
+    {
+      "k_md": 2.5,
+      "k_gpr": 4.0,
+      "body_ratio": 0.15,
+      "max_reflector_depth_m": 0.15,
+      "smooth": false,
+      "f1": 0.7735,
+      "recall": 0.797,
+      "precision": 0.7514,
+      "targets": 1005,
+      "found": 801,
+      "false_alarms": 265
+    },
+    {
+      "k_md": 4.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.15,
+      "max_reflector_depth_m": 0.15,
+      "smooth": false,
+      "f1": 0.7789,
+      "recall": 0.794,
+      "precision": 0.7644,
+      "targets": 1005,
+      "found": 798,
+      "false_alarms": 246
+    },
+    {
+      "k_md": 5.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.15,
+      "max_reflector_depth_m": 0.15,
+      "smooth": false,
+      "f1": 0.7779,
+      "recall": 0.793,
+      "precision": 0.7634,
+      "targets": 1005,
+      "found": 797,
+      "false_alarms": 247
+    },
+    {
+      "k_md": 3.0,
+      "k_gpr": 4.0,
+      "body_ratio": 0.15,
+      "max_reflector_depth_m": 0.12,
+      "smooth": false,
+      "f1": 0.7924,
+      "recall": 0.792,
+      "precision": 0.7928,
+      "targets": 1005,
+      "found": 796,
+      "false_alarms": 208
+    },
+    {
+      "k_md": 2.5,
+      "k_gpr": 4.0,
+      "body_ratio": 0.15,
+      "max_reflector_depth_m": 0.12,
+      "smooth": false,
+      "f1": 0.7862,
+      "recall": 0.792,
+      "precision": 0.7804,
+      "targets": 1005,
+      "found": 796,
+      "false_alarms": 224
+    }
+  ],
+  "seconds": 239
+}

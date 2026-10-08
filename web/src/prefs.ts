@@ -14,6 +14,12 @@ export interface FieldLayers {
   labels: boolean // detection numbers next to their markers
   guide: boolean // line from the user's position to the nearest detection
 }
+/** Which sensor's readings colour the mission map, if any. */
+export type HeatmapPref = 'md' | 'gpr' | 'off'
+export const HEATMAP_PREFS: HeatmapPref[] = ['md', 'gpr', 'off']
+export interface MissionLayers {
+  heatmap: HeatmapPref
+}
 
 /** The cards in the right-hand column of the mission page, in their default order. */
 export type MissionCard = 'flight' | 'sensors' | 'detections' | 'profile'
@@ -47,6 +53,7 @@ export interface Prefs {
   layout: PageLayout
   fieldHidden: FieldPanel[]
   fieldLayers: FieldLayers
+  missionLayers: MissionLayers
 }
 
 export const DEFAULT_MISSION_LAYOUT: MissionLayout = {
@@ -64,6 +71,7 @@ export const DEFAULT_PREFS: Prefs = {
   layout: { sidebarCollapsed: false, mission: DEFAULT_MISSION_LAYOUT },
   fieldHidden: [],
   fieldLayers: { labels: true, guide: true },
+  missionLayers: { heatmap: 'off' },
 }
 
 const THEMES: ThemePref[] = ['light', 'dark', 'system']
@@ -137,6 +145,10 @@ function parse(raw: string | null): Prefs {
   const hidden = Array.isArray(stored.fieldHidden) ? (stored.fieldHidden as unknown[]) : []
   const layers =
     stored.fieldLayers && typeof stored.fieldLayers === 'object' ? (stored.fieldLayers as Record<string, unknown>) : {}
+  const missionLayers =
+    stored.missionLayers && typeof stored.missionLayers === 'object'
+      ? (stored.missionLayers as Record<string, unknown>)
+      : {}
   return {
     theme: pick(stored.theme, THEMES, DEFAULT_PREFS.theme),
     fontSize: pick(stored.fontSize, FONT_SIZES, DEFAULT_PREFS.fontSize),
@@ -147,6 +159,7 @@ function parse(raw: string | null): Prefs {
       labels: typeof layers.labels === 'boolean' ? layers.labels : DEFAULT_PREFS.fieldLayers.labels,
       guide: typeof layers.guide === 'boolean' ? layers.guide : DEFAULT_PREFS.fieldLayers.guide,
     },
+    missionLayers: { heatmap: pick(missionLayers.heatmap, HEATMAP_PREFS, DEFAULT_PREFS.missionLayers.heatmap) },
   }
 }
 

@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { DisplayMenu } from '../components/DisplayMenu'
+import { RosButton } from '../components/RosButton'
 import { usePrefs } from '../prefs'
 
 function initials(name: string | undefined): string {
@@ -17,6 +18,8 @@ const ICONS = {
   new: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 8v8 M8 12h8',
   history: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 2',
   evaluation: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2',
+  sensors: 'M12 13a1 1 0 1 0 0 .01 M8.5 9.5a5 5 0 0 0 0 7 M15.5 9.5a5 5 0 0 1 0 7 M5.6 6.6a9 9 0 0 0 0 12.8 M18.4 6.6a9 9 0 0 1 0 12.8',
+  database: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6 M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6',
   fold: 'M4 4v16 M20 12H9 M13 8l-4 4 4 4',
   unfold: 'M4 4v16 M9 12h11 M16 8l4 4-4 4',
   signOut: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3 M10 16l4-4-4-4 M14 12H4',
@@ -76,7 +79,25 @@ export function Layout() {
             <Icon d={ICONS.evaluation} />
             <span className="nav-label">Evaluation</span>
           </NavLink>
+          <NavLink to="/sensors" title={tip('Sensors')}>
+            <Icon d={ICONS.sensors} />
+            <span className="nav-label">Sensors</span>
+          </NavLink>
+          {user?.role === 'supervisor' &&
+            (user.database_ui_url ? (
+              <a href={user.database_ui_url} target="_blank" rel="noreferrer" title={tip('Database (opens in a new tab)')}>
+                <Icon d={ICONS.database} />
+                <span className="nav-label">Database</span>
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            ) : (
+              <NavLink to="/database" title={tip('Database')}>
+                <Icon d={ICONS.database} />
+                <span className="nav-label">Database</span>
+              </NavLink>
+            ))}
         </nav>
+        {user?.role === 'supervisor' && <RosButton folded={folded} />}
         <div className="side-grow" />
         <p className="sim-note" title={tip(`Simulated data. ${SIM_NOTE}`)}>
           <b>Simulated data.</b> <span className="sim-more">{SIM_NOTE}</span>

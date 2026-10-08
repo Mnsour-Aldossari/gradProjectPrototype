@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
+from .api.collection import apply, assess_stored
 from .models import Mission, User
 from .security import hash_password
 
@@ -30,10 +31,12 @@ def seed_users(engine: Engine) -> None:
 
 
 def fail_interrupted_missions(engine: Engine) -> None:
-    """Missions left 'running' by a previous server process can never finish."""
+    """Missions left 'running' by a previous server process can never finish. Their sensor collection is assessed
+    from the readings stored before the stop."""
     with Session(engine) as session:
-        for mission in session.exec(select(Mission).where(Mission.status == "running")):
+        for mission in session.exec(select(Mission).where(Mission.status == "running")).all():
             mission.status = "failed"
             mission.error = "Interrupted by a server restart"
+            apply(mission, assess_stored(session, mission, "The server stopped before the last lane"))
             session.add(mission)
         session.commit()

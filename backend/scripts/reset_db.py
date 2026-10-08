@@ -3,8 +3,9 @@
     python -m scripts.reset_db          # dry run: shows what would be deleted, changes nothing
     python -m scripts.reset_db --yes    # backs up the SQLite file to ../backups/, then resets
 
-Stop the backend server first. The reset drops every table, recreates them and runs the same
-user seeding the server runs at startup (supervisor and field operator, test credentials only).
+Stop the backend server first. The reset drops every table (alembic_version too), runs the
+migrations again and the same user seeding the server runs at startup (supervisor and field
+operator, test credentials only).
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import func
+from sqlalchemy import MetaData, func
 from sqlmodel import Session, SQLModel, select
 
 from app.config import Settings
@@ -31,6 +32,16 @@ def table_counts(engine) -> dict[str, int]:
             name: session.exec(select(func.count()).select_from(table)).one()
             for name, table in SQLModel.metadata.tables.items()
         }
+
+
+def reset(engine) -> None:
+    """Drop every table the database has, alembic_version included (so the migrations run again from the start,
+    not just from where it was), then build it again and add the two demo users."""
+    tables = MetaData()
+    tables.reflect(engine)
+    tables.drop_all(engine)
+    init_db(engine)
+    seed_users(engine)
 
 
 def sqlite_file(url: str) -> Path | None:
@@ -70,9 +81,7 @@ def main() -> int:
     else:
         print("Not a SQLite database: no automatic backup was made.")
 
-    SQLModel.metadata.drop_all(engine)
-    init_db(engine)
-    seed_users(engine)
+    reset(engine)
     print("After reset:")
     for name, n in table_counts(engine).items():
         print(f"  {name:<18}{n:>8}")

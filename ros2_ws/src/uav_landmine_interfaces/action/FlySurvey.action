@@ -1,0 +1,25 @@
+# Starts a mission through the backend and follows it to its end. Cancelling the goal lands the UAV (or brings it
+# home, with cancel_action "return"). Simulated data; the detections are potential ones for trained personnel.
+int64 mission_id        # 0: the demo scenario
+string uav_source       # simulated (when empty) or px4
+float64 speed_factor    # below 0: the backend's
+bool gazebo
+string cancel_action    # land (when empty) or return
+---
+int64 mission_id
+string status           # completed, stopped, failed; or refused, when it could not start
+string message          # the error, or why it was refused
+string sensor_collection
+float64 sensor_coverage # -1 when not known
+int64 readings
+int32 high_priority
+int32 needs_verification
+int32 likely_clutter
+---
+int64 mission_id
+string status
+string phase
+float64 progress
+int64 readings
+int32 high_priority
+int32 needs_verification

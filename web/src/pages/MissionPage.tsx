@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api } from '../api'
+import { api, download } from '../api'
 import { useAuth } from '../auth'
 import { CARD_ICONS, CardFrame, Glyph, type CardDrag } from '../components/CardFrame'
 import { DetectionDetail } from '../components/DetectionDetail'
@@ -8,13 +8,24 @@ import { FlightControls } from '../components/FlightControls'
 import { Select } from '../components/Select'
 import { SensorTrace } from '../components/SensorTrace'
 import { Splitter } from '../components/Splitter'
+import { SensorBadge, SensorNote } from '../components/SensorBadge'
 import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
 import { remainingS } from '../field/mapInfo'
 import { useMissionLive } from '../live'
+import { HeatLegend, HeatmapLayer, HEAT_SENSOR_LABELS } from '../map/HeatmapLayer'
 import { SurveyMap } from '../map/SurveyMap'
 import { TakeoffPoint, distanceM, insideArea } from '../map/TakeoffPoint'
-import { DEFAULT_MISSION_LAYOUT, MAP_HEIGHT, SIDE_WIDTH, usePrefs, type MissionCard, type MissionHideable } from '../prefs'
+import {
+  DEFAULT_MISSION_LAYOUT,
+  HEATMAP_PREFS,
+  MAP_HEIGHT,
+  SIDE_WIDTH,
+  usePrefs,
+  type HeatmapPref,
+  type MissionCard,
+  type MissionHideable,
+} from '../prefs'
 import {
   CATEGORY_LABELS,
   SOIL_LABELS,
@@ -24,6 +35,8 @@ import {
   type Detection,
   type LatLon,
   type Mission,
+  type MissionStatus,
+  type SensorGrid,
   type UavSource,
 } from '../types'
 
@@ -157,16 +170,63 @@ const HEADING_IDS: Record<MissionCard, string> = {
   profile: 'profile-heading',
 }
 
-function Legend({ showBaseline }: { showBaseline: boolean }) {
+function Legend({
+  showBaseline,
+  heat,
+  grid,
+}: {
+  showBaseline: boolean
+  heat: HeatmapPref
+  grid: SensorGrid | null
+}) {
   return (
     <div className="legend" aria-label="Map legend">
       <span><i className="swatch swatch-high" aria-hidden="true" /> High priority</span>
       <span><i className="swatch swatch-suspect" aria-hidden="true" /> Needs verification</span>
       <span><i className="swatch swatch-clutter" aria-hidden="true" /> Likely clutter</span>
       {showBaseline && <span><i className="swatch swatch-baseline" aria-hidden="true" /> Fixed-threshold baseline</span>}
-      <span><i className="swatch swatch-swath" aria-hidden="true" /> Ground scanned</span>
+      {heat === 'off' ? (
+        <span><i className="swatch swatch-swath" aria-hidden="true" /> Ground scanned</span>
+      ) : (
+        <HeatLegend sensor={heat} grid={grid} />
+      )}
     </div>
   )
+}
+
+const HEAT_CHOICES: Record<HeatmapPref, { label: string; title: string }> = {
+  md: { label: 'MD', title: HEAT_SENSOR_LABELS.md },
+  gpr: { label: 'GPR', title: HEAT_SENSOR_LABELS.gpr },
+  off: { label: 'Hide', title: 'No sensor heatmap' },
+}
+const HEATMAP_REFRESH_MS = 3000
+// A page with a folded corner, for the report button.
+const REPORT_ICON = 'M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6'
+
+/** The mission's readings as a grid while the heatmap is on: again every few seconds while the UAV flies, and once
+ * more when the flight ends. null while it loads. */
+function useSensorGrid(missionId: number, on: boolean, status: MissionStatus | undefined): SensorGrid | null {
+  const [grid, setGrid] = useState<SensorGrid | null>(null)
+  useEffect(() => {
+    if (!on || status === undefined) return
+    let stopped = false
+    let timer: number | undefined
+    const load = () =>
+      api<SensorGrid>(`/api/missions/${missionId}/heatmap`)
+        .then((g) => {
+          if (!stopped) setGrid(g)
+        })
+        .catch(() => undefined) // the map keeps the last grid; the next refresh tries again
+        .finally(() => {
+          if (!stopped && status === 'running') timer = window.setTimeout(load, HEATMAP_REFRESH_MS)
+        })
+    load()
+    return () => {
+      stopped = true
+      window.clearTimeout(timer)
+    }
+  }, [missionId, on, status])
+  return on ? grid : null
 }
 
 export function MissionPage() {
@@ -210,8 +270,12 @@ export function MissionPage() {
   const gridRef = useRef<HTMLDivElement>(null)
   // The map over the whole page; not saved, a reload shows the page as customized.
   const [expanded, setExpanded] = useState(false)
-  const { prefs, setMissionLayout } = usePrefs()
+  const { prefs, setPrefs, setMissionLayout } = usePrefs()
   const layout = prefs.layout.mission
+  const heat = prefs.missionLayers.heatmap
+  const grid = useSensorGrid(missionId, heat !== 'off', state.mission?.status)
+  const [reportBusy, setReportBusy] = useState(false)
+  const [reportError, setReportError] = useState<string | null>(null)
 
   useEffect(() => {
     sideRef.current?.scrollTo({ top: 0 })
@@ -349,6 +413,18 @@ export function MissionPage() {
     }
   }
 
+  async function downloadReport() {
+    setReportBusy(true)
+    setReportError(null)
+    try {
+      await download(`/api/missions/${missionId}/report.pdf`, `mission-${missionId}-report.pdf`)
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : 'The report could not be made')
+    } finally {
+      setReportBusy(false)
+    }
+  }
+
   const progress = Math.round(mission.progress * 100)
   const linkLabel =
     state.connection === 'open' ? 'Live link connected' : state.connection === 'failed' ? 'Live link lost' : 'Reconnecting'
@@ -460,7 +536,10 @@ export function MissionPage() {
         keep={
           <>
             <div className="row spread">
-              <StatusBadge mission={mission} />
+              <span className="outcome">
+                <StatusBadge mission={mission} label="Flight" />
+                <SensorBadge mission={mission} label="Sensors" />
+              </span>
               <span className="num">{progress}% of path</span>
             </div>
             <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
@@ -472,6 +551,7 @@ export function MissionPage() {
               ) : (
                 <p className="error">{mission.error}</p>
               ))}
+            <SensorNote mission={mission} />
             {user?.role === 'supervisor' && mission.status === 'running' && <FlightControls mission={mission} />}
             {canStart && (
               <div className="start">
@@ -687,8 +767,8 @@ export function MissionPage() {
             {mission.name} <StatusBadge mission={mission} />
           </h1>
           <p className="small">
-            {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m,
-            scenario seed {mission.scenario_seed}
+            {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m
+            {mission.scenario_seed !== null && `, scenario seed ${mission.scenario_seed}`}
           </p>
         </div>
         <div className="toggles">
@@ -701,6 +781,30 @@ export function MissionPage() {
             Compare with the fixed-threshold baseline
             {mission.status !== 'completed' && mission.status !== 'stopped' && <span className="small"> (after the survey)</span>}
           </label>
+          <div className="toggle heat-toggle" role="radiogroup" aria-label="Sensor heatmap on the map">
+            <span aria-hidden="true">Heatmap</span>
+            <span className="segmented compact">
+              {HEATMAP_PREFS.map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  role="radio"
+                  aria-checked={heat === choice}
+                  className={heat === choice ? 'is-on' : undefined}
+                  title={HEAT_CHOICES[choice].title}
+                  onClick={() => setPrefs({ missionLayers: { ...prefs.missionLayers, heatmap: choice } })}
+                >
+                  {HEAT_CHOICES[choice].label}
+                </button>
+              ))}
+            </span>
+          </div>
+          {user?.role === 'supervisor' && mission.status !== 'planned' && (
+            <button type="button" className="toggle report-button" onClick={downloadReport} disabled={reportBusy}>
+              <Glyph d={REPORT_ICON} />
+              {reportBusy ? 'Making report…' : 'Download report'}
+            </button>
+          )}
           <button
             type="button"
             className="toggle cfg-open"
@@ -715,6 +819,11 @@ export function MissionPage() {
             Customize{hidden.length > 0 && ` (${hidden.length} hidden)`}
           </button>
         </div>
+        {reportError && (
+          <p className="error" role="alert">
+            {reportError}
+          </p>
+        )}
         {editing && (
           <div className="cfg-bar" role="region" aria-label="Customize this page">
             <p className="small">
@@ -815,7 +924,9 @@ export function MissionPage() {
             detections={visible}
             selectedId={selectedId}
             onSelect={select}
+            showSwath={heat === 'off'}
           >
+            {heat !== 'off' && grid && <HeatmapLayer grid={grid} sensor={heat} />}
             {showTakeoff && (
               <TakeoffPoint
                 point={takeoffPoint}
@@ -834,7 +945,7 @@ export function MissionPage() {
               />
             )}
           </SurveyMap>
-          <Legend showBaseline={showBaseline} />
+          <Legend showBaseline={showBaseline} heat={heat} grid={grid} />
           <button
             type="button"
             className="map-expand"

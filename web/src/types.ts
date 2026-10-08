@@ -14,6 +14,8 @@ export interface User {
   username: string
   full_name: string
   role: Role
+  /** A page for browsing the database, set on the server (DATABASE_UI_URL); supervisors only. */
+  database_ui_url?: string | null
 }
 
 export interface MissionStats {
@@ -25,6 +27,9 @@ export interface MissionStats {
 /** What flies a survey: the built-in simulator, or PX4 (SITL + Gazebo) over MAVLink. */
 export type UavSource = 'simulated' | 'px4'
 
+/** How well the sensor readings cover the survey's lanes, apart from how the flight ended. */
+export type SensorCollection = 'complete' | 'partial' | 'failed' | 'not_started'
+
 export interface Mission {
   id: number
   name: string
@@ -35,7 +40,7 @@ export interface Mission {
   speed_mps: number
   line_spacing_m: number
   soil_type: SoilType
-  scenario_seed: number
+  scenario_seed: number | null // the supervisor's only
   status: MissionStatus
   uav_source: UavSource
   /** Where PX4 takes off; null: the first point of the survey path. */
@@ -50,6 +55,13 @@ export interface Mission {
   progress: number
   battery_pct: number | null
   error: string | null
+  /** null: flown before the collection was recorded (v1.8 and older). */
+  sensor_collection: SensorCollection | null
+  sensor_reading_count: number
+  /** Share of the lanes' length read without gaps, 0..1. */
+  sensor_coverage: number | null
+  /** Why the collection is not complete. */
+  sensor_note: string | null
   created_by: number | null
   created_at: string
   started_at: string | null
@@ -112,6 +124,19 @@ export interface Telemetry {
   gpr?: number | null
 }
 
+/** A mission's sensor readings as a grid (GET /api/missions/{id}/heatmap): one row per lane, north first. */
+export interface SensorGrid {
+  bounds: [LatLon, LatLon] // south-west, north-east
+  rows: number
+  cols: number
+  cell_m: [number, number] // east-west, north-south
+  /** Strongest reading in each cell divided by the full scale, 0..1; null: no reading there. */
+  md: (number | null)[]
+  gpr: (number | null)[]
+  readings: number
+  full_scale: { md: number; gpr: number }
+}
+
 export interface ConditionProfile {
   soil_type: SoilType
   soil_label: string
@@ -124,6 +149,22 @@ export interface ConditionProfile {
   background_window_m: number
   link_radius_m: number
   notes: string[]
+}
+
+/** The detector's expected accuracy with some survey settings (GET /api/accuracy). Simulated data. */
+export interface AccuracyEstimate {
+  soil_type: SoilType
+  altitude_m: number
+  speed_mps: number
+  line_spacing_m: number
+  recall: number
+  recall_margin: number
+  precision: number
+  false_alarms_per_ha: number
+  low_metal_recall: number
+  surveys: number
+  seeds: [number, number]
+  method: string
 }
 
 export const SOIL_LABELS: Record<SoilType, string> = {

@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, detections, evaluation, missions, ws
+from .api import accuracy, auth, detections, evaluation, heatmap, missions, reports, ros, ws
 from .api.runner import MissionRunner
 from .api.ws import Hub
 from .config import Settings
 from .db import init_db, make_engine
+from .ros_wsl import RosInWsl
 from .seed import fail_interrupted_missions, seed_users
 from .uav.px4_mavlink_source import mavsdk_installed
 
@@ -45,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.runner = runner
     app.state.hub = hub
+    app.state.ros = RosInWsl(settings.ros_wsl_distro) if settings.ros_wsl else None
 
     app.add_middleware(
         CORSMiddleware,
@@ -54,8 +56,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(auth.router)
     app.include_router(missions.router)
+    app.include_router(heatmap.router)
+    app.include_router(reports.router)
     app.include_router(detections.router)
     app.include_router(evaluation.router)
+    app.include_router(accuracy.router)
+    app.include_router(ros.router)
     app.include_router(ws.router)
 
     @app.get("/api/health", tags=["health"])
@@ -70,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "px4_restarts": settings.px4_manage_docker,
             "px4_gazebo": settings.px4_manage_gazebo,
             "px4_manage_off": settings.px4_manage_off,
+            "database": engine.dialect.name,  # sqlite or postgresql: which one holds the data
         }
 
     return app

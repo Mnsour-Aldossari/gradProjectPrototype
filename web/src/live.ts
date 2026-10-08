@@ -30,7 +30,7 @@ type Event =
       progress: number
       battery_pct: number | null
       error: string | null
-    }
+    } & Partial<Pick<Mission, 'sensor_collection' | 'sensor_reading_count' | 'sensor_coverage' | 'sensor_note'>>
   | { type: 'detection_created' | 'detection_updated'; detection: Detection }
   | { type: 'alert'; detection: Detection }
   | { type: 'detection_removed'; id: number }
@@ -91,6 +91,10 @@ function reducer(state: LiveState, action: Action): LiveState {
               progress: action.progress,
               battery_pct: action.battery_pct,
               error: action.error,
+              sensor_collection: action.sensor_collection ?? state.mission.sensor_collection,
+              sensor_reading_count: action.sensor_reading_count ?? state.mission.sensor_reading_count,
+              sensor_coverage: action.sensor_coverage ?? state.mission.sensor_coverage,
+              sensor_note: action.sensor_note ?? state.mission.sensor_note,
             },
           }
         : state

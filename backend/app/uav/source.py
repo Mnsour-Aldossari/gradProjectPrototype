@@ -63,12 +63,29 @@ class SensorSample:
 
 
 @dataclass(frozen=True)
+class VehicleStatus:
+    """What the vehicle says about itself, for confirming a landing (landing.py). From MAVLink HEARTBEAT (#0), the
+    armed flag of base_mode, and EXTENDED_SYS_STATE (#245) landed_state; the failsafe and the age are project-defined
+    (PX4 reports a failsafe in its status messages)."""
+
+    armed: bool
+    landed_state: int  # MAV_LANDED_STATE: 0 undefined, 1 on ground, 2 in air, 3 taking off, 4 landing
+    failsafe: str | None = None  # what the vehicle said when a failsafe started; None: no failsafe
+    age_s: float = 0.0  # how old the oldest of these values was when the frame was made
+
+
+MAV_LANDED_STATE_ON_GROUND = 1
+MAV_LANDED_STATE_IN_AIR = 2
+
+
+@dataclass(frozen=True)
 class TelemetryFrame:
     position: GlobalPositionInt
     battery: BatteryStatus
     mission: MissionCurrent
     sensor: SensorSample | None
     progress: float  # fraction of the survey path completed, 0..1
+    status: VehicleStatus | None = None  # None: the source does not report it (the landing is then not confirmed)
 
 
 class TelemetrySource(Protocol):

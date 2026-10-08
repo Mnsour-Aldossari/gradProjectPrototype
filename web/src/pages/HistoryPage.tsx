@@ -1,14 +1,33 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api } from '../api'
+import { api, download } from '../api'
+import { useAuth } from '../auth'
+import { SensorBadge } from '../components/SensorBadge'
 import { formatDate, formatDuration } from '../format'
 import { CATEGORY_LABELS, SOIL_LABELS, STATUS_LABELS, type Category, type MissionHistory } from '../types'
 
 const CATEGORIES: Category[] = ['high', 'suspect', 'clutter']
 
 export function HistoryPage() {
+  const { user } = useAuth()
+  const supervisor = user?.role === 'supervisor'
   const [history, setHistory] = useState<MissionHistory | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The mission whose report is being made, and why the last one failed.
+  const [reporting, setReporting] = useState<number | null>(null)
+  const [reportError, setReportError] = useState<string | null>(null)
+
+  async function downloadReport(id: number) {
+    setReporting(id)
+    setReportError(null)
+    try {
+      await download(`/api/missions/${id}/report.pdf`, `mission-${id}-report.pdf`)
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : 'The report could not be made')
+    } finally {
+      setReporting(null)
+    }
+  }
 
   useEffect(() => {
     api<MissionHistory>('/api/missions/history')
@@ -23,6 +42,11 @@ export function HistoryPage() {
     <main className="page history">
       <h1>Mission history</h1>
       {error && <p className="error">{error}</p>}
+      {reportError && (
+        <p className="error" role="alert">
+          {reportError}
+        </p>
+      )}
       {!history && !error && <p className="small">Loading mission history</p>}
 
       {history && history.missions.length === 0 && (
@@ -64,6 +88,7 @@ export function HistoryPage() {
               <thead>
                 <tr>
                   <th>Mission</th>
+                  <th>Sensors</th>
                   <th>Finished</th>
                   <th>Soil</th>
                   <th>Flight time</th>
@@ -72,6 +97,7 @@ export function HistoryPage() {
                   <th title="Likely clutter">Clutter</th>
                   <th>Verified</th>
                   <th title="High-priority alarms from the fixed-threshold baseline, for comparison">Baseline</th>
+                  {supervisor && <th>Report</th>}
                 </tr>
               </thead>
               <tbody>
@@ -87,6 +113,9 @@ export function HistoryPage() {
                           </span>
                         )}
                       </th>
+                      <td>
+                        <SensorBadge mission={m} />
+                      </td>
                       <td>{formatDate(m.completed_at)}</td>
                       <td>{SOIL_LABELS[m.soil_type]}</td>
                       <td className="num">{formatDuration(m.estimated_duration_s)}</td>
@@ -97,6 +126,19 @@ export function HistoryPage() {
                         {reported - verification.pending} of {reported}
                       </td>
                       <td className="num">{baseline_high}</td>
+                      {supervisor && (
+                        <td>
+                          <button
+                            type="button"
+                            className="link-button"
+                            onClick={() => downloadReport(m.id)}
+                            disabled={reporting !== null}
+                            aria-label={`Download the report of ${m.name} (PDF)`}
+                          >
+                            {reporting === m.id ? 'Making…' : 'PDF'}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}

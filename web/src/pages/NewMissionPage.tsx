@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Polygon } from 'react-leaflet'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
+import { AccuracyMeter } from '../components/AccuracyMeter'
 import { Select } from '../components/Select'
 import { formatDuration } from '../format'
 import { AreaDrawer, AreaHandles, OUTLINE_COLORS, outline, type DrawTool, type Shape } from '../map/AreaEditor'
 import { SurveyMap } from '../map/SurveyMap'
-import { SOIL_LABELS, type LatLon, type Mission, type SoilType } from '../types'
+import { SOIL_LABELS, type AccuracyEstimate, type LatLon, type Mission, type SoilType } from '../types'
 
 // 60 m x 40 m test field near Al-Kharj (same as DEMO_AREA in the backend).
 const DEMO_AREA: LatLon[] = [
@@ -36,6 +37,7 @@ interface AreaCheck {
   height_m: number
   area_m2: number
   estimated_duration_s: number
+  accuracy: AccuracyEstimate | null
 }
 
 const CHECK_DELAY_MS = 200
@@ -66,7 +68,7 @@ export function NewMissionPage() {
   const seedValue = seed.trim() === '' ? null : Number(seed)
 
   // Ask the backend about the outline as it changes: the same rules as Create mission, and the lanes it would get.
-  const checkKey = JSON.stringify([checked, spacing, speed, soil, seedValue])
+  const checkKey = JSON.stringify([checked, altitude, spacing, speed, soil, seedValue])
   useEffect(() => {
     const seq = ++checkSeq.current
     const timer = window.setTimeout(() => {
@@ -266,6 +268,17 @@ export function NewMissionPage() {
               <input type="number" min={0.5} max={5} step={0.1} value={spacing} onChange={(e) => setSpacing(Number(e.target.value))} />
             </label>
           </div>
+
+          {check?.accuracy && (
+            <section className="field" aria-labelledby="accuracy-label">
+              <span id="accuracy-label">Expected detection with these settings</span>
+              <AccuracyMeter estimate={check.accuracy} compact />
+              <small>
+                Slower flight and closer lanes find more, but the flight takes longer.{' '}
+                <Link to="/sensors">How the sensors work</Link>
+              </small>
+            </section>
+          )}
 
           <label className="field">
             <span>Scenario seed (optional)</span>

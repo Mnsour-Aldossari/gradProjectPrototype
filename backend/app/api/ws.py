@@ -56,7 +56,7 @@ def detection_event(kind: str, detection: Detection) -> dict:
     return {"type": kind, "detection": DetectionRead.model_validate(detection).model_dump(mode="json")}
 
 
-def _snapshot(session: Session, mission: Mission, runner) -> dict:
+def _snapshot(session: Session, mission: Mission, user: User, runner) -> dict:
     from .missions import mission_read  # avoid import cycle
 
     detections = session.exec(select(Detection).where(Detection.mission_id == mission.id).order_by(Detection.id)).all()
@@ -69,7 +69,7 @@ def _snapshot(session: Session, mission: Mission, runner) -> dict:
     ).one()
     return {
         "type": "snapshot",
-        "mission": mission_read(session, mission, with_stats=True, runner=runner).model_dump(mode="json"),
+        "mission": mission_read(session, mission, user, with_stats=True, runner=runner).model_dump(mode="json"),
         "detections": [DetectionRead.model_validate(d).model_dump(mode="json") for d in detections],
         "track": [[p.lat, p.lon] for p in points],
         "last_telemetry": None
@@ -88,35 +88,44 @@ def _snapshot(session: Session, mission: Mission, runner) -> dict:
     }
 
 
-@router.websocket("/ws/missions/{mission_id}")
-async def mission_events(websocket: WebSocket, mission_id: int, token: str = Query(...)) -> None:
-    app = websocket.app
+def _open(app, token: str, mission_id: int) -> tuple[dict | None, int]:
+    """The snapshot for this user, or (None, the close code) if they may not see the mission. Runs in a worker
+    thread: the database may be far away, and the event loop keeps the other live views moving meanwhile."""
     data = decode_token(token, app.state.settings.secret_key)
     with Session(app.state.engine) as session:
         user = session.get(User, data["sub"]) if data else None
         mission = session.get(Mission, mission_id) if user else None
         if mission is None:
-            await websocket.close(code=4401 if user is None else 4404)
-            return
-        hub: Hub = app.state.hub
-        queue = hub.subscribe(mission_id)  # before the snapshot, so no event falls in between
-        snapshot = _snapshot(session, mission, app.state.runner)
+            return None, 4401 if user is None else 4404
+        return _snapshot(session, mission, user, app.state.runner), 0
 
-    await websocket.accept()
 
-    async def forward() -> None:
-        await websocket.send_json(snapshot)
-        while True:
-            await websocket.send_json(await queue.get())
-
-    sender = asyncio.create_task(forward())
+@router.websocket("/ws/missions/{mission_id}")
+async def mission_events(websocket: WebSocket, mission_id: int, token: str = Query(...)) -> None:
+    app = websocket.app
+    hub: Hub = app.state.hub
+    queue = hub.subscribe(mission_id)  # before the snapshot, so no event falls in between
+    sender: asyncio.Task | None = None
     try:
+        snapshot, refused = await asyncio.to_thread(_open, app, token, mission_id)
+        if snapshot is None:
+            await websocket.close(code=refused)
+            return
+        await websocket.accept()
+
+        async def forward() -> None:
+            await websocket.send_json(snapshot)
+            while True:
+                await websocket.send_json(await queue.get())
+
+        sender = asyncio.create_task(forward())
         while True:
             await websocket.receive_text()  # clients don't send anything; this detects disconnects
     except WebSocketDisconnect:
         pass
     finally:
         hub.unsubscribe(mission_id, queue)
-        sender.cancel()
-        with contextlib.suppress(asyncio.CancelledError, Exception):
-            await sender
+        if sender is not None:
+            sender.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await sender

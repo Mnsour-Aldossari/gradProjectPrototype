@@ -13,12 +13,25 @@ from app.simulation.sensors import SensorSample as SimSensorSample
 from app.simulation.world import FLIGHT_ENDURANCE_S
 
 from .control import FlightControl
-from .source import BatteryStatus, GlobalPositionInt, MissionCurrent, SensorSample, TelemetryFrame
+from .source import (
+    MAV_LANDED_STATE_IN_AIR,
+    MAV_LANDED_STATE_ON_GROUND,
+    BatteryStatus,
+    GlobalPositionInt,
+    MissionCurrent,
+    SensorSample,
+    TelemetryFrame,
+    VehicleStatus,
+)
 
-DESCENT_MPS = 0.5  # landing at the end of a return home or a land command
+DESCENT_MPS = 0.5  # landing at the end of the survey, a return home or a land command
+FLYING = VehicleStatus(armed=True, landed_state=MAV_LANDED_STATE_IN_AIR)
+LANDED = VehicleStatus(armed=False, landed_state=MAV_LANDED_STATE_ON_GROUND)
 
 
-def to_frame(sim: Simulation, fs: FlightSample, ss: SimSensorSample | None) -> TelemetryFrame:
+def to_frame(
+    sim: Simulation, fs: FlightSample, ss: SimSensorSample | None, status: VehicleStatus = FLYING
+) -> TelemetryFrame:
     lat, lon = sim.frame.to_latlon(fs.x, fs.y)
     return TelemetryFrame(
         position=GlobalPositionInt(
@@ -36,12 +49,13 @@ def to_frame(sim: Simulation, fs: FlightSample, ss: SimSensorSample | None) -> T
         mission=MissionCurrent(seq=fs.waypoint_index, total=len(sim.plan.waypoints_xy)),
         sensor=None if ss is None else SensorSample(md=ss.md, gpr_amp=ss.gpr_amp, gpr_twt_ns=ss.gpr_twt_ns),
         progress=fs.progress,
+        status=status,
     )
 
 
 def fly_down(sim: Simulation, last: FlightSample, home: bool) -> Iterator[FlightSample]:
-    """After a return-home or land command: straight to the start of the path if home, then straight down. The
-    survey progress stays where it was stopped."""
+    """At the end of the survey, or after a return-home or land command: straight to the start of the path if home,
+    then straight down. The survey progress stays where it was."""
     cfg = sim.config
     dt, drain = cfg.dt_s, 100.0 / FLIGHT_ENDURANCE_S
     x, y, alt, t, battery = last.x, last.y, last.alt_m, last.t_s, last.battery_pct
@@ -71,7 +85,8 @@ class SimulatedSource:
     speed_factor=1 runs in real time, 10 runs ten times faster, and 0 yields
     frames as fast as possible (used by tests and offline evaluation).
     The supervisor's commands (control) pause it, or end the survey with a
-    flight home or a landing.
+    flight home or a landing. After the last lane it lands where it is.
+    The last frame reports it on the ground and disarmed.
     """
 
     def __init__(self, config: SimulationConfig, speed_factor: float = 1.0) -> None:
@@ -110,8 +125,16 @@ class SimulatedSource:
             yield to_frame(sim, fs, ss)
             last = fs
             await pace()
-        if control is None or control.stop_reason is None or last is None:
+        if last is None:
+            # Stopped before it took off: it stands disarmed at the start of the path.
+            start_fs, _ = next(iter(sim.samples()))
+            yield to_frame(sim, dataclasses.replace(start_fs, alt_m=0.0, v_east=0.0, v_north=0.0), None, LANDED)
             return
-        for fs in fly_down(sim, last, home=control.phase == "returning"):
+        home = control is not None and control.stop_reason is not None and control.phase == "returning"
+        for fs in fly_down(sim, last, home=home):
             yield to_frame(sim, fs, None)
+            last = fs
             await pace()
+        # On the ground: the motors stop and it disarms.
+        landed = dataclasses.replace(last, t_s=last.t_s + sim.config.dt_s, v_east=0.0, v_north=0.0)
+        yield to_frame(sim, landed, None, LANDED)

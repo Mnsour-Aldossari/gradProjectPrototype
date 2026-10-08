@@ -1,5 +1,8 @@
 """Runs missions in the background: consumes a TelemetrySource, stores the data,
-updates adaptive detections while the UAV flies, and pushes live events."""
+updates adaptive detections while the UAV flies, and pushes live events.
+
+The database is only used from worker threads, never in the event loop: a database far away (PostgreSQL in the
+cloud) would otherwise hold up every live view while it answers."""
 
 from __future__ import annotations
 
@@ -8,22 +11,25 @@ import contextlib
 import logging
 import math
 import time
+from collections.abc import Awaitable
 
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from app.config import Settings
-from app.detection import AdaptiveDetector, Candidate, Category, Reading, SurveyContext, detect_baseline
+from app.detection import Candidate, Category, Reading, SurveyContext, detect_baseline, live_detector
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, utcnow
-from app.simulation import SimulationConfig
+from app.simulation import SimulationConfig, plan_survey
 from app.simulation.geo import LocalFrame
 from app.uav import SimulatedSource, TelemetryFrame, TelemetrySource
 from app.uav.control import Action, FlightControl, Phase
+from app.uav.landing import landing_problems
 from app.uav.px4_docker import Px4Docker
 from app.uav.px4_gazebo import Px4Gazebo
 from app.uav.px4_mavlink_source import Px4Launcher, Px4MavlinkSource
 from app.uav.px4_plan import default_takeoff
 
+from .collection import NOT_STARTED, SURVEY_DONE, Collection, apply, assess
 from .ws import Hub, detection_event
 
 logger = logging.getLogger(__name__)
@@ -96,6 +102,10 @@ def mission_event(mission: Mission, phase: Phase | None = None) -> dict:
         "progress": mission.progress,
         "battery_pct": mission.battery_pct,
         "error": mission.error,
+        "sensor_collection": mission.sensor_collection,
+        "sensor_reading_count": mission.sensor_reading_count,
+        "sensor_coverage": mission.sensor_coverage,
+        "sensor_note": mission.sensor_note,
     }
 
 
@@ -178,7 +188,8 @@ def sync_adaptive(
     its id (and any verification already recorded) as more passes refine it.
     """
     events: list[dict] = []
-    with Session(engine) as session:
+    # The rows keep their values after the commit, for the events: reading them back would cost a round trip each.
+    with Session(engine, expire_on_commit=False) as session:
         existing = list(
             session.exec(select(Detection).where(Detection.mission_id == mission_id, Detection.method == "adaptive"))
         )
@@ -211,7 +222,6 @@ def sync_adaptive(
         session.commit()
 
         for kind, row, previous_category in changed:
-            session.refresh(row)
             events.append(detection_event(kind, row))
             if row.category == Category.HIGH and previous_category != Category.HIGH:
                 events.append({**detection_event("alert", row), "message": "Potential detection - high priority"})
@@ -219,26 +229,65 @@ def sync_adaptive(
     return events
 
 
-def _flush(engine: Engine, mission_id: int, rows: list, last: TelemetryFrame | None) -> Mission | None:
+def _load_mission(engine: Engine, mission_id: int) -> Mission:
+    with Session(engine) as session:
+        return session.get(Mission, mission_id)
+
+
+def _flush(engine: Engine, mission_id: int, rows: list, last: TelemetryFrame | None) -> None:
     with Session(engine) as session:
         session.add_all(rows)
-        mission = None
         if last is not None:
             mission = session.get(Mission, mission_id)
             mission.progress = last.progress
             mission.battery_pct = last.battery.battery_remaining
             session.add(mission)
         session.commit()
-        if mission is not None:
-            session.refresh(mission)
-        return mission
 
 
-def _set_failed(engine: Engine, mission_id: int, error: str) -> Mission:
+def _end_mission(
+    engine: Engine,
+    mission_id: int,
+    frame: LocalFrame,
+    readings: list[Reading],
+    stop_reason: str | None,
+    landing: list[str],
+    collection: Collection,
+) -> tuple[Mission, list[Detection]]:
+    """Stores how the mission ended, with the baseline detector's detections over the whole survey. landing: why the
+    landing is not confirmed (landing.py); then the mission failed, whether the survey was finished or stopped."""
+    baseline = [_new_detection(mission_id, frame, c) for c in detect_baseline(readings)]
+    with Session(engine, expire_on_commit=False) as session:
+        session.add_all(baseline)
+        mission = session.get(Mission, mission_id)
+        if landing:
+            problems = "; ".join(landing)
+            mission.status = "failed"
+            mission.error = (
+                f"{stop_reason}, but the landing was not confirmed: {problems}"
+                if stop_reason
+                else f"Landing not confirmed: {problems}"
+            )
+        elif stop_reason is None:
+            mission.status = "completed"
+            mission.progress = 1.0
+        else:  # ended early by the supervisor: what was surveyed is kept
+            mission.status = "stopped"
+            mission.error = stop_reason
+        apply(mission, collection)
+        mission.completed_at = utcnow()
+        session.add(mission)
+        session.commit()
+    return mission, baseline
+
+
+def _set_failed(engine: Engine, mission_id: int, error: str, collection: Collection | None) -> Mission:
     with Session(engine) as session:
         mission = session.get(Mission, mission_id)
         mission.status = "failed"
         mission.error = error
+        if collection is not None:
+            apply(mission, collection)
         mission.completed_at = utcnow()
         session.add(mission)
         session.commit()
@@ -246,33 +295,177 @@ def _set_failed(engine: Engine, mission_id: int, error: str) -> Mission:
         return mission
 
 
+class _Writer:
+    """Stores a flying mission from a worker thread, so the live loop never waits for the database.
+
+    A database far away (PostgreSQL in the cloud, about 0.1 s per round trip) needs several round trips for each
+    write; done in the live loop, that held up the live view for seconds: the UAV stood still on the page, then
+    jumped ahead. Rows that arrive while a write is under way go into the next write together, and the adaptive
+    detections are stored for the latest candidates only, so a slow database writes less often but does not fall
+    behind.
+    """
+
+    def __init__(
+        self,
+        engine: Engine,
+        hub: Hub,
+        mission: Mission,
+        frame: LocalFrame,
+        match_radius_m: float,
+        control: FlightControl,
+    ) -> None:
+        self._engine, self._hub, self._mission, self._control = engine, hub, mission, control
+        self._frame, self._match_radius_m = frame, match_radius_m
+        self._rows: list = []
+        self._last: TelemetryFrame | None = None  # the last frame of the rows waiting
+        self._candidates: list[Candidate] | None = None  # waiting to be stored
+        self._wake = asyncio.Event()
+        self._closing = False
+        self.latest: TelemetryFrame | None = None  # the newest frame the live loop has, for live events
+        self.readings = 0  # sensor readings so far, for live events
+        self.error: Exception | None = None  # why a write failed; the live loop then ends the mission
+        self._task = asyncio.create_task(self._run(), name=f"mission-{mission.id}-writer")
+
+    def store(self, rows: list, last: TelemetryFrame) -> None:
+        self._rows += rows
+        self._last = last
+        self._wake.set()
+
+    def store_detections(self, candidates: list[Candidate]) -> None:
+        self._candidates = candidates
+        self._wake.set()
+
+    def mission_event(self, phase: Phase | None) -> dict:
+        """The mission as the live view should see it now, without reading the database: nothing else changes a
+        mission while it runs, and progress and battery come from the newest frame."""
+        if self.latest is not None:
+            self._mission.progress = self.latest.progress
+            self._mission.battery_pct = self.latest.battery.battery_remaining
+        self._mission.sensor_reading_count = self.readings
+        return mission_event(self._mission, phase)
+
+    async def close(self) -> None:
+        """Returns once everything handed over is stored. Raises what made a write fail."""
+        self._closing = True
+        self._wake.set()
+        await asyncio.shield(self._task)
+        if self.error is not None:
+            raise self.error
+
+    async def abort(self) -> None:
+        """Drops what is waiting. A write under way still ends first: it cannot be stopped half-way."""
+        self._rows, self._candidates = [], None
+        self._closing = True
+        self._wake.set()
+        await asyncio.shield(self._task)
+
+    async def _run(self) -> None:
+        mission_id = self._mission.id
+        try:
+            while not (self._closing and not self._rows and self._candidates is None):
+                await self._wake.wait()
+                self._wake.clear()
+                rows, last, self._rows = self._rows, self._last, []
+                candidates, self._candidates = self._candidates, None
+                if rows:
+                    await asyncio.to_thread(_flush, self._engine, mission_id, rows, last)
+                    self._hub.publish(mission_id, self.mission_event(self._control.phase))
+                if candidates is not None:
+                    events = await asyncio.to_thread(
+                        sync_adaptive, self._engine, mission_id, self._frame, candidates, self._match_radius_m
+                    )
+                    for event in events:
+                        self._hub.publish(mission_id, event)
+        except Exception as exc:
+            self.error = exc
+
+
+async def _to_the_end(aw: Awaitable[None]) -> None:
+    """Awaits aw. If the run is cancelled meanwhile (the server stops), aw still finishes first, so the mission is
+    stored as it ended rather than half-way; the cancel then goes on."""
+    task = asyncio.ensure_future(aw)
+    try:
+        await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await task
+        raise
+
+
+async def _fail(
+    engine: Engine,
+    hub: Hub,
+    mission_id: int,
+    writer: _Writer | None,
+    error: str,
+    collection: Collection | None = None,
+    rows: list | None = None,
+    last: TelemetryFrame | None = None,
+) -> None:
+    """rows: what was flown since the last write (with last, its last frame)."""
+    if writer is not None:
+        if writer.error is None:
+            # The flight failed, not the database: what was read before is stored, as the collection counts it.
+            if rows and last is not None:
+                writer.store(rows, last)
+            with contextlib.suppress(Exception):
+                await writer.close()
+        else:
+            await writer.abort()
+    mission = await asyncio.to_thread(_set_failed, engine, mission_id, error, collection)
+    hub.publish(mission_id, mission_event(mission))
+
+
 async def run_mission(
     engine: Engine, hub: Hub, mission_id: int, source: TelemetrySource, control: FlightControl | None = None
 ) -> None:
     control = control or FlightControl()
-    with Session(engine) as session:
-        mission = session.get(Mission, mission_id)
-        frame = LocalFrame.centred_on(mission.area)
-        detector = AdaptiveDetector(survey_context_for(mission))
-    match_radius = detector.profile.link_radius_m
-
+    writer: _Writer | None = None
+    ended = False  # how the mission ended is stored; a cancel after that changes nothing
     all_readings: list[Reading] = []
-    pending_readings: list[Reading] = []
-    rows: list = []
+    rows: list = []  # telemetry and readings not yet handed to the writer
     last: TelemetryFrame | None = None
-    frames_since_detect = 0
-    last_telemetry_event = 0.0
-    survey_start_s: float | None = None
-    phase = control.phase
+    last_at = 0.0  # when the last frame arrived (monotonic clock)
+    flew = False  # the UAV was armed at some point (a source that does not say counts as flying)
+    lanes: tuple = ()  # the survey's lane waypoints, local x, y
+    sample_spacing_m = 0.0
+
+    def collected(ended_early: str) -> Collection:
+        """How well the readings so far cover the lanes. ended_early: why, if the last lane was not flown."""
+        if not lanes:  # the mission could not be read
+            return Collection(NOT_STARTED, 0, None, None)
+        done = control.survey_finished or (last is not None and last.progress >= SURVEY_DONE)
+        return assess(
+            lanes,
+            [(r.x, r.y) for r in all_readings],
+            flew=flew,
+            sample_spacing_m=sample_spacing_m,
+            ended=None if done else ended_early,
+            longest_pause_s=control.longest_pause_s,
+        )
+
     try:
+        mission = await asyncio.to_thread(_load_mission, engine, mission_id)
+        frame = LocalFrame.centred_on(mission.area)
+        lanes = plan_survey(mission.area, mission.line_spacing_m).waypoints_xy
+        sample_spacing_m = mission.speed_mps * simulation_config_for(mission).dt_s
+        detector = live_detector(survey_context_for(mission))
+        writer = _Writer(engine, hub, mission, frame, detector.profile.link_radius_m, control)
+
+        pending_readings: list[Reading] = []
+        frames_since_detect = 0
+        last_telemetry_event = 0.0
+        survey_start_s: float | None = None
+        phase = control.phase
         # aclosing: a cancelled run still lets the source finish (PX4 returns to launch).
         async with contextlib.aclosing(source.frames()) as frames:
             async for f in frames:
+                if writer.error is not None:
+                    raise writer.error
+                writer.latest = f
                 rows.append(_telemetry_row(mission_id, f))
                 if control.phase != phase:
                     phase = control.phase
-                    with Session(engine) as session:
-                        hub.publish(mission_id, mission_event(session.get(Mission, mission_id), phase))
+                    hub.publish(mission_id, writer.mission_event(phase))
                 if f.sensor is not None:
                     lat, lon = f.position.lat / 1e7, f.position.lon / 1e7
                     t_s = f.position.time_boot_ms / 1000
@@ -295,7 +488,9 @@ async def run_mission(
                     reading = Reading(t_s, x, y, alt, f.sensor.md, f.sensor.gpr_amp, f.sensor.gpr_twt_ns)
                     all_readings.append(reading)
                     pending_readings.append(reading)
-                last = f
+                    writer.readings = len(all_readings)
+                last, last_at = f, time.monotonic()
+                flew = flew or f.status is None or f.status.armed
 
                 now = time.monotonic()
                 # While paused every frame goes out and is stored: the simulator sends one frame at rest, then
@@ -306,49 +501,50 @@ async def run_mission(
                     last_telemetry_event = now
 
                 if len(rows) >= FLUSH_ROWS or (paused and rows):
-                    mission = _flush(engine, mission_id, rows, last)
+                    writer.store(rows, last)
                     rows = []
-                    hub.publish(mission_id, mission_event(mission, control.phase))
 
                 frames_since_detect += 1
                 if frames_since_detect >= DETECT_EVERY_FRAMES:
                     frames_since_detect = 0
                     detector.add(pending_readings)
                     pending_readings = []
-                    for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
-                        hub.publish(mission_id, event)
+                    writer.store_detections(detector.candidates())
 
-        _flush(engine, mission_id, rows, last)
-        if last is not None:
-            hub.publish(mission_id, _telemetry_event(last, survey_start_s, control.paused_s))
-        detector.add(pending_readings)
-        for event in sync_adaptive(engine, mission_id, frame, detector.candidates(), match_radius):
-            hub.publish(mission_id, event)
+        # Checked before anything is stored: a slow database must not make the last telemetry look old.
+        landing = landing_problems(last, time.monotonic() - last_at)
+        stop_reason = control.stop_reason
+        early = f"Ended early ({stop_reason[0].lower()}{stop_reason[1:]})" if stop_reason else None
+        collection = collected(early or "The flight ended before the last lane")
 
-        with Session(engine) as session:
-            baseline_rows = [_new_detection(mission_id, frame, c) for c in detect_baseline(all_readings)]
-            session.add_all(baseline_rows)
-            mission = session.get(Mission, mission_id)
-            if control.stop_reason is None:
-                mission.status = "completed"
-                mission.progress = 1.0
-            else:  # ended early by the supervisor: what was surveyed is kept
-                mission.status = "stopped"
-                mission.error = control.stop_reason
-            mission.completed_at = utcnow()
-            session.add(mission)
-            session.commit()
-            for row in baseline_rows:
-                session.refresh(row)
+        async def end() -> None:
+            nonlocal ended, rows
+            if rows:
+                writer.store(rows, last)
+                rows = []
+            if last is not None:
+                hub.publish(mission_id, _telemetry_event(last, survey_start_s, control.paused_s))
+            detector.add(pending_readings)
+            writer.store_detections(detector.candidates())
+            await writer.close()
+            mission, baseline = await asyncio.to_thread(
+                _end_mission, engine, mission_id, frame, all_readings, stop_reason, landing, collection
+            )
+            ended = True
+            for row in baseline:
                 hub.publish(mission_id, detection_event("detection_created", row))
-            session.refresh(mission)
             hub.publish(mission_id, mission_event(mission))
+
+        await _to_the_end(end())
     except asyncio.CancelledError:
-        hub.publish(mission_id, mission_event(_set_failed(engine, mission_id, "Mission run was cancelled")))
+        if not ended:
+            collection = collected("The server stopped before the last lane")
+            await _fail(engine, hub, mission_id, writer, "Mission run was cancelled", collection, rows, last)
         raise
     except Exception as exc:
         logger.exception("Mission %s failed", mission_id)
-        hub.publish(mission_id, mission_event(_set_failed(engine, mission_id, f"{type(exc).__name__}: {exc}")))
+        collection = collected("The flight failed before the last lane")
+        await _fail(engine, hub, mission_id, writer, f"{type(exc).__name__}: {exc}", collection, rows, last)
 
 
 class MissionRunner:
@@ -360,6 +556,9 @@ class MissionRunner:
         self._tasks: dict[int, asyncio.Task] = {}
         self._controls: dict[int, FlightControl] = {}
         self._px4: set[int] = set()
+        # Held by a start from its last check until start() (the status is written meanwhile, in a worker thread),
+        # so that two requests cannot both start the same mission.
+        self.starting = asyncio.Lock()
 
     def is_running(self, mission_id: int) -> bool:
         return mission_id in self._tasks
@@ -379,10 +578,7 @@ class MissionRunner:
     def control(self, mission_id: int, action: Action) -> Phase:
         """Pass a supervisor command to the running mission. KeyError if it is not running; ControlRejected if the
         command does not apply now."""
-        phase = self._controls[mission_id].request(action)
-        with Session(self._engine) as session:
-            self._hub.publish(mission_id, mission_event(session.get(Mission, mission_id), phase))
-        return phase
+        return self._controls[mission_id].request(action)
 
     def start(self, mission_id: int, source: TelemetrySource, *, px4: bool = False) -> None:
         control = FlightControl()

@@ -1,4 +1,4 @@
-# NOT built or run yet - see README. Start with: docker compose up --build  ->  http://localhost:8080
+# Start with: docker compose up --build -d  ->  http://localhost:8080 (on PostgreSQL: see docker-compose.postgres.yml)
 services:
   backend:
     build: ./backend
