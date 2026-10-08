@@ -1,4 +1,5 @@
-"""The mission bridge and the detector node together. UAV_USERNAME and UAV_PASSWORD must be set (a backend account).
+"""The mission bridge, the detector node and mission control together. UAV_USERNAME and UAV_PASSWORD must be set
+(a backend account to read); UAV_CONTROL_USERNAME and UAV_CONTROL_PASSWORD (a supervisor's) for the commands.
 
   ros2 launch uav_landmine_ros landmine.launch.py                      # the next mission that flies
   ros2 launch uav_landmine_ros landmine.launch.py mission_id:=12       # one mission, flown or flying
@@ -41,6 +42,12 @@ def generate_launch_description() -> LaunchDescription:
                 output="screen",
             ),
             Node(package="uav_landmine_ros", executable="landmine_detector", parameters=[params], output="screen"),
+            Node(
+                package="uav_landmine_ros",
+                executable="mission_control",
+                parameters=[params, {"backend_url": LaunchConfiguration("backend_url")}],
+                output="screen",
+            ),
             ExecuteProcess(
                 cmd=[
                     "ros2", "bag", "record", "-s", "mcap", "-o", bag, "--qos-profile-overrides-path",

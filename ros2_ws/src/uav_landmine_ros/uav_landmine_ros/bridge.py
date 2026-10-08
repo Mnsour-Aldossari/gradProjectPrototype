@@ -112,12 +112,17 @@ class MissionBridge(Node):
     def _run(self) -> None:
         while rclpy.ok() and not self._stop.is_set():
             try:
-                self._poll()
-                self._last_ok, self._last_error = time.monotonic(), ""
-            except (BackendError, requests.RequestException) as exc:
-                self._last_error = str(exc)
-                self.get_logger().warning(f"Backend: {exc}", throttle_duration_sec=10.0)
-            self._publish_diagnostics()
+                try:
+                    self._poll()
+                    self._last_ok, self._last_error = time.monotonic(), ""
+                except (BackendError, requests.RequestException) as exc:
+                    self._last_error = str(exc)
+                    self.get_logger().warning(f"Backend: {exc}", throttle_duration_sec=10.0)
+                self._publish_diagnostics()
+            except Exception:
+                if not rclpy.ok() or self._stop.is_set():
+                    return  # ROS shut down (Ctrl+C) while this thread was publishing
+                raise
             self._stop.wait(self._period)
 
     def _publish_diagnostics(self) -> None:

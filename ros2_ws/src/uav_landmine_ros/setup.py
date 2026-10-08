@@ -27,6 +27,7 @@ setup(
             "mission_bridge = uav_landmine_ros.bridge:main",
             "landmine_detector = uav_landmine_ros.detector:main",
             "compare_with_backend = uav_landmine_ros.compare:main",
+            "mission_control = uav_landmine_ros.control:main",
         ],
     },
 )

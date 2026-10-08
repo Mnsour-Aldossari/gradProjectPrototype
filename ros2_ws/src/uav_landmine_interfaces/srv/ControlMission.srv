@@ -1,0 +1,8 @@
+# A flight command through the backend (a supervisor's account): pause, resume, return or land.
+int64 mission_id        # 0: the mission that is flying
+string action
+---
+bool accepted
+int64 mission_id
+string phase            # what the UAV does now: surveying, paused, returning, landing, to_landing
+string message          # why not, when not accepted

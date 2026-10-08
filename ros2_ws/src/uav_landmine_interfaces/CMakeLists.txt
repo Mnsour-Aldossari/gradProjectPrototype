@@ -4,13 +4,17 @@ project(uav_landmine_interfaces)
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(action_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SensorReading.msg"
   "msg/MissionInfo.msg"
   "msg/Detection.msg"
   "msg/DetectionArray.msg"
-  DEPENDENCIES std_msgs
+  "srv/StartMission.srv"
+  "srv/ControlMission.srv"
+  "action/FlySurvey.action"
+  DEPENDENCIES std_msgs action_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

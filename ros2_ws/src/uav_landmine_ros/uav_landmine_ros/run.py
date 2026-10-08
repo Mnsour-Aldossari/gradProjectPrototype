@@ -7,13 +7,15 @@ import signal
 from collections.abc import Callable
 
 import rclpy
-from rclpy.executors import ExternalShutdownException
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 
 
-def spin(make_node: Callable[[], Node], on_exit: Callable[[Node], None] | None = None, args=None) -> Node | None:
-    """Spins the node make_node() returns; on_exit(node) runs on the way out. Returns the node (None if making it
-    failed with an exception, which is raised again)."""
+def spin(
+    make_node: Callable[[], Node], on_exit: Callable[[Node], None] | None = None, args=None, threads: int = 1
+) -> Node | None:
+    """Spins the node make_node() returns, on that many threads; on_exit(node) runs on the way out. Returns the node
+    (None if making it failed with an exception, which is raised again)."""
     # rclpy's own Ctrl+C handler stops the node; the handler it hands back on shutdown ignores Ctrl+C, so a second
     # one arriving while the node closes changes nothing.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -21,7 +23,12 @@ def spin(make_node: Callable[[], Node], on_exit: Callable[[Node], None] | None =
     node = None
     try:
         node = make_node()
-        rclpy.spin(node)
+        if threads > 1:
+            executor = MultiThreadedExecutor(num_threads=threads)
+            executor.add_node(node)
+            executor.spin()
+        else:
+            rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:

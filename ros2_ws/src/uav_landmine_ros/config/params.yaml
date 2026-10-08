@@ -6,6 +6,10 @@ mission_bridge:
     mission_id: 0          # 0: the next mission that flies, then the one after it
     poll_period_s: 0.5     # seconds between two reads of the backend
     page_size: 2000        # readings asked for in one request
+mission_control:
+  ros__parameters:
+    backend_url: "http://127.0.0.1:8000"
+    feedback_period_s: 1.0   # seconds between two feedbacks of the /mission/fly action
 landmine_detector:
   ros__parameters:
     detect_every: 25       # readings between two looks for detections (5 s of flight, as the mission runner)

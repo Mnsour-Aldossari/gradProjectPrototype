@@ -11,12 +11,24 @@ class BackendError(RuntimeError):
     pass
 
 
-def credentials() -> tuple[str, str]:
-    """UAV_USERNAME and UAV_PASSWORD: an account of the backend (the field operator's is enough to read)."""
-    username, password = os.environ.get("UAV_USERNAME", ""), os.environ.get("UAV_PASSWORD", "")
+def credentials(prefix: str = "UAV") -> tuple[str, str]:
+    """UAV_USERNAME and UAV_PASSWORD: an account of the backend (the field operator's is enough to read).
+    prefix "UAV_CONTROL": the supervisor's account that commands missions."""
+    username, password = os.environ.get(f"{prefix}_USERNAME", ""), os.environ.get(f"{prefix}_PASSWORD", "")
     if not username or not password:
-        raise BackendError("set UAV_USERNAME and UAV_PASSWORD to an account of the backend")
+        raise BackendError(f"set {prefix}_USERNAME and {prefix}_PASSWORD to an account of the backend")
     return username, password
+
+
+def detail(r: requests.Response) -> str:
+    """The backend's reason (FastAPI's "detail"), as one line."""
+    try:
+        d = r.json().get("detail")
+    except (ValueError, AttributeError):
+        return r.text[:200]
+    if isinstance(d, list):
+        return "; ".join(str(e.get("msg", e)) for e in d)
+    return str(d)
 
 
 class Backend:
@@ -48,6 +60,22 @@ class Backend:
                 raise BackendError(f"GET {path}: {r.status_code} {r.text[:200]}")
             return r.json()
         raise BackendError(f"GET {path}: not signed in")
+
+    def post(self, path: str, body: dict | None = None, timeout_s: float | None = None) -> tuple[int, dict | str]:
+        """(status code, the reply) for any answer the backend gives, the reason as text when refused; BackendError
+        only when it cannot be reached or signed in to. timeout_s: longer for a start with PX4, which waits for PX4."""
+        for attempt in range(2):
+            if self._token is None:
+                self._sign_in()
+            r = self._session.post(
+                f"{self.url}{path}", json=body, headers={"Authorization": f"Bearer {self._token}"},
+                timeout=timeout_s or self._timeout_s,
+            )  # fmt: skip
+            if r.status_code == 401 and attempt == 0:
+                self._token = None
+                continue
+            return r.status_code, (r.json() if r.ok else detail(r))
+        raise BackendError(f"POST {path}: not signed in")
 
     def missions(self) -> list[dict]:
         return self.get("/api/missions")

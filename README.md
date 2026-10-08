@@ -292,6 +292,23 @@ Then start a survey in the dashboard. In another WSL terminal, after `source ...
 `~/uav_landmine_ws`, apart from any other ROS workspace on the PC. (The `ros2` commands that ask the ROS daemon timed
 out on this PC; `--no-daemon` avoids it.)
 
+**Commands from ROS.** `mission_control` (started by the same launch file) takes commands and passes them to the
+backend's API with a supervisor's account, `UAV_CONTROL_USERNAME` and `UAV_CONTROL_PASSWORD`; the backend refuses
+the field operator's (403). The backend then flies the mission as when the dashboard's buttons are used, so the
+landing check, the sensor collection and the dashboard stay right:
+
+| Name | Type | What |
+|---|---|---|
+| `/mission/start` | service `StartMission` | start a planned mission (simulator or PX4, Gazebo's window or not), or the demo scenario (`mission_id: 0`) |
+| `/mission/control` | service `ControlMission` | pause, resume, return or land (`mission_id: 0`: the mission flying) |
+| `/mission/fly` | action `FlySurvey` | start a mission and follow it to its end, with feedback (status, phase, progress, readings, detections); cancelling it lands the UAV (or returns, `cancel_action: return`) |
+
+```bash
+export UAV_CONTROL_USERNAME=supervisor UAV_CONTROL_PASSWORD='<the supervisor password in backend/app/seed.py>'
+ros2 action send_goal --feedback /mission/fly uav_landmine_interfaces/action/FlySurvey "{mission_id: 0, speed_factor: 10}"
+ros2 service call /mission/control uav_landmine_interfaces/srv/ControlMission "{mission_id: 0, action: pause}"
+```
+
 **Settings.** `config/params.yaml` holds every setting of the nodes; `params_file:=<your file>` uses another one, and
 `backend_url:=` and `mission_id:=` override those two.
 
@@ -587,13 +604,17 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
-- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (9 tests: the survey frame is the backend's, the detector fed one
-  reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics) and end to
-  end against the backend on Windows: the demo flown live, two finished missions replayed, and a wet-clay survey
-  landed early (1,009 readings); each time the detector node's potential detections were the backend's (9, 9, 9 and
-  1). Ctrl+C stops both nodes cleanly. Also tried: the UAV's transform (`tf2_echo survey uav`), `/diagnostics`, the
-  parameters and their descriptions, a recording of a mission (3,293 readings) closed by Ctrl+C, and its replay to the
-  detector alone: the same 9 potential detections as the backend's, in 3 s at 5× speed.
+- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (15 tests: the survey frame is the backend's, the detector fed one
+  reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics, the
+  commands against a fake backend) and end to end against the backend on Windows: the demo flown live, two finished
+  missions replayed, and a wet-clay survey landed early (1,009 readings); each time the detector node's potential
+  detections were the backend's (9, 9, 9 and 1). Ctrl+C stops both nodes cleanly. Also tried: the UAV's transform
+  (`tf2_echo survey uav`), `/diagnostics`, the parameters and their descriptions, a recording of a mission (3,293
+  readings) closed by Ctrl+C, and its replay to the detector alone: the same 9 potential detections as the backend's,
+  in 3 s at 5× speed. Commands from ROS: the demo started with `/mission/fly` (feedback each second), paused, resumed
+  and landed with `/mission/control`: stopped, sensors partial (14%), as the dashboard showed; cancelling
+  `/mission/fly` landed the UAV (goal cancelled, mission stopped); the field operator's account, an unknown command, a
+  command with no mission flying and the demo with PX4 were refused with the reason.
 - The ground truth stays in the simulator: the detectors, the stored data and the API do not use or give it (tested
   with PyTest on SQLite and PostgreSQL; see "The ground truth stays in the simulator").
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
@@ -634,7 +655,7 @@ Not working, not run, or only partly checked:
 | PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. A hosted PostgreSQL (Neon's free plan, Frankfurt) was used from the development PC: it worked, but during flights the UAV froze on the page and then jumped ahead. That was fixed (the flight is written from a worker thread) and measured with PostgreSQL in Docker behind the same 93 ms delay; not yet tried again on Neon itself. Not tried: PostGIS, a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
 | Scenario seed | With a mission's scenario seed and this code the buried objects of a simulated mission can be rebuilt, so the API gives it to the supervisor only (the field operator gets `null`; tested with PyTest). The supervisor still sees and chooses it, which keeps the demo and the tests repeatable. Still visible to anyone: the demo mission's name, "Demo scenario (seed 2000, dry sand)". The detectors never use the seed. |
-| ROS 2 | The bridge and the detector node work (see **ROS 2**). Not tried: RViz (not installed), `ros2 bag`, a PX4 flight followed by the bridge, ROS 2 Humble, nodes on another machine (shared memory only), and PX4's own ROS 2 interface (`px4_msgs`, uXRCE-DDS), which the backend does not use. |
+| ROS 2 | The bridge, the detector node, recording and replay, and commands through the backend work (see **ROS 2**). Not tried: RViz (not installed), `ros2 bag`, a PX4 flight followed by the bridge, ROS 2 Humble, nodes on another machine (shared memory only), and PX4's own ROS 2 interface (`px4_msgs`, uXRCE-DDS), which the backend does not use. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |
  
