@@ -7,6 +7,7 @@ import type { User } from '../types'
 export interface Call {
   method: string
   path: string
+  query?: URLSearchParams // only when the address has one
   body: unknown
 }
 
@@ -31,8 +32,10 @@ export function fakeBackend(routes: Routes): Call[] {
     'fetch',
     vi.fn(async (input: string, init: RequestInit = {}) => {
       const method = init.method ?? 'GET'
-      const path = new URL(input, window.location.origin).pathname
-      const call = { method, path, body: init.body ? JSON.parse(String(init.body)) : undefined }
+      const url = new URL(input, window.location.origin)
+      const path = url.pathname
+      const call: Call = { method, path, body: init.body ? JSON.parse(String(init.body)) : undefined }
+      if (url.search) call.query = url.searchParams
       calls.push(call)
       const route = routes[`${method} ${path}`]
       let answer = typeof route === 'function' ? route(call) : route

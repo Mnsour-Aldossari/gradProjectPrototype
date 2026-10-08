@@ -238,6 +238,12 @@ Slower flight and closer lanes help everywhere (the flight takes about four time
 low-metal mines but, with this detector, loses metal mines in wet clay and rocky soil: its thresholds were calibrated
 at 1.5 m. The estimate compares settings inside the simulation; it does not predict field performance.
 
+**The Sensors page** (menu: **Sensors**, every user) explains it all in English or Arabic (a button switches; the
+choice stays in the browser): what the metal detector and the radar sense and where each is weak, the five steps
+from readings to a potential detection, the official evaluation's accuracy per soil (from `/api/evaluation`), the
+same estimate with sliders for height, speed and lane spacing (with the flight time per hectare, each sensor's
+signal against 1.5 m, and a chart of mines found by speed for 1, 2 and 3 m lanes), and what it cannot do yet.
+
 ## Sensor heatmap and PDF report
 
 **Heatmap.** **Heatmap: MD / GPR / Hide** above the mission map colours the ground read so far with the metal
@@ -547,14 +553,15 @@ npm run typecheck
 npm test
 ```
 
-`npm test` runs the web tests (Vitest, Testing Library, jsdom): **20 passed**, in about 3 s. They render the app
+`npm test` runs the web tests (Vitest, Testing Library, jsdom): **21 passed**, in about 3 s. They render the app
 without a backend: `fetch` and the WebSocket are faked (`web/src/test/fakes.tsx`), and the Leaflet map is replaced by
 a plain element that shows where the UAV is and which detections it was given (`web/src/test/setup.ts`). They cover
 signing in (each role lands on its own page, a wrong password, a field operator sent away from a supervisor page),
 planning a mission (each drawn outline is checked with `POST /api/missions/check` and its problems shown), the flight
 controls (Pause and Resume; Return Home and Land ask first; hidden from the field operator), live updates (telemetry
 moves the UAV, a new detection joins the list and the map), verification (`PATCH` with `confirmed_by_team` or
-`false_alarm` and the notes), display settings (theme and text size saved per user and restored), and the menu's ROS 2 switch (on, off, the reason
+`false_alarm` and the notes), display settings (theme and text size saved per user and restored), the expected accuracy while planning, the
+Sensors page (both languages, the estimate following the soil), and the menu's ROS 2 switch (on, off, the reason
 it did not start; not for the field operator). The real map,
 drawing on it, and the 3D view are not covered (jsdom has no layout or WebGL). On Node.js 25 and newer, Node's own
 `localStorage` hides jsdom's; `web/vitest.config.ts` turns it off in the test workers

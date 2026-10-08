@@ -1654,8 +1654,10 @@ textarea {
     border-radius: 0;
     border-bottom: 2px solid transparent;
     font-size: calc(12px * var(--text-scale));
+    line-height: 1.15;
     text-align: center;
-    white-space: nowrap;
+    /* Six links for the supervisor: a long name takes two lines rather than touching the next one. */
+    white-space: normal;
   }
   .nav a.active {
     background: none;
@@ -4901,4 +4903,122 @@ summary,
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* Sensors page (SensorsPage): English or Arabic (dir="rtl"); numbers stay left to right. */
+.sensors-page {
+  display: grid;
+  gap: calc(18px * var(--density));
+}
+.sensors-page .page-head {
+  margin-bottom: 0;
+}
+.sensors-page h1 {
+  margin: 0;
+}
+.sensors-page h2 {
+  margin: 0;
+  font-size: calc(19px * var(--text-scale));
+  text-wrap: balance;
+}
+.sensors-section {
+  display: grid;
+  gap: calc(10px * var(--density));
+}
+.sensors-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: calc(14px * var(--density));
+}
+.sensor-card h3 {
+  margin: 0 0 6px;
+  font-size: calc(16px * var(--text-scale));
+}
+.sensor-card p {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.sensor-good,
+.sensor-weak {
+  padding-inline-start: 10px;
+  border-inline-start: 3px solid var(--ok);
+}
+.sensor-weak {
+  border-inline-start-color: var(--amber);
+}
+.sensor-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 1.4em;
+}
+.sensor-steps li {
+  line-height: 1.5;
+}
+.sensors-try {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: calc(20px * var(--density));
+  align-items: start;
+}
+.sensors-controls,
+.sensors-result {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.sensors-controls p {
+  margin: 0;
+}
+.sensors-slider {
+  display: grid;
+  gap: 4px;
+  font-size: calc(14px * var(--text-scale));
+}
+.sensors-slider input {
+  width: 100%;
+  accent-color: var(--survey);
+}
+.speed-chart {
+  margin: 0;
+}
+.speed-chart figcaption {
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: calc(14px * var(--text-scale));
+}
+.speed-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.speed-chart .chart-legend {
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.speed-chart .chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.sensor-limits {
+  margin: 0;
+  padding-inline-start: 1.2em;
+  display: grid;
+  gap: 6px;
+  line-height: 1.5;
+  max-width: 85ch;
+}
+.sensors-page[dir='rtl'] {
+  font-family: 'Segoe UI', Tahoma, system-ui, sans-serif;
+}
+.sensors-page .num-table small {
+  color: var(--ink-2);
+}
+@media (max-width: 860px) {
+  .sensors-try {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

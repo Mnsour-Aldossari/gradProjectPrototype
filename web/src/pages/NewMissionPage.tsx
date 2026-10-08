@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Polygon } from 'react-leaflet'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { AccuracyMeter } from '../components/AccuracyMeter'
 import { Select } from '../components/Select'
@@ -273,7 +273,10 @@ export function NewMissionPage() {
             <section className="field" aria-labelledby="accuracy-label">
               <span id="accuracy-label">Expected detection with these settings</span>
               <AccuracyMeter estimate={check.accuracy} compact />
-              <small>Lower, slower and closer lanes find more, but the flight takes longer.</small>
+              <small>
+                Slower flight and closer lanes find more, but the flight takes longer.{' '}
+                <Link to="/sensors">How the sensors work</Link>
+              </small>
             </section>
           )}
 

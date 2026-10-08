@@ -10,6 +10,7 @@ import { LoginPage } from './pages/LoginPage'
 import { MissionPage } from './pages/MissionPage'
 import { MissionsPage } from './pages/MissionsPage'
 import { NewMissionPage } from './pages/NewMissionPage'
+import { SensorsPage } from './pages/SensorsPage'
 import { PrefsProvider } from './prefs'
 
 // three.js is large: the 3D view loads only when it is opened.
@@ -53,6 +54,7 @@ export function App() {
               <Route path="missions/:id" element={<MissionPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="evaluation" element={<EvaluationPage />} />
+              <Route path="sensors" element={<SensorsPage />} />
               <Route path="database" element={<DatabasePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
