@@ -76,3 +76,12 @@ def test_the_frozen_parameters_are_the_calibrations_best():
     p = FROZEN_PARAMS_V2
     assert (p.k_md, p.k_gpr, p.body_ratio, p.max_reflector_depth_m, p.smooth) == (
         best["k_md"], best["k_gpr"], best["body_ratio"], best["max_reflector_depth_m"], best["smooth"])  # fmt: skip
+
+
+def test_the_mission_profile_shows_the_live_detectors_thresholds(client):
+    from conftest import auth_headers, mission_body
+
+    sup = auth_headers(client, "supervisor")
+    mission = client.post("/api/missions", json=mission_body(soil_type="dry_sand"), headers=sup).json()
+    profile = client.get(f"/api/missions/{mission['id']}/profile", headers=sup).json()
+    assert (profile["md_threshold_k"], profile["gpr_threshold_k"]) == (PARAMS.k_md / 0.5, PARAMS.k_gpr)  # v2: 6, 4

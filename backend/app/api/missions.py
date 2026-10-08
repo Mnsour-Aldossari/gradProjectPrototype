@@ -6,7 +6,7 @@ import secrets
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlmodel import Session, func, select
 
-from app.detection import FROZEN_PARAMS
+from app.detection import LIVE_PARAMS
 from app.detection.context import condition_profile
 from app.evaluation.protocol import EVALUATION_SEEDS, STANDARD_SURVEY
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, User, utcnow
@@ -427,19 +427,19 @@ def get_readings(
 
 @router.get("/{mission_id}/profile", response_model=ConditionProfileRead)
 def get_condition_profile(mission_id: int, session: SessionDep, _: CurrentUser) -> ConditionProfileRead:
-    """How the adaptive detector is configured for this mission's survey conditions."""
+    """How the app's live detector (version 2) is configured for this mission's survey conditions."""
     mission = get_mission_or_404(session, mission_id)
-    profile = condition_profile(survey_context_for(mission), FROZEN_PARAMS)
+    profile = condition_profile(survey_context_for(mission), LIVE_PARAMS)
     return ConditionProfileRead(
         soil_type=profile.soil_type,
         soil_label=profile.soil_label,
         permittivity=profile.permittivity,
         md_reliability=profile.md_reliability,
         gpr_reliability=profile.gpr_reliability,
-        md_threshold_k=round(FROZEN_PARAMS.k_md / profile.md_reliability, 2),
-        gpr_threshold_k=FROZEN_PARAMS.k_gpr,
+        md_threshold_k=round(LIVE_PARAMS.k_md / profile.md_reliability, 2),
+        gpr_threshold_k=LIVE_PARAMS.k_gpr,
         radar_trusted=profile.radar_trusted,
-        background_window_m=FROZEN_PARAMS.background_window_m,
+        background_window_m=LIVE_PARAMS.background_window_m,
         link_radius_m=profile.link_radius_m,
         notes=list(profile.notes),
     )

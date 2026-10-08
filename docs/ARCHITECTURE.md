@@ -222,6 +222,13 @@ Depth is estimated from the radar travel time using the soil's permittivity. Par
 seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROTOCOL.md) and
 [EVALUATION_RESULTS.md](EVALUATION_RESULTS.md).
 
+Since 2026-10-08 the app and the ROS 2 detector node run **version 2** of this pipeline
+(`backend/app/detection/adaptive_v2.py`): the body ratio is corrected for the sensor height, and a reflector without
+metal deeper than 0.12 m is taken for a stone. It was adopted by the project owner's decision although its evaluation
+missed one condition of the rule fixed beforehand (6 more false alarms over 450 surveys, for 10 points more mines
+found); see [EVALUATION_PROTOCOL_V2.md](EVALUATION_PROTOCOL_V2.md) and
+[EVALUATION_RESULTS_V2.md](EVALUATION_RESULTS_V2.md). Version 1 stays the officially evaluated detector.
+
 ## Design decisions
 
 | Decision | Rationale |

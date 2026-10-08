@@ -29,7 +29,7 @@ The current version is a prototype and is not ready for public deployment; see
 | `scripts/` | `start_dev.cmd` (calls `start_dev.ps1`): one-click start of the backend and the web dashboard for development on Windows | `backend/`, `web/` |
 | `docs/` | `ARCHITECTURE.md` (report section 4.1, diagrams, future phases, security notes), `DEMO_SCRIPT.md` (Arabic demo script), `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json`; the same three with `_V2`/`_v2` for detector version 2, and `evaluation_v2.json` | — |
 
-Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames), or PX4 → `uav.Px4MavlinkSource` → `api.runner` → database + `detection.AdaptiveDetector` (every 5 s of flight) → WebSocket events → web.
+Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames), or PX4 → `uav.Px4MavlinkSource` → `api.runner` → database + `detection.live_detector` (detector version 2, every 5 s of flight) → WebSocket events → web.
 
 ## Requirements
 
@@ -319,7 +319,7 @@ or PX4) and stores it as before.
   - **mission_bridge** follows a mission in the backend (the next one that flies, or `mission_id:=N`, flying or
     already flown) and publishes it. Every reading goes out, in the order it was taken, paged from
     `GET /api/missions/{id}/readings`.
-  - **landmine_detector** is the backend's adaptive detector as a node (`backend/app/detection`, unchanged). It takes
+  - **landmine_detector** is the backend's live detector (version 2) as a node (`backend/app/detection`, unchanged). It takes
     the readings, publishes its potential detections every 25 readings, and once more, final, when the mission has
     ended. A real sensor publishing `SensorReading` messages could feed it the same way.
   - **compare_with_backend** waits for the detector node's final result and compares it with what the backend
@@ -569,8 +569,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **280 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **281 passed, 2 xfailed** (with detector version 2 live; in 5 full runs the ground truth's end-to-end test failed twice and passed alone 4 times out of 4, so it is still intermittent on PostgreSQL; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
+Expected result: **281 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **282 passed, 2 xfailed** (with detector version 2 live; in 6 full runs the ground truth's end-to-end test failed twice and passed alone 4 times out of 4, so it is still intermittent on PostgreSQL; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -664,7 +664,7 @@ PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this READM
 | GET | `/api/ros` | supervisor — can this backend start ROS 2 (Windows with WSL), and does it run |
 | POST | `/api/ros/start`, `/api/ros/stop` | supervisor — start or stop the ROS 2 nodes in WSL (the menu's **ROS 2** switch); 502 with the reason when WSL cannot |
 | GET | `/api/missions/{id}/detections?method=adaptive` | any user |
-| GET | `/api/missions/{id}/profile` | any user — how the adaptive classifier is configured for the mission |
+| GET | `/api/missions/{id}/profile` | any user — how the live detector (version 2) is configured for the mission |
 | GET | `/api/missions/{id}/heatmap` | any user — the readings so far as a grid of normalized peaks, one row per lane (simulated data) |
 | GET | `/api/missions/{id}/report.pdf` | supervisor — the mission report as a PDF; 503 if the server has no font with Arabic letters |
 | WS | `/ws/missions/{id}?token=...` | snapshot, then live telemetry, detections, alerts, status |
@@ -713,7 +713,9 @@ Works (implemented and tested with PyTest and/or in the browser):
   **Detector version 2**. Version 1 stays the officially evaluated detector.
 - ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (22 tests: the survey frame is the backend's, the detector fed one
   reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics, the
-  commands against a fake backend, PX4's modes and the PX4-versus-backend check) and end to end against the backend on Windows: the demo flown live, two finished
+  commands against a fake backend, PX4's modes and the PX4-versus-backend check; since version 2 the node is compared
+  with version 2) and end to end against the backend on Windows (these runs were with detector version 1, before
+  version 2): the demo flown live, two finished
   missions replayed, and a wet-clay survey landed early (1,009 readings); each time the detector node's potential
   detections were the backend's (9, 9, 9 and 1). Ctrl+C stops both nodes cleanly. Also tried: the UAV's transform
   (`tf2_echo survey uav`), `/diagnostics`, the parameters and their descriptions, a recording of a mission (3,293
