@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 
 from builtin_interfaces.msg import Time
-from geometry_msgs.msg import Point, PoseStamped
+from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
+from geometry_msgs.msg import Point, PoseStamped, TransformStamped
 from sensor_msgs.msg import BatteryState, NavSatFix, NavSatStatus
 from std_msgs.msg import ColorRGBA, Header
 from uav_landmine_interfaces.msg import Detection, MissionInfo, SensorReading
@@ -14,6 +15,8 @@ from visualization_msgs.msg import Marker
 from .core import SurveyFrame
 
 FRAME = "survey"  # metres from the centre of the survey area, x east, y north, z up
+MAP = "map"  # RViz's usual fixed frame; the same as "survey" here
+UAV = "uav"  # the UAV, x forward, z up
 CATEGORY_LABELS = {"high": "High priority", "suspect": "Needs verification", "clutter": "Likely clutter"}
 # The web map's colours (web/src/theme.ts).
 CATEGORY_COLOURS = {"high": "#c62d1f", "suspect": "#e0a526", "clutter": "#8a948c"}
@@ -130,6 +133,30 @@ def pose(t: dict, frame: SurveyFrame, stamp: Time) -> PoseStamped:
     yaw = math.radians(90.0 - t["heading_deg"])
     msg.pose.orientation.z, msg.pose.orientation.w = math.sin(yaw / 2), math.cos(yaw / 2)
     return msg
+
+
+def uav_transform(p: PoseStamped) -> TransformStamped:
+    """survey -> uav, from the UAV's pose."""
+    t = TransformStamped(header=p.header, child_frame_id=UAV)
+    t.transform.translation.x, t.transform.translation.y = p.pose.position.x, p.pose.position.y
+    t.transform.translation.z = p.pose.position.z
+    t.transform.rotation = p.pose.orientation
+    return t
+
+
+def map_transform(stamp: Time) -> TransformStamped:
+    """map -> survey: the same place (the survey frame is the only map there is)."""
+    t = TransformStamped(header=header(stamp, MAP), child_frame_id=FRAME)
+    t.transform.rotation.w = 1.0
+    return t
+
+
+def diagnostic(name: str, ok: bool, message: str, values: dict, warn: bool = False) -> DiagnosticStatus:
+    level = DiagnosticStatus.OK if ok else (DiagnosticStatus.WARN if warn else DiagnosticStatus.ERROR)
+    return DiagnosticStatus(
+        level=level, name=name, message=message, hardware_id="uav_landmine",
+        values=[KeyValue(key=k, value=str(v)) for k, v in values.items()],
+    )  # fmt: skip
 
 
 def battery(t: dict, stamp: Time) -> BatteryState:

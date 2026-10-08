@@ -1,0 +1,11 @@
+# Settings of the nodes; landmine.launch.py reads this file (params_file:=<another file> to use your own), and the
+# launch arguments backend_url and mission_id override the first two. `ros2 param describe <node> <name>` explains each.
+mission_bridge:
+  ros__parameters:
+    backend_url: "http://127.0.0.1:8000"
+    mission_id: 0          # 0: the next mission that flies, then the one after it
+    poll_period_s: 0.5     # seconds between two reads of the backend
+    page_size: 2000        # readings asked for in one request
+landmine_detector:
+  ros__parameters:
+    detect_every: 25       # readings between two looks for detections (5 s of flight, as the mission runner)

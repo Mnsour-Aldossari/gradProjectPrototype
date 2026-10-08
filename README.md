@@ -272,6 +272,8 @@ or PX4) and stores it as before.
 | `/landmine/detections` | `DetectionArray` | the backend's adaptive detections, with their verification |
 | `/landmine/candidates` | `DetectionArray` | the detector node's |
 | `/landmine/markers` | `MarkerArray` | area, readings and both sets of detections, for RViz |
+| `/tf`, `/tf_static` | transforms | `map` → `survey` (the same place) → `uav` (where the UAV is and where it heads) |
+| `/diagnostics` | `DiagnosticArray` | the bridge (can it read the backend, the mission, readings sent) and the detector (readings received, missing, final) |
 
 Run it in the WSL Ubuntu 24.04 that has ROS 2 Jazzy (the backend on Windows is reached at `http://127.0.0.1:8000`
 through WSL's mirrored networking):
@@ -284,9 +286,22 @@ ros2 launch uav_landmine_ros landmine.launch.py
 ```
 
 Then start a survey in the dashboard. In another WSL terminal, after `source .../ros2_ws/env.sh`:
-`ros2 topic echo /landmine/candidates`, `ros2 bag record -a`, or
+`ros2 topic echo /landmine/candidates`, `ros2 topic echo /diagnostics`, `ros2 run tf2_ros tf2_echo survey uav`,
+`ros2 param describe --no-daemon /mission_bridge poll_period_s`, or
 `ros2 run uav_landmine_ros compare_with_backend --ros-args -p mission_id:=<id>`. The workspace is
-`~/uav_landmine_ws`, apart from any other ROS workspace on the PC.
+`~/uav_landmine_ws`, apart from any other ROS workspace on the PC. (The `ros2` commands that ask the ROS daemon timed
+out on this PC; `--no-daemon` avoids it.)
+
+**Settings.** `config/params.yaml` holds every setting of the nodes; `params_file:=<your file>` uses another one, and
+`backend_url:=` and `mission_id:=` override those two.
+
+**Recording and replay.** `ros2 launch uav_landmine_ros landmine.launch.py record:=true` also records the topics
+(MCAP) in `~/uav_bags/mission_<date>_<time>`; Ctrl+C closes the recording. A recording plays back to the detector
+node alone, without the backend, which then compares its result with the backend's detections in the recording:
+
+```bash
+ros2 launch uav_landmine_ros replay.launch.py bag:=$HOME/uav_bags/<folder> rate:=5
+```
 
 **Fast DDS over shared memory.** On the development PC Fast DDS's UDP path delivered nothing between two processes
 (not even ROS's minimal publisher and subscriber), while shared memory did. `config/fastdds_shm.xml` selects shared
@@ -572,11 +587,13 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
-- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (7 tests: the survey frame is the backend's, the detector fed one
-  reading at a time finds what the backend's finds on two soils, the messages) and end to end against the backend
-  on Windows: the demo flown live, two finished missions replayed, and a wet-clay survey landed early (1,009
-  readings); each time the detector node's potential detections were the backend's (9, 9, 9 and 1). Ctrl+C stops
-  both nodes cleanly.
+- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (9 tests: the survey frame is the backend's, the detector fed one
+  reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics) and end to
+  end against the backend on Windows: the demo flown live, two finished missions replayed, and a wet-clay survey
+  landed early (1,009 readings); each time the detector node's potential detections were the backend's (9, 9, 9 and
+  1). Ctrl+C stops both nodes cleanly. Also tried: the UAV's transform (`tf2_echo survey uav`), `/diagnostics`, the
+  parameters and their descriptions, a recording of a mission (3,293 readings) closed by Ctrl+C, and its replay to the
+  detector alone: the same 9 potential detections as the backend's, in 3 s at 5× speed.
 - The ground truth stays in the simulator: the detectors, the stored data and the API do not use or give it (tested
   with PyTest on SQLite and PostgreSQL; see "The ground truth stays in the simulator").
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.

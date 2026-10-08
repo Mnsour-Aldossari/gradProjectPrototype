@@ -1,5 +1,6 @@
 """compare_with_backend: waits for the detector node's final potential detections of a mission and compares them
-with the ones the backend stored for it (category, number of readings, score to 3 places, position).
+with the ones the backend stored for it (category, number of readings, score to 3 places, position): read from the
+backend, or (against:=recording) from the backend's final /landmine/detections in a recording being replayed.
 
 Exit code 0 when they are the same, 1 when they differ, 2 when nothing final came in time.
 """
@@ -24,18 +25,38 @@ class Compare(Node):
         self.declare_parameter("backend_url", "http://127.0.0.1:8000")
         self.declare_parameter("mission_id", 0)  # 0: the first mission whose final result comes
         self.declare_parameter("timeout_s", 900.0)
-        self._backend = Backend(self.get_parameter("backend_url").value, *credentials())
+        self.declare_parameter("against", "backend")  # or "recording": /landmine/detections, no backend needed
         self._mission = int(self.get_parameter("mission_id").value)
+        self._recorded = self.get_parameter("against").value == "recording"
+        self._backend = None if self._recorded else Backend(self.get_parameter("backend_url").value, *credentials())
+        self._stored: dict[int, list[tuple]] = {}  # mission -> the backend's final detections, from the recording
+        self._ours: DetectionArray | None = None
         self.result: int | None = None
         self.create_subscription(DetectionArray, "/landmine/candidates", self._on_candidates, latched())
+        if self._recorded:
+            self.create_subscription(DetectionArray, "/landmine/detections", self._on_stored, latched())
         self.create_timer(float(self.get_parameter("timeout_s").value), self._timeout)
+
+    def _on_stored(self, msg: DetectionArray) -> None:
+        if msg.final:
+            self._stored[msg.mission_id] = [
+                rounded(d.category, d.confidence, d.n_hits, d.latitude, d.longitude) for d in msg.detections
+            ]
+            if self._ours is not None:
+                self._on_candidates(self._ours)
 
     def _on_candidates(self, msg: DetectionArray) -> None:
         if not msg.final or (self._mission and msg.mission_id != self._mission) or self.result is not None:
             return
+        if self._recorded:
+            if msg.mission_id not in self._stored:
+                self._ours = msg  # the backend's final detections come later in the recording
+                return
+            theirs = sorted(self._stored[msg.mission_id])
+        else:
+            stored = self._backend.detections(msg.mission_id)
+            theirs = sorted(rounded(d["category"], d["confidence"], d["n_hits"], d["lat"], d["lon"]) for d in stored)
         ours = sorted(rounded(d.category, d.confidence, d.n_hits, d.latitude, d.longitude) for d in msg.detections)
-        stored = self._backend.detections(msg.mission_id)
-        theirs = sorted(rounded(d["category"], d["confidence"], d["n_hits"], d["lat"], d["lon"]) for d in stored)
         log = self.get_logger()
         if ours == theirs:
             log.info(f"Mission {msg.mission_id}: the detector node and the backend agree on all {len(ours)} "

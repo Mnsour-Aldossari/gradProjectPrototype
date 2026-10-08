@@ -9,12 +9,13 @@ potential detection for trained personnel to verify.
 
 from __future__ import annotations
 
+from diagnostic_msgs.msg import DiagnosticArray
 from rclpy.node import Node
 from uav_landmine_interfaces.msg import DetectionArray, MissionInfo, SensorReading
 from visualization_msgs.msg import MarkerArray
 
 from . import messages
-from .bridge import READINGS_KEPT, latched
+from .bridge import READINGS_KEPT, described, latched
 from .core import DETECT_EVERY, DetectorCore, MissionParams
 from .run import spin
 
@@ -36,7 +37,7 @@ def mission_params(info: MissionInfo) -> MissionParams:
 class LandmineDetector(Node):
     def __init__(self) -> None:
         super().__init__("landmine_detector")
-        self.declare_parameter("detect_every", DETECT_EVERY)
+        self.declare_parameter("detect_every", DETECT_EVERY, described("Readings between two looks for detections"))
         self._every = int(self.get_parameter("detect_every").value)
         self._core: DetectorCore | None = None
         self._info: MissionInfo | None = None
@@ -46,9 +47,12 @@ class LandmineDetector(Node):
 
         self._candidates = self.create_publisher(DetectionArray, "/landmine/candidates", latched())
         self._markers = self.create_publisher(MarkerArray, "/landmine/markers", latched(10))
+        self._diagnostics = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
+        self._found = 0
         self.create_subscription(MissionInfo, "/mission/info", self._on_info, latched())
         self.create_subscription(SensorReading, "/sensors/readings", self._on_reading, latched(READINGS_KEPT))
         self.create_timer(1.0, self._check_end)
+        self.create_timer(1.0, self._publish_diagnostics)
         self.get_logger().info("Waiting for /mission/info and /sensors/readings")
 
     def _on_info(self, info: MissionInfo) -> None:
@@ -95,8 +99,29 @@ class LandmineDetector(Node):
             f"needs verification, {counts['clutter']} likely clutter (potential detections)"
         )
 
+    def _publish_diagnostics(self) -> None:
+        info, core = self._info, self._core
+        sent = 0 if info is None else info.readings_published
+        got = 0 if core is None else core.readings
+        missing = max(0, sent - got)
+        values = {
+            "mission": "none yet" if info is None else info.id,
+            "readings received": got,
+            "readings the bridge sent": sent,
+            "potential detections": self._found,
+            "final": self._finished,
+        }
+        waiting = info is not None and info.readings_complete and missing > 0
+        message = "final result published" if self._finished else "taking readings"
+        if waiting:
+            message = f"{missing} readings missing"
+        status = messages.diagnostic("uav_landmine: detector", not waiting, message, values, warn=True)
+        stamp = self.get_clock().now().to_msg()
+        self._diagnostics.publish(DiagnosticArray(header=messages.header(stamp, ""), status=[status]))
+
     def _publish(self, final: bool) -> list:
         found = self._core.found()
+        self._found = len(found)
         stamp = self.get_clock().now().to_msg()
         detections = [messages.found_detection(f) for f in found]
         self._candidates.publish(

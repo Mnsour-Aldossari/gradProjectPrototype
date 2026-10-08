@@ -13,7 +13,7 @@ setup(
         (f"share/{package}", ["package.xml"]),
         (f"share/{package}/launch", glob("launch/*.launch.py")),
         (f"share/{package}/rviz", glob("rviz/*.rviz")),
-        (f"share/{package}/config", glob("config/*.xml")),
+        (f"share/{package}/config", glob("config/*.xml") + glob("config/*.yaml")),
     ],
     install_requires=["setuptools"],
     extras_require={"test": ["pytest"]},

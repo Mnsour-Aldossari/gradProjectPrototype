@@ -1,0 +1,17 @@
+# QoS of the topics kept for late subscribers, for ros2 bag record and play, so a recording plays back as the bridge
+# published it: every reading, and the mission and the backend's detections still there for a node that starts late.
+/mission/info:
+  history: keep_last
+  depth: 1
+  reliability: reliable
+  durability: transient_local
+/sensors/readings:
+  history: keep_last
+  depth: 50000
+  reliability: reliable
+  durability: transient_local
+/landmine/detections:
+  history: keep_last
+  depth: 1
+  reliability: reliable
+  durability: transient_local

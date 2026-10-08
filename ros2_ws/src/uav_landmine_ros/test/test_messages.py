@@ -45,3 +45,22 @@ def test_markers():
     assert readings.colors[0].b > readings.colors[1].b  # pale for a weak reading, dark for a strong one
     found = messages.detection_markers([], "x", STAMP)
     assert [m.action for m in found] == [Marker.DELETEALL]
+
+
+def test_transforms_place_the_uav_in_the_survey_frame():
+    t = {"lat": 24.1395, "lon": 47.262, "relative_alt_m": 1.5, "heading_deg": 90.0}
+    tf = messages.uav_transform(messages.pose(t, FRAME, STAMP))
+    assert (tf.header.frame_id, tf.child_frame_id) == ("survey", "uav")
+    assert (tf.transform.translation.x, tf.transform.translation.y) == FRAME.to_xy(24.1395, 47.262)
+    assert tf.transform.translation.z == 1.5
+    static = messages.map_transform(STAMP)
+    assert (static.header.frame_id, static.child_frame_id, static.transform.rotation.w) == ("map", "survey", 1.0)
+
+
+def test_diagnostics_say_ok_warn_or_error():
+    from diagnostic_msgs.msg import DiagnosticStatus
+
+    ok = messages.diagnostic("x", True, "fine", {"readings": 3})
+    assert ok.level == DiagnosticStatus.OK and ok.values[0].key == "readings" and ok.values[0].value == "3"
+    assert messages.diagnostic("x", False, "late", {}, warn=True).level == DiagnosticStatus.WARN
+    assert messages.diagnostic("x", False, "down", {}).level == DiagnosticStatus.ERROR

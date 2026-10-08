@@ -10,6 +10,11 @@ Visualization Manager:
       Cell Size: 1
       Plane Cell Count: 80
       Reference Frame: <Fixed Frame>
+    - Class: rviz_default_plugins/TF
+      Name: Frames (map, survey, uav)
+      Enabled: true
+      Show Names: true
+      Marker Scale: 2
     - Class: rviz_default_plugins/MarkerArray
       Name: Area, readings and detections
       Enabled: true
@@ -39,7 +44,7 @@ Visualization Manager:
       Shape: Arrow
       Color: 255; 255; 255
   Global Options:
-    Fixed Frame: survey
+    Fixed Frame: map
     Background Color: 29; 42; 36
   Tools:
     - Class: rviz_default_plugins/MoveCamera
