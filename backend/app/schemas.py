@@ -100,7 +100,8 @@ class MissionRead(BaseModel):
     speed_mps: float
     line_spacing_m: float
     soil_type: str
-    scenario_seed: int
+    # The supervisor's only: with it and this code the simulated buried objects can be rebuilt.
+    scenario_seed: int | None
     status: str
     uav_source: str
     takeoff_lat: float | None

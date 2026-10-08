@@ -281,8 +281,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **217 passed, 2 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped ones run
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **219 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+Expected result: **218 passed, 2 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped ones run
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **220 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
 too). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -404,7 +404,7 @@ Not working, not run, or only partly checked:
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
 | PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. A hosted PostgreSQL (Neon's free plan, Frankfurt) was used from the development PC: it worked, but during flights the UAV froze on the page and then jumped ahead. That was fixed (the flight is written from a worker thread) and measured with PostgreSQL in Docker behind the same 93 ms delay; not yet tried again on Neon itself. Not tried: PostGIS, a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
-| Scenario seed | The API gives each mission's scenario seed and the mission page shows it (the supervisor may choose it: the same seed gives the same buried objects, which keeps the demo and the tests repeatable). With the seed and this code anyone signed in, the field operator too, can rebuild the buried objects of a simulated mission. The detectors never use it. Not changed. |
+| Scenario seed | With a mission's scenario seed and this code the buried objects of a simulated mission can be rebuilt, so the API gives it to the supervisor only (the field operator gets `null`; tested with PyTest). The supervisor still sees and chooses it, which keeps the demo and the tests repeatable. Still visible to anyone: the demo mission's name, "Demo scenario (seed 2000, dry sand)". The detectors never use the seed. |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |

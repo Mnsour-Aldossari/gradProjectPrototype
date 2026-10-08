@@ -61,7 +61,7 @@ ALSO_PUBLIC = {
     "soil": "as key",
     "permittivity": "the profile's nominal value for the chosen soil type, which the detector assumes "
     "(docs/EVALUATION_PROTOCOL.md, Known limitations)",
-    "seed": "the API gives the scenario seed, which the supervisor chose (see the README)",
+    "seed": "scenario_seed goes to the supervisor only (test_only_the_supervisor_gets_the_scenario_seed)",
 }
 
 
@@ -330,3 +330,23 @@ def test_the_evaluation_report_scores_against_the_truth_but_gives_no_positions(c
     names = names_in(report)
     assert {"targets", "outcomes", "low_metal_mine"} <= names
     assert not names & {"x", "y", "lat", "lon", "depth_m", "objects", "scenario_seed"}
+
+
+def test_only_the_supervisor_gets_the_scenario_seed(client):
+    """With the seed and this code the buried objects of a simulated mission can be rebuilt."""
+    sup, field = auth_headers(client, "supervisor"), auth_headers(client, "field")
+    mission_id = run_mission(client, sup)
+
+    def seeds(headers) -> list:
+        token = headers["Authorization"].removeprefix("Bearer ")
+        with client.websocket_connect(f"/ws/missions/{mission_id}?token={token}") as ws:
+            snapshot = ws.receive_json()
+        return [
+            client.get(f"/api/missions/{mission_id}", headers=headers).json()["scenario_seed"],
+            client.get("/api/missions", headers=headers).json()[0]["scenario_seed"],
+            client.get("/api/missions/history", headers=headers).json()["missions"][0]["mission"]["scenario_seed"],
+            snapshot["mission"]["scenario_seed"],
+        ]
+
+    assert seeds(sup) == [mission_body()["scenario_seed"]] * 4
+    assert seeds(field) == [None] * 4

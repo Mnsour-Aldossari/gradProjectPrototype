@@ -687,8 +687,8 @@ export function MissionPage() {
             {mission.name} <StatusBadge mission={mission} />
           </h1>
           <p className="small">
-            {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m,
-            scenario seed {mission.scenario_seed}
+            {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m
+            {mission.scenario_seed !== null && `, scenario seed ${mission.scenario_seed}`}
           </p>
         </div>
         <div className="toggles">

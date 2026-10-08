@@ -56,7 +56,7 @@ def detection_event(kind: str, detection: Detection) -> dict:
     return {"type": kind, "detection": DetectionRead.model_validate(detection).model_dump(mode="json")}
 
 
-def _snapshot(session: Session, mission: Mission, runner) -> dict:
+def _snapshot(session: Session, mission: Mission, user: User, runner) -> dict:
     from .missions import mission_read  # avoid import cycle
 
     detections = session.exec(select(Detection).where(Detection.mission_id == mission.id).order_by(Detection.id)).all()
@@ -69,7 +69,7 @@ def _snapshot(session: Session, mission: Mission, runner) -> dict:
     ).one()
     return {
         "type": "snapshot",
-        "mission": mission_read(session, mission, with_stats=True, runner=runner).model_dump(mode="json"),
+        "mission": mission_read(session, mission, user, with_stats=True, runner=runner).model_dump(mode="json"),
         "detections": [DetectionRead.model_validate(d).model_dump(mode="json") for d in detections],
         "track": [[p.lat, p.lon] for p in points],
         "last_telemetry": None
@@ -97,7 +97,7 @@ def _open(app, token: str, mission_id: int) -> tuple[dict | None, int]:
         mission = session.get(Mission, mission_id) if user else None
         if mission is None:
             return None, 4401 if user is None else 4404
-        return _snapshot(session, mission, app.state.runner), 0
+        return _snapshot(session, mission, user, app.state.runner), 0
 
 
 @router.websocket("/ws/missions/{mission_id}")
