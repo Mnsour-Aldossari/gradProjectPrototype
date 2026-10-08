@@ -205,6 +205,7 @@ def everything_sent_about(client, headers, mission_id: int) -> dict:
         "telemetry": client.get(f"/api/missions/{mission_id}/telemetry", headers=headers).json(),
         "detections": client.get(f"/api/missions/{mission_id}/detections", headers=headers).json(),
         "profile": client.get(f"/api/missions/{mission_id}/profile", headers=headers).json(),
+        "heatmap": client.get(f"/api/missions/{mission_id}/heatmap", headers=headers).json(),
         "snapshot": snapshot,
     }
     return strip(sent, RUN_SPECIFIC)
@@ -212,7 +213,7 @@ def everything_sent_about(client, headers, mission_id: int) -> dict:
 
 def test_a_mission_over_objects_with_other_labels_stores_and_sends_the_same(client, monkeypatch):
     """The whole path: simulator, mission runner (live adaptive detections, then the baseline), database, REST and
-    the WebSocket snapshot."""
+    the WebSocket snapshot and the heatmap."""
     sup = auth_headers(client, "supervisor")
     first = everything_sent_about(client, sup, run_mission(client, sup))
 
@@ -298,6 +299,7 @@ def test_no_rest_response_or_live_event_names_the_ground_truth(client):
         client.get("/api/missions/history", headers=field).json(),
         client.get(f"/api/missions/{mission_id}/telemetry", headers=field).json(),
         client.get(f"/api/missions/{mission_id}/profile", headers=field).json(),
+        client.get(f"/api/missions/{mission_id}/heatmap", headers=field).json(),
         detections,
         client.get(f"/api/detections/{detections[0]['id']}", headers=field).json(),
         client.patch(f"/api/detections/{detections[0]['id']}", json={"status": "false_alarm"}, headers=field).json(),

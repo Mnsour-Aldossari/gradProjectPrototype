@@ -389,8 +389,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **240 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **241 passed, 2 xfailed**; without MAVSDK two PX4 tests are skipped
+Expected result: **261 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: 264 tests; in the last full run one end-to-end test of the ground truth failed once and passed three times on its own, not yet explained; without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
