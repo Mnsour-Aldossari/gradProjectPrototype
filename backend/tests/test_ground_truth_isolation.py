@@ -302,6 +302,7 @@ def test_no_rest_response_or_live_event_names_the_ground_truth(client):
         client.get(f"/api/missions/{mission_id}/telemetry", headers=field).json(),
         client.get(f"/api/missions/{mission_id}/profile", headers=field).json(),
         client.get(f"/api/missions/{mission_id}/heatmap", headers=field).json(),
+        client.get(f"/api/missions/{mission_id}/readings?limit=50", headers=field).json(),
         detections,
         client.get(f"/api/detections/{detections[0]['id']}", headers=field).json(),
         client.patch(f"/api/detections/{detections[0]['id']}", json={"status": "false_alarm"}, headers=field).json(),

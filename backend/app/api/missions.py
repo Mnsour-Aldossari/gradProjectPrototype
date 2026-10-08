@@ -21,13 +21,14 @@ from app.schemas import (
     MissionHistoryItem,
     MissionRead,
     MissionStats,
+    SensorReadingRead,
     StartRequest,
     TakeoffRequest,
     TelemetryRead,
     VerificationCounts,
 )
 from app.simulation import SurveyPlan, plan_survey
-from app.simulation.geo import is_simple, polygon_area
+from app.simulation.geo import LocalFrame, is_simple, polygon_area
 from app.simulation.scenario import generate_scenario
 
 from .deps import CurrentUser, SessionDep, SettingsDep, SupervisorUser
@@ -390,6 +391,36 @@ def get_telemetry(
         .limit(limit)
     )
     return list(session.exec(query).all())
+
+
+@router.get("/{mission_id}/readings", response_model=list[SensorReadingRead])
+def get_readings(
+    mission_id: int,
+    session: SessionDep,
+    _: CurrentUser,
+    after_id: int = Query(0, ge=0, description="Only readings stored after this one, to page through them"),
+    limit: int = Query(5000, ge=1, le=20000),
+) -> list[SensorReadingRead]:
+    """The sensor readings in the order they were taken (simulated data). The ROS 2 bridge pages through them, so
+    the detector node gets every reading, as the mission runner does."""
+    mission = get_mission_or_404(session, mission_id)
+    frame = LocalFrame.centred_on(mission.area)  # as the runner places readings for the detectors
+    rows = session.exec(
+        select(SensorReading)
+        .where(SensorReading.mission_id == mission_id, SensorReading.id > after_id)
+        .order_by(SensorReading.id)
+        .limit(limit)
+    ).all()
+    out = []
+    for r in rows:
+        x, y = frame.to_xy(r.lat, r.lon)
+        out.append(
+            SensorReadingRead(
+                id=r.id, t_s=r.t_s, lat=r.lat, lon=r.lon, x_m=x, y_m=y, relative_alt_m=r.relative_alt_m,
+                md=r.md, gpr_amp=r.gpr_amp, gpr_twt_ns=r.gpr_twt_ns,
+            )
+        )  # fmt: skip
+    return out
 
 
 @router.get("/{mission_id}/profile", response_model=ConditionProfileRead)

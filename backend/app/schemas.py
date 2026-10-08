@@ -205,6 +205,22 @@ class TelemetryRead(BaseModel):
     waypoint_seq: int
 
 
+class SensorReadingRead(BaseModel):
+    """One MD/GPR reading, with where it was taken also in metres from the centre of the survey area (x east,
+    y north): the frame the detectors work in."""
+
+    id: int
+    t_s: float
+    lat: float
+    lon: float
+    x_m: float
+    y_m: float
+    relative_alt_m: float
+    md: float
+    gpr_amp: float
+    gpr_twt_ns: float
+
+
 class DetectionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
