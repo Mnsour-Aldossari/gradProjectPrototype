@@ -29,7 +29,7 @@ class Estimate:
     speed_mps: float
     line_spacing_m: float
     recall: float  # share of the mines found (reported as high priority or needs verification)
-    recall_margin: float  # about 95 % of the time the share lies within recall Â± this, from the surveys behind it
+    recall_margin: float  # about 95 % of the time the share lies within recall ± this, from the surveys behind it
     precision: float  # share of the reports that are mines
     false_alarms_per_ha: float
     low_metal_recall: float  # share of the low-metal mines found, the hardest
