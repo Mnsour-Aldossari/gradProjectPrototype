@@ -40,7 +40,7 @@ export interface Mission {
   speed_mps: number
   line_spacing_m: number
   soil_type: SoilType
-  scenario_seed: number
+  scenario_seed: number | null // the supervisor's only
   status: MissionStatus
   uav_source: UavSource
   /** Where PX4 takes off; null: the first point of the survey path. */

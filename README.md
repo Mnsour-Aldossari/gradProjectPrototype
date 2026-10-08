@@ -414,6 +414,30 @@ drawing on it, and the 3D view are not covered (jsdom has no layout or WebGL). O
 `localStorage` hides jsdom's; `web/vitest.config.ts` turns it off in the test workers
 (`--no-experimental-webstorage`), so `npm test` works the same on every platform.
 
+### The ground truth stays in the simulator
+
+The simulator knows what is buried where (kind, position, depth, metal content) and the soil model behind the
+readings, and uses them only to make the MD and GPR readings. `backend/tests/test_ground_truth_isolation.py` checks
+that nothing after the readings uses them:
+
+- **The detectors cannot reach it:** the modules in `app/detection/` import only each other and the standard
+  library. `detection/evaluation.py`, which scores detections against the truth after they are made, is left out;
+  the mission runner and the PX4 source never import it.
+- **Other labels, same numbers, same results:** every buried object gets another kind (two kinds stop or start
+  being a mine) and keeps its numbers. The readings and the detections stay exactly the same: offline for the three
+  soil types, over PX4's positions, and through a whole mission run (every column of the stored readings and
+  detections, the REST responses and the WebSocket snapshot).
+- **No ground-truth names in what the API sends or stores:** `kind`, `is_target`, `depth_m`, `metal_mass`, the soil's
+  moisture and noise, `truth`, `target`, `mine`, `buried` and the like, also inside a longer name, appear at no depth
+  in the REST responses, the live WebSocket events, the OpenAPI document or the database tables. `est_depth_m`, the
+  detector's estimate from the radar, is allowed.
+- `/api/evaluation` is the offline evaluation on the evaluation seeds, so it names the kinds of object, by design: as
+  counts per soil type, with no positions.
+
+The tests were shown to catch deliberate leaks (8 tried: the sensor model reading the label, a detector importing
+the simulator or the scorer, the label mixed into the readings or written into the explanation by the runner, a
+`buried_kind` field, a `targets_left` event field, a `true_depth_m` column), then the code was put back.
+
 Calibration and evaluation scripts (both **overwrite files in `docs/`**, so they were not re-run while this README
 was reviewed):
 
@@ -498,6 +522,8 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
+- The ground truth stays in the simulator: the detectors, the stored data and the API do not use or give it (tested
+  with PyTest on SQLite and PostgreSQL; see "The ground truth stays in the simulator").
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.
 - Database migrations (Alembic), run at startup: tried on SQLite and on PostgreSQL 17 in Docker with a new database,
   a database as v1.2 and v1.8 left it, and a copy of the development PC's `uav.db` (58 missions, 115,030 telemetry
@@ -535,6 +561,7 @@ Not working, not run, or only partly checked:
 | PWA install | The web app manifest and icons were checked in the browser. The service worker (`web/public/sw.js`, network-first, never caches `/api` or `/ws`) could not be registered in the built-in test browser, and installing on a real phone has not been tried. |
 | PostgreSQL | Run against PostgreSQL 17 in Docker: all tests pass on it (`TEST_DATABASE_URL`), a database from an older version gets its new columns, a demo mission, verification, history and evaluation work, and the data survives a restart. A hosted PostgreSQL (Neon's free plan, Frankfurt) was used from the development PC: it worked, but during flights the UAV froze on the page and then jumped ahead. That was fixed (the flight is written from a worker thread) and measured with PostgreSQL in Docker behind the same 93 ms delay; not yet tried again on Neon itself. Not tried: PostGIS, a large amount of data, and moving the missions of an existing `uav.db` over. |
 | PX4 SITL + Gazebo | Flown only on small surveys, in the headless Docker image and in Gazebo's window (WSL, one PC); not tried on the full demo field or with a real vehicle. QGroundControl, started by hand, followed the flights from PX4 SITL (not through the app). MD/GPR come from the project's sensor model at PX4's position, not from Gazebo sensors. MAVSDK's mission progress came back empty with PX4 1.17, so the waypoint being flown is taken from PX4's position. Once (1 of the 6 test flights of the Gazebo window, never before in this project) the backend stopped right after a landing with a crash in native code (exit code 139, most likely in MAVSDK's library); it did not happen again, and the mission was marked failed ("Interrupted by a server restart") on the next start. The backend now prints where such a crash happens (`faulthandler`). |
+| Scenario seed | With a mission's scenario seed and this code the buried objects of a simulated mission can be rebuilt, so the API gives it to the supervisor only (the field operator gets `null`; tested with PyTest). The supervisor still sees and chooses it, which keeps the demo and the tests repeatable. Still visible to anyone: the demo mission's name, "Demo scenario (seed 2000, dry sand)". The detectors never use the seed. |
 | ROS 2 | Not implemented; future architecture only. |
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |
