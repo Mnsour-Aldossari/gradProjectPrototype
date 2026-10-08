@@ -1058,6 +1058,78 @@ textarea {
   align-items: center;
   gap: 6px;
 }
+/* The sensor heatmap's scale, in the mission map's legend (which follows the theme). The bar has the map's colours,
+   the same in both themes. */
+.legend .heat-key {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.legend .heat-key-name {
+  font-weight: 600;
+}
+.legend .heat-key-scale {
+  position: relative;
+  display: inline-block;
+  width: 116px;
+  padding-bottom: 13px;
+}
+.heat-key-bar {
+  display: block;
+  width: 100%;
+  height: 9px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.legend .heat-key-ticks {
+  position: absolute;
+  inset: 11px 0 0;
+  display: block;
+  font-size: calc(10.5px * var(--text-scale));
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.legend .heat-key-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.legend .heat-key-ticks span:first-child {
+  transform: none;
+}
+.legend .heat-key-ticks span:last-child {
+  transform: translateX(-100%);
+}
+.legend .heat-key-note {
+  flex-basis: 100%;
+  color: var(--ink-2);
+  font-size: calc(11.5px * var(--text-scale));
+}
+/* One pixel per cell, kept sharp: each block is one stretch of lane. */
+.leaflet-pane img.heatmap-img {
+  image-rendering: pixelated;
+}
+.leaflet-tooltip.heat-tip {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.heat-toggle {
+  padding: 4px 4px 4px 12px;
+  cursor: default;
+}
+.heat-toggle .segmented.compact {
+  grid-template-columns: repeat(3, auto);
+}
+.heat-toggle .segmented.compact button {
+  min-height: 32px;
+  padding: 4px 10px;
+}
+.report-button svg {
+  width: 16px;
+  height: 16px;
+}
+.report-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
 
 .map-hint,
 .map-banner {

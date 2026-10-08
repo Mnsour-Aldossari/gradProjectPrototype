@@ -124,6 +124,19 @@ export interface Telemetry {
   gpr?: number | null
 }
 
+/** A mission's sensor readings as a grid (GET /api/missions/{id}/heatmap): one row per lane, north first. */
+export interface SensorGrid {
+  bounds: [LatLon, LatLon] // south-west, north-east
+  rows: number
+  cols: number
+  cell_m: [number, number] // east-west, north-south
+  /** Strongest reading in each cell divided by the full scale, 0..1; null: no reading there. */
+  md: (number | null)[]
+  gpr: (number | null)[]
+  readings: number
+  full_scale: { md: number; gpr: number }
+}
+
 export interface ConditionProfile {
   soil_type: SoilType
   soil_label: string

@@ -108,6 +108,8 @@ interface SurveyMapProps {
   labelDetections?: boolean
   /** What to keep in view, if not the area (an outline being edited must not refit the map at every change). */
   fitTo?: LatLon[]
+  /** The white band of ground scanned; off while a sensor heatmap shows the same ground. */
+  showSwath?: boolean
 }
 
 export function SurveyMap({
@@ -124,6 +126,7 @@ export function SurveyMap({
   fitPadding,
   labelDetections = false,
   fitTo,
+  showSwath = true,
 }: SurveyMapProps) {
   const center = useMemo<LatLon>(() => {
     if (!area.length) return [24.1395, 47.262]
@@ -150,7 +153,7 @@ export function SurveyMap({
           pathOptions={{ color: '#ffffff', weight: 1.2, opacity: 0.75, dashArray: '3 6' }}
         />
       )}
-      <CoverageSwath track={track} widthM={swathWidthM} />
+      {showSwath && <CoverageSwath track={track} widthM={swathWidthM} />}
       {track.length > 1 && (
         <Polyline positions={track} interactive={false} pathOptions={{ color: COLORS.survey, weight: 1.4, opacity: 0.85 }} />
       )}
