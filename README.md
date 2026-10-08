@@ -27,7 +27,7 @@ The current version is a prototype and is not ready for public deployment; see
 | `backend/tests/` | PyTest suite | — |
 | `web/` | React + TypeScript dashboard: mission planning, live satellite map, detection review and verification. Responsive, used on phones by field staff | REST/WebSocket API only |
 | `scripts/` | `start_dev.cmd` (calls `start_dev.ps1`): one-click start of the backend and the web dashboard for development on Windows | `backend/`, `web/` |
-| `docs/` | `ARCHITECTURE.md` (report section 4.1, diagrams, future phases, security notes), `DEMO_SCRIPT.md` (Arabic demo script), `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json` | — |
+| `docs/` | `ARCHITECTURE.md` (report section 4.1, diagrams, future phases, security notes), `DEMO_SCRIPT.md` (Arabic demo script), `EVALUATION_PROTOCOL.md` (seeds, calibration), `EVALUATION_RESULTS.md` (generated results), `calibration_result.json`; the same three with `_V2`/`_v2` for detector version 2, and `evaluation_v2.json` | — |
 
 Data flow: `simulation` → `uav.SimulatedSource` (MAVLink-shaped frames), or PX4 → `uav.Px4MavlinkSource` → `api.runner` → database + `detection.AdaptiveDetector` (every 5 s of flight) → WebSocket events → web.
 
@@ -243,6 +243,31 @@ choice stays in the browser): what the metal detector and the radar sense and wh
 from readings to a potential detection, the official evaluation's accuracy per soil (from `/api/evaluation`), the
 same estimate with sliders for height, speed and lane spacing (with the flight time per hectare, each sensor's
 signal against 1.5 m, and a chart of mines found by speed for 1, 2 and 3 m lanes), and what it cannot do yet.
+
+## Detector version 2 (tried, not adopted)
+
+The accuracy table showed that the adaptive detector loses metal mines when flown lower: its body-ratio rule was
+calibrated at 1.5 m. Version 2 (`backend/app/detection/adaptive_v2.py`) corrects that ratio for the sensor height and
+calls a reflector without metal deeper than 0.12 m a stone; a matched filter along the track was tried and not
+chosen. Version 1, its parameters and its results are unchanged.
+
+It was calibrated on the tuning seeds only, at five survey settings, for the most mines found with no more false
+alarms than version 1 (`scripts/calibrate_v2.py`). Its protocol (`docs/EVALUATION_PROTOCOL_V2.md`), committed with
+the frozen parameters before the run, fixed fresh evaluation seeds (4000–4029, 450 surveys) and an adoption rule:
+pooled over the five settings, at least 0.02 more recall and no more false alarms; at the standard setting, recall at
+most 0.02 lower. Run once (`scripts/evaluate_v2.py`, `docs/EVALUATION_RESULTS_V2.md`):
+
+| | Version 1 | Version 2 |
+|---|---|---|
+| Mines found, five settings pooled | 996 of 1370 (72.7 %) | 1130 (82.5 %) |
+| False alarms, five settings pooled | 401 | 407 |
+| Mines found at the standard setting | 71.9 % | 78.1 % |
+| Mines found at 0.75 m | 53.3 % | 79.2 % |
+| Low-metal mines found, pooled | 493 of 745 | 557 |
+
+Version 2 found more mines at every setting, but raised 6 more false alarms than version 1 over the 450 surveys, so
+the second condition failed and, as the protocol says, version 1 stays in the app. The results are reported as they
+came out; neither the rule nor the parameters were changed after the run. Simulated data.
 
 ## Sensor heatmap and PDF report
 
@@ -540,8 +565,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **272 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **273 passed, 2 xfailed** (with the accuracy estimate; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
+Expected result: **280 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **281 passed, 2 xfailed** (with detector version 2; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -679,6 +704,8 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
+- Adaptive detection version 2 (`backend/app/detection/adaptive_v2.py`), tried and **not adopted**: see **Detector
+  version 2**. The app still uses version 1.
 - ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (22 tests: the survey frame is the backend's, the detector fed one
   reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics, the
   commands against a fake backend, PX4's modes and the PX4-versus-backend check) and end to end against the backend on Windows: the demo flown live, two finished
