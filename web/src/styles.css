@@ -2535,9 +2535,64 @@ td.miss {
 .side-fold:hover {
   background: var(--tint-soft);
 }
-/* The phone header has no room to fold; the setting waits for a wider screen. */
+/* The supervisor's ROS 2 switch (RosButton), under the links: a dot on its icon says on (green) or off (grey). */
+.ros {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.ros-icon {
+  position: relative;
+  display: grid;
+  flex: none;
+}
+.ros-dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--clutter);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.ros-button.is-on .ros-dot {
+  background: var(--ok);
+}
+.ros-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.ros-button:focus-visible {
+  outline: 2px solid var(--survey);
+  outline-offset: -2px;
+}
+.ros-state {
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--tint);
+  color: var(--ink-2);
+  font-size: calc(12px * var(--text-scale));
+}
+.ros-button.is-on .ros-state {
+  background: var(--status-ok-bg);
+  color: var(--status-ok-fg);
+}
+.ros-error {
+  margin: 4px 0 0;
+  color: var(--hazard);
+  font-size: calc(12.5px * var(--text-scale));
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ros-error:empty {
+  display: none;
+}
+/* The phone header has no room to fold; the setting waits for a wider screen. ROS 2's switch stays on the laptop. */
 @media (max-width: 860px) {
-  .side-fold {
+  .side-fold,
+  .ros {
     display: none;
   }
 }
@@ -2557,6 +2612,8 @@ td.miss {
   .is-folded .brand-text,
   .is-folded .nav-label,
   .is-folded .side-fold-label,
+  .is-folded .ros-label,
+  .is-folded .ros-error,
   .is-folded .display-label,
   .is-folded .who-name,
   .is-folded .sign-out-label,

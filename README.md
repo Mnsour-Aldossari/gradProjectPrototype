@@ -276,6 +276,13 @@ or PX4) and stores it as before.
 | `/tf`, `/tf_static` | transforms | `map` → `survey` (the same place) → `uav` (where the UAV is and where it heads) |
 | `/diagnostics` | `DiagnosticArray` | the bridge (can it read the backend, the mission, readings sent) and the detector (readings received, missing, final) |
 
+**From the dashboard.** The supervisor's menu has a **ROS 2** switch (on Windows with WSL): it starts the nodes in
+WSL Ubuntu 24.04 (`ROS_WSL_DISTRO`), with PX4's link too where `build.sh` built it (`px4.launch.py landmine:=true`,
+else `landmine.launch.py`), and stops them again (Ctrl+C for the launch). The nodes get a token of the supervisor who
+pressed it (valid 12 hours, as a sign-in), never a password, so nothing is typed; it is fed to bash in WSL, not put
+on a command line. The dot is green while they run. It refuses to start a second set while ROS 2 runs from a WSL
+terminal, and says why when it cannot start (e.g. `build.sh` not run yet). The commands below do the same by hand.
+
 Run it in the WSL Ubuntu 24.04 that has ROS 2 Jazzy (the backend on Windows is reached at `http://127.0.0.1:8000`
 through WSL's mirrored networking):
 
@@ -408,6 +415,8 @@ in the browser and is never sent to the server.
 | `PX4_MANAGE_DOCKER` | `1` | `0`: never start or restart PX4 SITL at a mission's takeoff point, neither the Docker container nor Gazebo's window in WSL (each is off anyway without the `docker` / `wsl` command) |
 | `PX4_GAZEBO_DISTRO` | `Ubuntu-22.04` | the WSL distribution where PX4-Autopilot is built, for **PX4 SITL + Gazebo window** |
 | `PX4_GAZEBO_DIR` | `PX4-Autopilot` | PX4-Autopilot's folder in that distribution, in the user's home or an absolute path |
+| `ROS_WSL_DISTRO` | `Ubuntu-24.04` | the WSL distribution where `ros2_ws/build.sh` built the ROS 2 nodes, for the dashboard's **ROS 2** switch |
+| `ROS_BACKEND_URL` | empty | where those nodes reach the backend; empty: `http://127.0.0.1:<this backend's port>` |
 | `PX4_URL` | `udpin://0.0.0.0:14540` | where MAVSDK listens for PX4, for missions flown with PX4 |
 | `REPORT_FONT`, `REPORT_FONT_BOLD` | unset | a .ttf font with Arabic letters (and its bold) for the PDF report; unset: Arial on Windows, DejaVu Sans on Linux |
 
@@ -500,8 +509,8 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-Expected result: **263 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
-only on PostgreSQL, with `TEST_DATABASE_URL` set: **264 passed, 2 xfailed** (with the ROS readings endpoint; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
+Expected result: **267 passed, 1 skipped, 2 xfailed** with `requirements-px4.txt` installed (the skipped one runs
+only on PostgreSQL, with `TEST_DATABASE_URL` set: **268 passed, 2 xfailed** (with the ROS 2 switch; before it, 8 full runs; one earlier run had the ground truth's end-to-end test fail once, which did not come back in about 20 more runs, also with the CPU busy; if it does, the test now names the part that differs); without MAVSDK two PX4 tests are skipped
 too, and without a `backend/uav.db` the test that upgrades a copy of it is skipped). This includes the mandatory tests T1–T3 on the evaluation seeds. The
 two expected failures are a known limitation, marked `xfail(strict=True)` (see `docs/EVALUATION_PROTOCOL.md`
 section 6): `test_lone_low_metal_mine_is_reported_through_radar` fails for seeds 502 and 503; seed 501 runs as a
@@ -513,14 +522,15 @@ npm run typecheck
 npm test
 ```
 
-`npm test` runs the web tests (Vitest, Testing Library, jsdom): **15 passed**, in about 3 s. They render the app
+`npm test` runs the web tests (Vitest, Testing Library, jsdom): **19 passed**, in about 3 s. They render the app
 without a backend: `fetch` and the WebSocket are faked (`web/src/test/fakes.tsx`), and the Leaflet map is replaced by
 a plain element that shows where the UAV is and which detections it was given (`web/src/test/setup.ts`). They cover
 signing in (each role lands on its own page, a wrong password, a field operator sent away from a supervisor page),
 planning a mission (each drawn outline is checked with `POST /api/missions/check` and its problems shown), the flight
 controls (Pause and Resume; Return Home and Land ask first; hidden from the field operator), live updates (telemetry
 moves the UAV, a new detection joins the list and the map), verification (`PATCH` with `confirmed_by_team` or
-`false_alarm` and the notes), and display settings (theme and text size saved per user and restored). The real map,
+`false_alarm` and the notes), display settings (theme and text size saved per user and restored), and the menu's ROS 2 switch (on, off, the reason
+it did not start; not for the field operator). The real map,
 drawing on it, and the 3D view are not covered (jsdom has no layout or WebGL). On Node.js 25 and newer, Node's own
 `localStorage` hides jsdom's; `web/vitest.config.ts` turns it off in the test workers
 (`--no-experimental-webstorage`), so `npm test` works the same on every platform.
@@ -589,6 +599,8 @@ PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this READM
 | POST | `/api/missions/demo` | supervisor — creates and starts the fixed demo scenario (seed 2000, dry sand, 20×) |
 | GET | `/api/missions/{id}/telemetry` | any user |
 | GET | `/api/missions/{id}/readings?after_id=0&limit=5000` | any user — the sensor readings in the order they were taken, with their place in metres from the survey area's centre (for the ROS 2 bridge) |
+| GET | `/api/ros` | supervisor — can this backend start ROS 2 (Windows with WSL), and does it run |
+| POST | `/api/ros/start`, `/api/ros/stop` | supervisor — start or stop the ROS 2 nodes in WSL (the menu's **ROS 2** switch); 502 with the reason when WSL cannot |
 | GET | `/api/missions/{id}/detections?method=adaptive` | any user |
 | GET | `/api/missions/{id}/profile` | any user — how the adaptive classifier is configured for the mission |
 | GET | `/api/missions/{id}/heatmap` | any user — the readings so far as a grid of normalized peaks, one row per lane (simulated data) |
@@ -634,7 +646,7 @@ Works (implemented and tested with PyTest and/or in the browser):
   and PX4, completed, stopped and failed; at most 0.35 s each). Opened and looked at: the demo's, an Arabic-named
   mission's and a failed PX4 flight's.
 - Fixed-threshold baseline and adaptive classification, calibrated on tuning seeds and evaluated on separate seeds.
-- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (21 tests: the survey frame is the backend's, the detector fed one
+- ROS 2 (Jazzy, WSL Ubuntu 24.04): `colcon test` (22 tests: the survey frame is the backend's, the detector fed one
   reading at a time finds what the backend's finds on two soils, the messages, transforms and diagnostics, the
   commands against a fake backend, PX4's modes and the PX4-versus-backend check) and end to end against the backend on Windows: the demo flown live, two finished
   missions replayed, and a wet-clay survey landed early (1,009 readings); each time the detector node's potential
@@ -650,7 +662,10 @@ Works (implemented and tested with PyTest and/or in the browser):
   uXRCE-DDS, within 0.02 m of the backend's MAVLink position all the way, and both said flying, then down after the
   landing (PX4's land detector and the backend's stopped mission). Ctrl+C stops the nodes cleanly (the agent, a
   native program, ends by the signal, which launch reports as exit code -2). The headless Docker image's PX4 does not
-  reach the agent: its `uxrce_dds_client` sends to 127.0.0.1 inside the container.
+  reach the agent: its `uxrce_dds_client` sends to 127.0.0.1 inside the container. The dashboard's ROS 2 switch, in
+  the browser: on started the nodes with PX4's link in WSL, which followed the demo flown next with the supervisor's
+  token (850 readings by the first look); off stopped them cleanly; with ROS 2 already running from a WSL terminal it
+  refused and said so.
 - The ground truth stays in the simulator: the detectors, the stored data and the API do not use or give it (tested
   with PyTest on SQLite and PostgreSQL; see "The ground truth stays in the simulator").
 - FastAPI backend with SQLite, login with supervisor / field-operator roles, live WebSocket updates.

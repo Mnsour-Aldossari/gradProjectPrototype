@@ -11,13 +11,17 @@ class BackendError(RuntimeError):
     pass
 
 
-def credentials(prefix: str = "UAV") -> tuple[str, str]:
-    """UAV_USERNAME and UAV_PASSWORD: an account of the backend (the field operator's is enough to read).
-    prefix "UAV_CONTROL": the supervisor's account that commands missions."""
+def credentials(prefix: str = "UAV") -> tuple[str, str, str]:
+    """(username, password, token). UAV_USERNAME and UAV_PASSWORD: an account of the backend (the field operator's
+    is enough to read); prefix "UAV_CONTROL": the supervisor's account that commands missions. Or {prefix}_TOKEN, a
+    token the backend gave (its ROS 2 button does), used until it expires."""
+    token = os.environ.get(f"{prefix}_TOKEN", "")
+    if token:
+        return "", "", token
     username, password = os.environ.get(f"{prefix}_USERNAME", ""), os.environ.get(f"{prefix}_PASSWORD", "")
     if not username or not password:
         raise BackendError(f"set {prefix}_USERNAME and {prefix}_PASSWORD to an account of the backend")
-    return username, password
+    return username, password, ""
 
 
 def detail(r: requests.Response) -> str:
@@ -32,14 +36,17 @@ def detail(r: requests.Response) -> str:
 
 
 class Backend:
-    def __init__(self, url: str, username: str, password: str, timeout_s: float = 10.0) -> None:
+    def __init__(self, url: str, username: str, password: str, token: str = "", timeout_s: float = 10.0) -> None:
         self.url = url.rstrip("/")
         self._login = {"username": username, "password": password}
+        self._given = token  # a token instead of a password: no signing in again once it expires
         self._timeout_s = timeout_s
         self._session = requests.Session()
-        self._token: str | None = None
+        self._token: str | None = token or None
 
     def _sign_in(self) -> None:
+        if self._given:
+            raise BackendError("the backend's token was refused (expired?): start ROS 2 again from the dashboard")
         r = self._session.post(f"{self.url}/api/auth/login", json=self._login, timeout=self._timeout_s)
         if r.status_code != 200:
             raise BackendError(f"sign-in refused ({r.status_code}): check UAV_USERNAME and UAV_PASSWORD")

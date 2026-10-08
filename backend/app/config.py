@@ -62,6 +62,12 @@ class Settings:
     report_font: str = ""
     report_font_bold: str = ""
     token_ttl_s: int = 12 * 3600
+    # The dashboard's ROS 2 button: the project's ROS 2 nodes started in WSL (on Windows, where wsl exists; never on in
+    # tests, the default here), in this distribution, reaching the backend at this address (empty: 127.0.0.1 and the
+    # port this backend listens on).
+    ros_wsl: bool = False
+    ros_wsl_distro: str = "Ubuntu-24.04"
+    ros_backend_url: str = ""
     cors_origins: tuple[str, ...] = ("http://localhost:5180", "http://127.0.0.1:5180")
 
     @classmethod
@@ -80,4 +86,7 @@ class Settings:
             px4_gazebo_dir=os.environ.get("PX4_GAZEBO_DIR", "PX4-Autopilot"),
             report_font=os.environ.get("REPORT_FONT", ""),
             report_font_bold=os.environ.get("REPORT_FONT_BOLD", ""),
+            ros_wsl=os.name == "nt" and shutil.which("wsl") is not None,
+            ros_wsl_distro=os.environ.get("ROS_WSL_DISTRO", "Ubuntu-24.04"),
+            ros_backend_url=os.environ.get("ROS_BACKEND_URL", ""),
         )

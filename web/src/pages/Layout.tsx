@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { DisplayMenu } from '../components/DisplayMenu'
+import { RosButton } from '../components/RosButton'
 import { usePrefs } from '../prefs'
 
 function initials(name: string | undefined): string {
@@ -91,6 +92,7 @@ export function Layout() {
               </NavLink>
             ))}
         </nav>
+        {user?.role === 'supervisor' && <RosButton folded={folded} />}
         <div className="side-grow" />
         <p className="sim-note" title={tip(`Simulated data. ${SIM_NOTE}`)}>
           <b>Simulated data.</b> <span className="sim-more">{SIM_NOTE}</span>

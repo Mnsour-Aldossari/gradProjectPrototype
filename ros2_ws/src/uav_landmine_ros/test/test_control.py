@@ -1,5 +1,8 @@
 """Starting and commanding missions through the backend (control_core), against a fake backend."""
 
+import pytest
+
+from uav_landmine_ros.backend_client import Backend, BackendError, credentials
 from uav_landmine_ros.control_core import START_TIMEOUT_S, ControlCore
 
 
@@ -71,3 +74,15 @@ def test_progress_counts_the_detections_by_category():
     p = ControlCore(FakeBackend(mission=mission, detections=detections)).progress(5)
     assert (p.status, p.phase, p.readings, p.high, p.suspect, p.clutter) == ("running", "surveying", 812, 1, 1, 2)
     assert (p.sensor_coverage, p.finished) == (-1.0, False)
+
+
+def test_a_token_from_the_dashboard_stands_for_a_password(monkeypatch):
+    monkeypatch.setenv("UAV_CONTROL_TOKEN", "abc.def")
+    monkeypatch.setenv("UAV_CONTROL_PASSWORD", "unused")
+    assert credentials("UAV_CONTROL") == ("", "", "abc.def")
+    backend = Backend("http://127.0.0.1:8000", *credentials("UAV_CONTROL"))
+    with pytest.raises(BackendError, match="start ROS 2 again"):
+        backend._sign_in()  # an expired token: no password to sign in with again
+    monkeypatch.delenv("UAV_CONTROL_TOKEN")
+    monkeypatch.setenv("UAV_CONTROL_USERNAME", "supervisor")
+    assert credentials("UAV_CONTROL") == ("supervisor", "unused", "")
