@@ -739,9 +739,11 @@ Works (implemented and tested with PyTest and/or in the browser):
 - Database migrations (Alembic), run at startup: tried on SQLite and on PostgreSQL 17 in Docker with a new database,
   a database as v1.2 and v1.8 left it, and a copy of the development PC's `uav.db` (58 missions, 115,030 telemetry
   points, 111,226 readings, 400 detections: every row kept, the missions listed by the API afterwards), and in the
-  backend's Docker image. Not tried: Neon. Migration `0002` (sensor collection) was tested with PyTest on SQLite and PostgreSQL and run on a copy of the development PC's `uav.db`.
-- Web tests (`npm test` in `web/`, 15 tests, Node.js 26 on Windows 11): sign-in, mission planning, flight controls,
-  live updates, verification and display settings, with the backend faked. Of six deliberate breakages of the code
+  backend's Docker image. On Neon the app was used (see PostgreSQL in the "Not working, not run, or only partly checked" table), but these
+  migrations were not run there. Migration `0002` (sensor collection) was tested with PyTest on SQLite and PostgreSQL and run on a copy of the development PC's `uav.db`.
+- Web tests (`npm test` in `web/`, 21 tests, Node.js 26 on Windows 11): sign-in, mission planning, flight controls,
+  live updates, verification, display settings, the accuracy estimate, the Sensors page and the ROS 2 switch, with the
+  backend faked. The first 15 of them were checked against deliberate breakages: of six breakages of the code
   they cover, five made a test fail; the sixth changed nothing a user sees (field operators are sent from `/` to
   `/field` as well).
 - Supervisor dashboard: missions, new mission planning, demo scenario, live map, detection details and
@@ -777,3 +779,11 @@ Not working, not run, or only partly checked:
 | Flutter mobile app | Not implemented; the field view is a web page (PWA) instead. |
 | Security hardening | Not implemented (rate limiting, HTTPS, security headers, token revocation, …); see `docs/ARCHITECTURE.md`. |
  
+
+## Acknowledgements
+
+The ROS 2 side and the metal-detector and radar sensors started from **Osama**'s work: the basic idea of both, and
+some of their features, come from Osama's prototype. The PX4 link was also built and tested with Osama's setup in
+WSL (PX4-Autopilot v1.17.0 built for SITL with Gazebo, `px4_msgs` and the Micro XRCE-DDS Agent), which this project
+links to and builds on without changing it. The implementation in this repository (the backend, the detectors, the
+ROS 2 packages and the web app) was written for this project.
