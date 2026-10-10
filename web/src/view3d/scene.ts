@@ -149,6 +149,12 @@ export class World {
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05 // stay above the ground
     this.controls.minDistance = 2
     this.controls.maxDistance = this.size * 4 + 60
+    // The scene can be moved from the keyboard too: the arrow keys pan the view while the canvas has focus.
+    const canvas = this.renderer.domElement
+    canvas.tabIndex = 0
+    canvas.setAttribute('role', 'img')
+    canvas.setAttribute('aria-label', '3D view of the survey. With this focused, the arrow keys move the view.')
+    this.controls.listenToKeyEvents(canvas)
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x4b4336, 1.3))
     const sun = new THREE.DirectionalLight(0xffffff, 1.2)
