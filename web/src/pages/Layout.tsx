@@ -2,7 +2,6 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { DisplayMenu } from '../components/DisplayMenu'
 import { RosButton } from '../components/RosButton'
-import { usePrefs } from '../prefs'
 
 function initials(name: string | undefined): string {
   return (name ?? '')
@@ -20,8 +19,6 @@ const ICONS = {
   evaluation: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2',
   sensors: 'M12 13a1 1 0 1 0 0 .01 M8.5 9.5a5 5 0 0 0 0 7 M15.5 9.5a5 5 0 0 1 0 7 M5.6 6.6a9 9 0 0 0 0 12.8 M18.4 6.6a9 9 0 0 1 0 12.8',
   database: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6 M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6',
-  fold: 'M4 4v16 M20 12H9 M13 8l-4 4 4 4',
-  unfold: 'M4 4v16 M9 12h11 M16 8l4 4-4 4',
   signOut: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3 M10 16l4-4-4-4 M14 12H4',
 }
 
@@ -38,17 +35,10 @@ function Icon({ d }: { d: string }) {
 export function Layout() {
   const { user, logout } = useAuth()
   const role = user?.role === 'supervisor' ? 'Supervisor' : 'Field operator'
-  // The seed names already say the role ("Mission Supervisor"), so the role line only shows when it adds something.
-  const showRole = !(user?.full_name ?? '').toLowerCase().includes(role.toLowerCase())
-  const { prefs, setPrefs } = usePrefs()
-  // Folded to icons on a laptop; the phone header (styles.css, max-width 860px) ignores it.
-  const folded = prefs.layout.sidebarCollapsed
-  const setFolded = (sidebarCollapsed: boolean) => setPrefs({ layout: { ...prefs.layout, sidebarCollapsed } })
-  // The link names stay for screen readers when folded; the tooltip shows them to everyone else.
-  const tip = (label: string) => (folded ? label : undefined)
+  const supervisor = user?.role === 'supervisor'
   return (
-    <div className={`app${folded ? ' is-folded' : ''}`}>
-      <aside className="sidebar">
+    <div className="app app-top">
+      <header className="topbar">
         <NavLink to="/" className="brand" aria-label="UAV Landmine Survey, all missions">
           <span className="brand-mark">
             <svg viewBox="0 0 24 21" aria-hidden="true">
@@ -60,75 +50,68 @@ export function Layout() {
             <small>Detection prototype</small>
           </span>
         </NavLink>
-        <nav className="nav">
-          <NavLink to="/" end title={tip('Missions')}>
+        {/* On a laptop the links sit in the bar; on a phone the same list is a tab bar at the bottom (redesign.css). */}
+        <nav className="nav" aria-label="Main">
+          <NavLink to="/" end>
             <Icon d={ICONS.missions} />
             <span className="nav-label">Missions</span>
           </NavLink>
-          {user?.role === 'supervisor' && (
-            <NavLink to="/missions/new" title={tip('New mission')}>
+          {supervisor && (
+            <NavLink to="/missions/new" className="nav-new">
               <Icon d={ICONS.new} />
               <span className="nav-label">New mission</span>
             </NavLink>
           )}
-          <NavLink to="/history" title={tip('History')}>
+          <NavLink to="/history">
             <Icon d={ICONS.history} />
             <span className="nav-label">History</span>
           </NavLink>
-          <NavLink to="/evaluation" title={tip('Evaluation')}>
+          <NavLink to="/evaluation">
             <Icon d={ICONS.evaluation} />
             <span className="nav-label">Evaluation</span>
           </NavLink>
-          <NavLink to="/sensors" title={tip('Sensors')}>
+          <NavLink to="/sensors">
             <Icon d={ICONS.sensors} />
             <span className="nav-label">Sensors</span>
           </NavLink>
-          {user?.role === 'supervisor' &&
+          {supervisor &&
             (user.database_ui_url ? (
-              <a href={user.database_ui_url} target="_blank" rel="noreferrer" title={tip('Database (opens in a new tab)')}>
+              <a href={user.database_ui_url} target="_blank" rel="noreferrer">
                 <Icon d={ICONS.database} />
                 <span className="nav-label">Database</span>
                 <span className="sr-only"> (opens in a new tab)</span>
               </a>
             ) : (
-              <NavLink to="/database" title={tip('Database')}>
+              <NavLink to="/database">
                 <Icon d={ICONS.database} />
                 <span className="nav-label">Database</span>
               </NavLink>
             ))}
         </nav>
-        {user?.role === 'supervisor' && <RosButton folded={folded} />}
-        <div className="side-grow" />
-        <p className="sim-note" title={tip(`Simulated data. ${SIM_NOTE}`)}>
-          <b>Simulated data.</b> <span className="sim-more">{SIM_NOTE}</span>
-          <b className="sim-mini" aria-hidden="true">
-            SIM
-          </b>
-        </p>
-        <button
-          type="button"
-          className="side-fold"
-          title={tip('Expand menu')}
-          onClick={() => setFolded(!folded)}
-        >
-          <Icon d={folded ? ICONS.unfold : ICONS.fold} />
-          <span className="side-fold-label">{folded ? 'Expand menu' : 'Collapse menu'}</span>
-        </button>
-        <DisplayMenu />
-        <div className="who">
-          <span className="avatar" aria-hidden="true">
-            {initials(user?.full_name)}
-          </span>
-          <span className="who-name">
-            {user?.full_name}
-            {showRole && <span className="role">{role}</span>}
-          </span>
-          <button type="button" className="link-button sign-out" title={tip('Sign out')} onClick={logout}>
-            <Icon d={ICONS.signOut} />
-            <span className="sign-out-label">Sign out</span>
-          </button>
+        <div className="top-tools">
+          <p className="sim-note" title={`Simulated data. ${SIM_NOTE}`}>
+            <b>Simulated data.</b> <span className="sim-more">{SIM_NOTE}</span>
+            <b className="sim-mini" aria-hidden="true">
+              SIM
+            </b>
+          </p>
+          {supervisor && <RosButton folded />}
+          <DisplayMenu />
+          <div className="who">
+            <span className="avatar" aria-hidden="true">
+              {initials(user?.full_name)}
+            </span>
+            <span className="who-name">
+              {user?.full_name}
+              <span className="role">{role}</span>
+            </span>
+            <button type="button" className="link-button sign-out" title="Sign out" onClick={logout}>
+              <Icon d={ICONS.signOut} />
+              <span className="sign-out-label">Sign out</span>
+            </button>
+          </div>
         </div>
-      </aside>
+      </header>
       <div className="app-main">
         <Outlet />
       </div>

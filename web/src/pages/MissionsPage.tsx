@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -7,6 +7,7 @@ import { SOIL_LABELS, STATUS_LABELS, type Mission } from '../types'
 
 /** The survey outline, drawn small next to the mission's name. */
 function AreaThumb({ area }: { area: Mission['area'] }) {
+  const lanes = useId().replace(/:/g, '')
   if (area.length < 3) return <span className="mthumb" aria-hidden="true" />
   const lats = area.map((p) => p[0])
   const lons = area.map((p) => p[1])
@@ -22,7 +23,13 @@ function AreaThumb({ area }: { area: Mission['area'] }) {
   return (
     <span className="mthumb" aria-hidden="true">
       <svg viewBox="0 0 40 40">
+        <defs>
+          <pattern id={lanes} width="40" height="2.2" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="1.1" x2="40" y2="1.1" />
+          </pattern>
+        </defs>
         <polygon points={pts} />
+        <polygon points={pts} className="mthumb-lanes" style={{ fill: `url(#${lanes})` }} />
       </svg>
     </span>
   )
@@ -149,47 +156,61 @@ export function MissionsPage() {
         </div>
       )}
       {missions && missions.length > 0 && (
-        <section className="card table-card">
-          <div className="table-card-head">
-            <h2>All missions</h2>
+        <section className="mgrid-wrap" aria-labelledby="all-missions">
+          <div className="section-head">
+            <h2 id="all-missions">All missions</h2>
             <span className="count-chip">{missions.length}</span>
           </div>
-          <table className="table missions-table">
-            <thead>
-              <tr>
-                <th>Mission</th>
-                <th>Soil</th>
-                <th>Area</th>
-                <th>Status</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {missions.map((m) => {
-                const size = areaSize(m.area)
-                return (
-                  <tr key={m.id}>
-                    <td>
-                      <span className="mname">
-                        <AreaThumb area={m.area} />
-                        <Link to={`/missions/${m.id}`}>{m.name}</Link>
+          <ul className="mgrid">
+            {missions.map((m) => {
+              const size = areaSize(m.area)
+              return (
+                <li key={m.id} className={`mcard mcard-${m.status}`}>
+                  <div className="mcard-map">
+                    <AreaThumb area={m.area} />
+                    <span className={`status status-${m.status}`}>{STATUS_LABELS[m.status]}</span>
+                    {m.status === 'running' && (
+                      <span className="mcard-progress" aria-hidden="true">
+                        <span style={{ width: `${Math.round(m.progress * 100)}%` }} />
                       </span>
-                    </td>
-                    <td>
-                      <span className={`soil soil-${m.soil_type}`}>{SOIL_LABELS[m.soil_type]}</span>
-                    </td>
-                    <td className="num">
-                      {size.width.toFixed(0)} × {size.height.toFixed(0)} m
-                    </td>
-                    <td>
-                      <span className={`status status-${m.status}`}>{STATUS_LABELS[m.status]}</span>
-                    </td>
-                    <td className="when">{formatDate(m.created_at)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    )}
+                  </div>
+                  <div className="mcard-body">
+                    <h3>
+                      <Link to={`/missions/${m.id}`}>{m.name}</Link>
+                    </h3>
+                    <dl className="mcard-facts">
+                      <div>
+                        <dt>Soil</dt>
+                        <dd>
+                          <span className={`soil soil-${m.soil_type}`}>{SOIL_LABELS[m.soil_type]}</span>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Area</dt>
+                        <dd className="num">
+                          {size.width.toFixed(0)} × {size.height.toFixed(0)} m
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="mcard-when">{formatDate(m.created_at)}</p>
+                  </div>
+                </li>
+              )
+            })}
+            {supervisor && (
+              <li className="mcard mcard-add">
+                <Link to="/missions/new" className="mcard-add-link">
+                  <span className="mcard-add-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                      <path d="M12 5v14 M5 12h14" />
+                    </svg>
+                  </span>
+                  Plan another survey
+                </Link>
+              </li>
+            )}
+          </ul>
         </section>
       )}
     </main>
