@@ -13,8 +13,14 @@ COPY migrations ./migrations
 COPY alembic.ini .
 COPY scripts ./scripts
 
-# SQLite file lives in /data so a volume can keep it between container restarts.
-ENV DATABASE_URL=sqlite:////data/uav.db
+# SQLite file and the generated signing key live in /data so a volume keeps them between container restarts.
+ENV DATABASE_URL=sqlite:////data/uav.db \
+    SECRET_KEY_FILE=/data/.secret_key
+# The server does not need root. /data is made and owned by this user before VOLUME, so a new volume starts writable.
+RUN useradd --system --uid 10001 --no-create-home uav && mkdir -p /data && chown uav:uav /data
 VOLUME /data
+USER uav
 EXPOSE 8000
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# The backend has no published port: only the web container's nginx reaches it, and it sets X-Forwarded-For, so the
+# client address (used by the login throttle) is the visitor's and not nginx's.
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--forwarded-allow-ips", "*"]
