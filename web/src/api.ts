@@ -141,7 +141,9 @@ export async function download(path: string, filename: string): Promise<void> {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
+/** The live link's address. The token is not in it: the page sends it as the first message once the socket is open,
+ *  so it stays out of access logs, proxy logs and browser history. */
 export function liveUrl(missionId: number): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${scheme}://${window.location.host}/ws/missions/${missionId}?token=${encodeURIComponent(getToken() ?? '')}`
+  return `${scheme}://${window.location.host}/ws/missions/${missionId}`
 }

@@ -72,12 +72,15 @@ export class FakeWebSocket {
   onerror: ((e: Event) => void) | null = null
   readyState = 0
   closed = false
+  sent: string[] = []
 
   constructor(readonly url: string) {
     FakeWebSocket.instances.push(this)
   }
 
-  send() {}
+  send(data: string) {
+    this.sent.push(data)
+  }
 
   close() {
     this.closed = true

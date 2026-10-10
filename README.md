@@ -667,7 +667,7 @@ PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this READM
 | GET | `/api/missions/{id}/profile` | any user — how the live detector (version 2) is configured for the mission |
 | GET | `/api/missions/{id}/heatmap` | any user — the readings so far as a grid of normalized peaks, one row per lane (simulated data) |
 | GET | `/api/missions/{id}/report.pdf` | supervisor — the mission report as a PDF; 503 if the server has no font with Arabic letters |
-| WS | `/ws/missions/{id}?token=...` | snapshot, then live telemetry, detections, alerts, status |
+| WS | `/ws/missions/{id}` (first message `{"type":"auth","token":"..."}`; `?token=` still accepted) | snapshot, then live telemetry, detections, alerts, status |
 | PATCH | `/api/detections/{id}` | any user; `pending` / `confirmed_by_team` / `false_alarm` |
 | GET | `/api/evaluation` | any user — baseline vs adaptive on the evaluation seeds (simulated data) |
 
