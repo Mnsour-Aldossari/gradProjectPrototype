@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from collections import defaultdict
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
@@ -11,7 +12,7 @@ from sqlmodel import Session, func, select
 
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, User
 from app.schemas import DetectionRead
-from app.security import decode_token
+from app.security import decode_token, password_fingerprint
 
 router = APIRouter(tags=["live"])
 
@@ -94,16 +95,43 @@ def _open(app, token: str, mission_id: int) -> tuple[dict | None, int]:
     data = decode_token(token, app.state.settings.secret_key)
     with Session(app.state.engine) as session:
         user = session.get(User, data["sub"]) if data else None
+        if user is not None and data.get("pv") != password_fingerprint(user.password_hash):
+            user = None
         mission = session.get(Mission, mission_id) if user else None
         if mission is None:
             return None, 4401 if user is None else 4404
         return _snapshot(session, mission, user, app.state.runner), 0
 
 
+AUTH_TIMEOUT_S = 10.0
+
+
+async def _first_message_token(websocket: WebSocket) -> str | None:
+    """The token from the client's first message, {"type": "auth", "token": "..."}: sent over the open socket, it stays
+    out of the URL and so out of access logs, proxy logs and browser history."""
+    try:
+        message = json.loads(await asyncio.wait_for(websocket.receive_text(), AUTH_TIMEOUT_S))
+    except (TimeoutError, ValueError, WebSocketDisconnect):
+        return None
+    token = message.get("token") if isinstance(message, dict) and message.get("type") == "auth" else None
+    return token if isinstance(token, str) else None
+
+
 @router.websocket("/ws/missions/{mission_id}")
-async def mission_events(websocket: WebSocket, mission_id: int, token: str = Query(...)) -> None:
+async def mission_events(websocket: WebSocket, mission_id: int, token: str | None = Query(None)) -> None:
+    """Live events for a mission. The token goes in the first message; ?token= still works for older clients."""
     app = websocket.app
     hub: Hub = app.state.hub
+    accepted = False
+    if token is None:
+        await websocket.accept()
+        accepted = True
+        token = await _first_message_token(websocket)
+    if token is None or decode_token(token, app.state.settings.secret_key) is None:
+        # Checked before subscribing, so a forged token costs nothing. After accept() the close code reaches the client.
+        with contextlib.suppress(Exception):
+            await websocket.close(code=4401)
+        return
     queue = hub.subscribe(mission_id)  # before the snapshot, so no event falls in between
     sender: asyncio.Task | None = None
     try:
@@ -111,7 +139,8 @@ async def mission_events(websocket: WebSocket, mission_id: int, token: str = Que
         if snapshot is None:
             await websocket.close(code=refused)
             return
-        await websocket.accept()
+        if not accepted:
+            await websocket.accept()
 
         async def forward() -> None:
             await websocket.send_json(snapshot)

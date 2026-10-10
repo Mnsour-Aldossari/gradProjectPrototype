@@ -33,6 +33,20 @@ def load_or_create_secret_key(path: Path | None = None) -> str:
     raise RuntimeError(f"Could not read or create the signing key file {path}")
 
 
+def secret_key_file() -> Path | None:
+    """SECRET_KEY_FILE: where the generated signing key is kept (in a container: a file on the data volume, so the key
+    and the sessions survive a rebuild). Unset: the default file next to the backend."""
+    value = os.environ.get("SECRET_KEY_FILE", "").strip()
+    return Path(value) if value else None
+
+
+def cors_origins(value: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """CORS_ORIGINS: the page addresses allowed to call the API from a browser, separated by commas. Unset: the
+    local development ones."""
+    origins = tuple(o.strip().rstrip("/") for o in value.split(",") if o.strip())
+    return origins or default
+
+
 def database_ui_url(value: str) -> str:
     """The link to the database page: only an http(s) address is used (it goes into a link in the browser)."""
     value = value.strip()
@@ -75,7 +89,7 @@ class Settings:
         manage = os.environ.get("PX4_MANAGE_DOCKER", "1") != "0"
         return cls(
             database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),
-            secret_key=os.environ.get("SECRET_KEY") or load_or_create_secret_key(),
+            secret_key=os.environ.get("SECRET_KEY") or load_or_create_secret_key(secret_key_file()),
             default_speed_factor=float(os.environ.get("SIM_SPEED_FACTOR", "10")),
             px4_url=os.environ.get("PX4_URL", "udpin://0.0.0.0:14540"),
             px4_manage_docker=manage and shutil.which("docker") is not None,
@@ -89,4 +103,5 @@ class Settings:
             ros_wsl=os.name == "nt" and shutil.which("wsl") is not None,
             ros_wsl_distro=os.environ.get("ROS_WSL_DISTRO", "Ubuntu-24.04"),
             ros_backend_url=os.environ.get("ROS_BACKEND_URL", ""),
+            cors_origins=cors_origins(os.environ.get("CORS_ORIGINS", ""), cls.cors_origins),
         )

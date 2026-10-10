@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
@@ -15,9 +17,21 @@ DEMO_USERS = (
 )
 
 
+def seeded_users() -> tuple[dict, ...]:
+    """The accounts to create at startup. SEED_DEMO_USERS=0 creates none (use this on anything but a local trial);
+    SEED_SUPERVISOR_PASSWORD and SEED_FIELD_PASSWORD replace the demo passwords that are written in the source."""
+    if os.environ.get("SEED_DEMO_USERS", "1") == "0":
+        return ()
+    overrides = {
+        "supervisor": os.environ.get("SEED_SUPERVISOR_PASSWORD"),
+        "field": os.environ.get("SEED_FIELD_PASSWORD"),
+    }
+    return tuple({**u, "password": overrides.get(u["username"]) or u["password"]} for u in DEMO_USERS)
+
+
 def seed_users(engine: Engine) -> None:
     with Session(engine) as session:
-        for u in DEMO_USERS:
+        for u in seeded_users():
             if session.exec(select(User).where(User.username == u["username"])).first() is None:
                 session.add(
                     User(

@@ -95,7 +95,12 @@ function useLayers(username: string | undefined): [Record<LayerKey, boolean>, (k
   const key = `uav.view3d.layers.v1.${username ?? ''}`
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>(() => {
     try {
-      return { ...DEFAULT_LAYERS, ...JSON.parse(localStorage.getItem(key) ?? '{}') }
+      // Only the known layers, and only true/false: whatever else is in storage is ignored.
+      const stored: unknown = JSON.parse(localStorage.getItem(key) ?? '{}')
+      const saved = typeof stored === 'object' && stored !== null ? (stored as Record<string, unknown>) : {}
+      return Object.fromEntries(
+        (Object.keys(DEFAULT_LAYERS) as LayerKey[]).map((k) => [k, typeof saved[k] === 'boolean' ? saved[k] : DEFAULT_LAYERS[k]]),
+      ) as Record<LayerKey, boolean>
     } catch {
       return DEFAULT_LAYERS
     }
@@ -136,7 +141,20 @@ function SignalChart({ md, gpr }: { md: number[]; gpr: number[] }) {
  * has ended. A visual view only: the flight is the simulator's or PX4's, the detections are the same as on the map.
  */
 export default function View3DPage() {
-  const missionId = Number(useParams().id)
+  const id = Number(useParams().id)
+  if (!Number.isInteger(id) || id < 1) {
+    return (
+      <main className="v3d v3d-empty">
+        <p role="alert">
+          That mission address is not valid. <Link to="/">Back to the missions</Link>
+        </p>
+      </main>
+    )
+  }
+  return <View3DPageFor missionId={id} />
+}
+
+function View3DPageFor({ missionId }: { missionId: number }) {
   const { user } = useAuth()
   const { state, replaceDetection, reconnect } = useMissionLive(missionId)
   usePrefs() // the panels follow the user's theme
@@ -153,6 +171,7 @@ export default function View3DPage() {
   const [fullDetail, setFullDetail] = useState(false)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [toast, setToast] = useState<Detection | null>(null)
+  const [toastHeld, setToastHeld] = useState(false) // the pointer or keyboard focus is on it: it stays
   const [replayT, setReplayT] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(10)
@@ -370,9 +389,13 @@ export default function View3DPage() {
   useEffect(() => {
     if (!latestAlert) return
     setToast(latestAlert.detection)
+    setToastHeld(false)
+  }, [latestAlert])
+  useEffect(() => {
+    if (!toast || toastHeld) return
     const timer = window.setTimeout(() => setToast(null), 7000)
     return () => window.clearTimeout(timer)
-  }, [latestAlert])
+  }, [toast, toastHeld])
 
   useEffect(() => {
     const escape = (e: KeyboardEvent) => {
@@ -389,14 +412,14 @@ export default function View3DPage() {
     return (
       <main className="v3d v3d-empty">
         {state.connection === 'failed' ? (
-          <p>
+          <p role="alert">
             Cannot reach the mission.{' '}
             <button type="button" className="link-button" onClick={reconnect}>
               Try again
             </button>
           </p>
         ) : (
-          <p>Loading mission…</p>
+          <p role="status">Loading mission…</p>
         )}
       </main>
     )
@@ -568,15 +591,26 @@ export default function View3DPage() {
         )}
       </header>
 
-      {toast && (
-        <button type="button" className="toast v3d-toast" onClick={() => setSelectedId(toast.id)}>
-          <span className="swatch swatch-high" aria-hidden="true" />
-          <span>
-            <strong>New high-priority potential detection</strong>
-            <span className="small">Detection #{toast.id}. Open to review.</span>
-          </span>
-        </button>
-      )}
+      {/* A region that is always on the page, so a screen reader announces the detection when it appears */}
+      <div role="alert" aria-atomic="true">
+        {toast && (
+          <button
+            type="button"
+            className="toast v3d-toast"
+            onClick={() => setSelectedId(toast.id)}
+            onMouseEnter={() => setToastHeld(true)}
+            onMouseLeave={() => setToastHeld(false)}
+            onFocus={() => setToastHeld(true)}
+            onBlur={() => setToastHeld(false)}
+          >
+            <span className="swatch swatch-high" aria-hidden="true" />
+            <span>
+              <strong>New high-priority potential detection</strong>
+              <span className="small">Detection #{toast.id}. Open to review.</span>
+            </span>
+          </button>
+        )}
+      </div>
 
       {/* Mission panel */}
       <aside className="v3d-panel v3d-left" aria-label="Mission">

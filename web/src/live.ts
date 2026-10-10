@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { api, liveUrl } from './api'
+import { api, getToken, liveUrl } from './api'
 import type { Detection, LatLon, Mission, Telemetry } from './types'
 
 const TRACE_LENGTH = 300 // ~30 s of sensor samples at the live event rate
+const MAX_TRACK_POINTS = 20_000 // a long survey: the oldest points drop, so the page's memory stays bounded
+const MAX_ALERTS = 50
 
 export interface Alert {
   detection: Detection
@@ -35,7 +37,31 @@ type Event =
   | { type: 'alert'; detection: Detection }
   | { type: 'detection_removed'; id: number }
 
-type Action = Event | { type: 'connection'; value: LiveState['connection'] } | { type: 'local_update'; detection: Detection }
+type Action =
+  | Event
+  | { type: 'connection'; value: LiveState['connection'] }
+  | { type: 'local_update'; detection: Detection }
+  | { type: 'reset' }
+
+const EVENT_TYPES = new Set([
+  'snapshot',
+  'telemetry',
+  'mission',
+  'detection_created',
+  'detection_updated',
+  'alert',
+  'detection_removed',
+])
+
+/** A message from the server that has the shape of an event. A frame that does not is ignored, not dispatched. */
+function isEvent(value: unknown): value is Event {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === 'string' &&
+    EVENT_TYPES.has((value as { type: string }).type)
+  )
+}
 
 const initial: LiveState = {
   connection: 'connecting',
@@ -56,6 +82,8 @@ function push(values: number[], value: number | null | undefined): number[] {
 
 function reducer(state: LiveState, action: Action): LiveState {
   switch (action.type) {
+    case 'reset':
+      return { ...initial, connection: state.connection }
     case 'connection':
       return { ...state, connection: action.value }
     case 'snapshot':
@@ -71,7 +99,10 @@ function reducer(state: LiveState, action: Action): LiveState {
       return {
         ...state,
         telemetry,
-        track: [...state.track, [telemetry.lat, telemetry.lon]],
+        track: [
+          ...(state.track.length >= MAX_TRACK_POINTS ? state.track.slice(-(MAX_TRACK_POINTS - 1)) : state.track),
+          [telemetry.lat, telemetry.lon],
+        ],
         trace: { md: push(state.trace.md, telemetry.md), gpr: push(state.trace.gpr, telemetry.gpr) },
         mission:
           state.mission && telemetry.progress !== undefined
@@ -106,7 +137,7 @@ function reducer(state: LiveState, action: Action): LiveState {
       return {
         ...state,
         detections: { ...state.detections, [action.detection.id]: action.detection },
-        alerts: [{ detection: action.detection, receivedAt: Date.now() }, ...state.alerts],
+        alerts: [{ detection: action.detection, receivedAt: Date.now() }, ...state.alerts].slice(0, MAX_ALERTS),
       }
     case 'detection_removed': {
       const { [action.id]: _removed, ...rest } = state.detections
@@ -129,16 +160,30 @@ export function useMissionLive(missionId: number) {
     let stopped = false
     let opened = false
 
+    dispatch({ type: 'reset' }) // another mission's detections and trace must not show while this one loads
+
     const connect = () => {
       opened = false
       dispatch({ type: 'connection', value: 'connecting' })
       socket = new WebSocket(liveUrl(missionId))
-      socket.onopen = () => {
-        opened = true
-        retry.current = 0
-        dispatch({ type: 'connection', value: 'open' })
+      // The token goes in the first message, not the address. The link counts as open once the server has accepted
+      // it and answered with the snapshot: a rejected token closes the socket before that.
+      socket.onopen = () => socket?.send(JSON.stringify({ type: 'auth', token: getToken() ?? '' }))
+      socket.onmessage = (msg) => {
+        let event: unknown
+        try {
+          event = JSON.parse(msg.data)
+        } catch {
+          return
+        }
+        if (!isEvent(event)) return
+        if (!opened) {
+          opened = true
+          retry.current = 0
+          dispatch({ type: 'connection', value: 'open' })
+        }
+        dispatch(event)
       }
-      socket.onmessage = (msg) => dispatch(JSON.parse(msg.data) as Event)
       socket.onclose = () => {
         if (stopped) return
         if (retry.current >= MAX_RETRIES) {

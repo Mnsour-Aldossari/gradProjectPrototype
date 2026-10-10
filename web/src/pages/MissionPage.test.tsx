@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { FakeWebSocket, fakeBackend, renderApp, Reply, signedInAs, type Call } from '../test/fakes'
@@ -20,13 +20,46 @@ async function openMission(user: User, opened: Mission = mission(), detections: 
   renderApp('/missions/1')
   await waitFor(() => expect(sockets).toHaveLength(1))
   const socket = sockets[0]
-  expect(socket.url).toMatch(/\/ws\/missions\/1\?token=token-/)
+  expect(socket.url).toMatch(/\/ws\/missions\/1$/) // the token is not in the address
   socket.serverOpens({ type: 'snapshot', mission: opened, detections, track: [], last_telemetry: null })
+  // ...it is the first message the page sends once the socket is open
+  expect(JSON.parse(socket.sent[0])).toEqual({ type: 'auth', token: expect.stringMatching(/^token-/) })
   await screen.findByRole('heading', { name: new RegExp(opened.name) })
   return { calls, socket }
 }
 
 const commands = (calls: Call[]) => calls.filter((c) => c.path === '/api/missions/1/control').map((c) => c.body)
+
+describe('live link', () => {
+  it('ignores a frame that is not JSON or not an event, and keeps showing the mission', async () => {
+    const { socket } = await openMission(SUPERVISOR)
+    act(() => socket.onmessage?.(new MessageEvent('message', { data: 'not json' })))
+    socket.serverSends({ unexpected: true }, { type: 'no-such-event' })
+    expect(screen.getByRole('heading', { name: new RegExp(mission().name) })).toBeDefined()
+  })
+})
+
+describe('accessibility of the mission page', () => {
+  it('announces a mission address that is not a number', async () => {
+    FakeWebSocket.install()
+    fakeBackend(signedInAs(SUPERVISOR, {}))
+    renderApp('/missions/abc')
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('not valid')
+  })
+
+  it('shows a high-priority detection inside an alert region, so a screen reader announces it', async () => {
+    const { socket } = await openMission(SUPERVISOR)
+    socket.serverSends({ type: 'alert', detection: detection({ id: 9 }), message: 'Potential detection - high priority' })
+    const heading = await screen.findByText('New high-priority potential detection')
+    expect(heading.closest('[role="alert"]')).not.toBeNull()
+  })
+
+  it('names the survey progress bar', async () => {
+    await openMission(SUPERVISOR)
+    expect(screen.getByRole('progressbar', { name: 'Survey progress' })).toBeDefined()
+  })
+})
 
 describe('flight controls', () => {
   it('pause and resume the survey', async () => {

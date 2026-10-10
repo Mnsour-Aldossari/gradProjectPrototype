@@ -231,7 +231,20 @@ function useSensorGrid(missionId: number, on: boolean, status: MissionStatus | u
 }
 
 export function MissionPage() {
-  const missionId = Number(useParams().id)
+  const id = Number(useParams().id)
+  if (!Number.isInteger(id) || id < 1) {
+    return (
+      <main className="page">
+        <p className="error" role="alert">
+          That mission address is not valid. <Link to="/">Back to the missions</Link>
+        </p>
+      </main>
+    )
+  }
+  return <MissionPageFor missionId={id} />
+}
+
+function MissionPageFor({ missionId }: { missionId: number }) {
   const navigate = useNavigate()
   const earlier = usePastMissions(missionId)
   const { user } = useAuth()
@@ -263,6 +276,7 @@ export function MissionPage() {
   const [startError, setStartError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [toast, setToast] = useState<Detection | null>(null)
+  const [toastHeld, setToastHeld] = useState(false) // the pointer or keyboard focus is on it: it stays
   const sideRef = useRef<HTMLElement>(null)
   // Customize mode: move and hide buttons on the cards. The layout itself is saved per user (prefs.ts).
   const [editing, setEditing] = useState(false)
@@ -300,29 +314,45 @@ export function MissionPage() {
   }, [expanded])
 
   useEffect(() => {
+    let cancelled = false // an answer that arrives after the page is left must not set state
     api<{ px4_available?: boolean; px4_restarts?: boolean; px4_gazebo?: boolean; px4_manage_off?: boolean }>(
       '/api/health',
     )
       .then((h) => {
+        if (cancelled) return
         setPx4Available(h.px4_available === true)
         setPx4Restarts(h.px4_restarts === true)
         setPx4Gazebo(h.px4_gazebo === true)
         setPx4ManageOff(h.px4_manage_off === true)
       })
-      .catch(() => setPx4Available(false))
+      .catch(() => !cancelled && setPx4Available(false))
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
-    api<ConditionProfile>(`/api/missions/${missionId}/profile`).then(setProfile).catch(() => setProfile(null))
+    let cancelled = false
+    setProfile(null) // another mission's conditions must not show while this one's load
+    api<ConditionProfile>(`/api/missions/${missionId}/profile`)
+      .then((p) => !cancelled && setProfile(p))
+      .catch(() => !cancelled && setProfile(null))
+    return () => {
+      cancelled = true
+    }
   }, [missionId])
 
   const latestAlert = state.alerts[0]
   useEffect(() => {
     if (!latestAlert) return
     setToast(latestAlert.detection)
+    setToastHeld(false)
+  }, [latestAlert])
+  useEffect(() => {
+    if (!toast || toastHeld) return
     const t = window.setTimeout(() => setToast(null), 7000)
     return () => window.clearTimeout(t)
-  }, [latestAlert])
+  }, [toast, toastHeld])
 
   const all = useMemo(() => Object.values(state.detections), [state.detections])
   const adaptive = useMemo(() => all.filter((d) => d.method === 'adaptive'), [all])
@@ -349,14 +379,16 @@ export function MissionPage() {
     return (
       <main className="page">
         {state.connection === 'failed' ? (
-          <p className="small">
+          <p className="small" role="alert">
             Cannot reach the mission.{' '}
             <button type="button" className="link-button" onClick={reconnect}>
               Try again
             </button>
           </p>
         ) : (
-          <p className="small">{state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}</p>
+          <p className="small" role="status">
+            {state.connection === 'closed' ? 'Cannot reach the mission. Retrying.' : 'Loading mission'}
+          </p>
         )}
       </main>
     )
@@ -545,14 +577,23 @@ export function MissionPage() {
               </span>
               <span className="num">{progress}% of path</span>
             </div>
-            <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+            <div
+              className="progress"
+              role="progressbar"
+              aria-label="Survey progress"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div style={{ transform: `scaleX(${mission.progress})` }} />
             </div>
             {mission.error &&
               (mission.status === 'stopped' ? (
                 <p className="small">{mission.error}. What was scanned is kept.</p>
               ) : (
-                <p className="error">{mission.error}</p>
+                <p className="error" role="alert">
+                  {mission.error}
+                </p>
               ))}
             <SensorNote mission={mission} />
             {user?.role === 'supervisor' && mission.status === 'running' && <FlightControls mission={mission} />}
@@ -683,7 +724,11 @@ export function MissionPage() {
             {mission.status === 'planned' && user?.role !== 'supervisor' && (
               <p className="small">Waiting for the supervisor to start the survey.</p>
             )}
-            {startError && <p className="error">{startError}</p>}
+            {startError && (
+              <p className="error" role="alert">
+                {startError}
+              </p>
+            )}
           </>
         }
       >
@@ -786,12 +831,26 @@ export function MissionPage() {
           </label>
           <div className="toggle heat-toggle" role="radiogroup" aria-label="Sensor heatmap on the map">
             <span aria-hidden="true">Heatmap</span>
-            <span className="segmented compact">
+            <span
+              className="segmented compact"
+              onKeyDown={(e) => {
+                // A radio group is one tab stop; the arrow keys move between its choices.
+                const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+                if (!step) return
+                e.preventDefault()
+                const at = HEATMAP_PREFS.findIndex((choice) => choice === heat)
+                const next = HEATMAP_PREFS[(at + step + HEATMAP_PREFS.length) % HEATMAP_PREFS.length]
+                setPrefs({ missionLayers: { ...prefs.missionLayers, heatmap: next } })
+                e.currentTarget.querySelector<HTMLElement>(`[data-choice="${next}"]`)?.focus()
+              }}
+            >
               {HEATMAP_PREFS.map((choice) => (
                 <button
                   key={choice}
                   type="button"
                   role="radio"
+                  data-choice={choice}
+                  tabIndex={heat === choice ? 0 : -1}
                   aria-checked={heat === choice}
                   className={heat === choice ? 'is-on' : undefined}
                   title={HEAT_CHOICES[choice].title}
@@ -954,8 +1013,7 @@ export function MissionPage() {
           <button
             type="button"
             className="map-expand"
-            aria-pressed={expanded}
-            aria-label="Expand map"
+            aria-label={expanded ? 'Collapse map' : 'Expand map'}
             title={expanded ? 'Back to the page (Esc)' : 'Expand map'}
             onClick={() => {
               setExpanded((x) => !x)
@@ -970,24 +1028,39 @@ export function MissionPage() {
             </Link>
           )}
           {state.connection === 'failed' ? (
-            <div className="map-banner">
+            <div className="map-banner" role="status">
               Live connection lost.{' '}
               <button type="button" className="link-button" onClick={reconnect}>
                 Try again
               </button>
             </div>
           ) : (
-            state.connection !== 'open' && <div className="map-banner">Live connection lost. Reconnecting.</div>
+            state.connection !== 'open' && (
+              <div className="map-banner" role="status">
+                Live connection lost. Reconnecting.
+              </div>
+            )
           )}
-          {toast && (
-            <button type="button" className="toast" onClick={() => select(toast.id)}>
-              <span className="swatch swatch-high" aria-hidden="true" />
-              <span>
-                <strong>New high-priority potential detection</strong>
-                <span className="small">Detection #{toast.id}. Open to review.</span>
-              </span>
-            </button>
-          )}
+          {/* A region that is always on the page, so a screen reader announces the detection when it appears */}
+          <div role="alert" aria-atomic="true">
+            {toast && (
+              <button
+                type="button"
+                className="toast"
+                onClick={() => select(toast.id)}
+                onMouseEnter={() => setToastHeld(true)}
+                onMouseLeave={() => setToastHeld(false)}
+                onFocus={() => setToastHeld(true)}
+                onBlur={() => setToastHeld(false)}
+              >
+                <span className="swatch swatch-high" aria-hidden="true" />
+                <span>
+                  <strong>New high-priority potential detection</strong>
+                  <span className="small">Detection #{toast.id}. Open to review.</span>
+                </span>
+              </button>
+            )}
+          </div>
         </div>
 
         <aside className="mp-col" ref={sideRef} aria-label="Mission details">

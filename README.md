@@ -472,6 +472,10 @@ in the browser and is never sent to the server.
 | `TEST_DATABASE_URL` | unset | tests only: a PostgreSQL server (any database); each test then gets a schema of its own there, dropped afterwards. Unset: tests use temporary SQLite files |
 | `SIM_SPEED_FACTOR` | `10` | default playback speed for missions (1 = real time) |
 | `SECRET_KEY` | random, saved in `backend/.secret_key` | token signing key; if unset, one is generated on first start and reused (git-ignored) |
+| `SECRET_KEY_FILE` | `backend/.secret_key` | where the generated signing key is kept; the Docker image sets `/data/.secret_key`, on the data volume, so sessions survive a rebuild |
+| `CORS_ORIGINS` | `http://localhost:5180,http://127.0.0.1:5180` | page addresses (comma-separated) allowed to call the API from a browser; only `GET POST PUT PATCH DELETE` and the `Authorization` / `Content-Type` headers are allowed |
+| `SEED_DEMO_USERS` | `1` | `0`: create no demo accounts (use this on anything but a local trial) |
+| `SEED_SUPERVISOR_PASSWORD`, `SEED_FIELD_PASSWORD` | the demo passwords below | replace the demo passwords when the accounts are created; an account that already exists keeps its password |
 | `PX4_MANAGE_DOCKER` | `1` | `0`: never start or restart PX4 SITL at a mission's takeoff point, neither the Docker container nor Gazebo's window in WSL (each is off anyway without the `docker` / `wsl` command) |
 | `PX4_GAZEBO_DISTRO` | `Ubuntu-22.04` | the WSL distribution where PX4-Autopilot is built, for **PX4 SITL + Gazebo window** |
 | `PX4_GAZEBO_DIR` | `PX4-Autopilot` | PX4-Autopilot's folder in that distribution, in the user's home or an absolute path |
@@ -502,8 +506,11 @@ starts empty, and the missions
 in `uav.db` stay there. To go back to SQLite, start the backend without `DATABASE_URL`. `GET /api/health` says which
 one is running (`"database": "postgresql"` or `"sqlite"`). Use `127.0.0.1`, not `localhost`: on the PC where this was
 tried, `localhost` made the connection hang. The whole stack on PostgreSQL: `docker compose -f docker-compose.yml
--f docker-compose.postgres.yml up --build -d` (the database has no published port; set `POSTGRES_PASSWORD` for
-anything but a local trial).
+-f docker-compose.postgres.yml up --build -d` (the database has no published port; `POSTGRES_PASSWORD` has no
+default: set it in the shell or a `.env` file first). The backend container now runs as a non-root user (`uav`): a
+`/data` volume made by an earlier version is owned by root, so remove it (`docker compose down -v`, which deletes its
+data) or `chown 10001 /data` in it before starting. Login attempts are limited per client address and username (5
+failures a minute, then `429`), and the web container sends a Content-Security-Policy and other security headers.
 
 To browse the tables in the browser, run a web tool next to PostgreSQL, e.g. NocoDB (it asks for a local account on
 first use):
@@ -667,7 +674,7 @@ PostgreSQL in Docker and runs in the tests; not run on `uav.db` while this READM
 | GET | `/api/missions/{id}/profile` | any user — how the live detector (version 2) is configured for the mission |
 | GET | `/api/missions/{id}/heatmap` | any user — the readings so far as a grid of normalized peaks, one row per lane (simulated data) |
 | GET | `/api/missions/{id}/report.pdf` | supervisor — the mission report as a PDF; 503 if the server has no font with Arabic letters |
-| WS | `/ws/missions/{id}?token=...` | snapshot, then live telemetry, detections, alerts, status |
+| WS | `/ws/missions/{id}` (first message `{"type":"auth","token":"..."}`; `?token=` still accepted) | snapshot, then live telemetry, detections, alerts, status |
 | PATCH | `/api/detections/{id}` | any user; `pending` / `confirmed_by_team` / `false_alarm` |
 | GET | `/api/evaluation` | any user — baseline vs adaptive on the evaluation seeds (simulated data) |
 
