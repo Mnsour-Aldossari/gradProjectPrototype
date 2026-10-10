@@ -39,6 +39,28 @@ describe('live link', () => {
   })
 })
 
+describe('accessibility of the mission page', () => {
+  it('announces a mission address that is not a number', async () => {
+    FakeWebSocket.install()
+    fakeBackend(signedInAs(SUPERVISOR, {}))
+    renderApp('/missions/abc')
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('not valid')
+  })
+
+  it('shows a high-priority detection inside an alert region, so a screen reader announces it', async () => {
+    const { socket } = await openMission(SUPERVISOR)
+    socket.serverSends({ type: 'alert', detection: detection({ id: 9 }), message: 'Potential detection - high priority' })
+    const heading = await screen.findByText('New high-priority potential detection')
+    expect(heading.closest('[role="alert"]')).not.toBeNull()
+  })
+
+  it('names the survey progress bar', async () => {
+    await openMission(SUPERVISOR)
+    expect(screen.getByRole('progressbar', { name: 'Survey progress' })).toBeDefined()
+  })
+})
+
 describe('flight controls', () => {
   it('pause and resume the survey', async () => {
     const { calls, socket } = await openMission(SUPERVISOR)
