@@ -14,7 +14,7 @@ import time
 from collections.abc import Awaitable
 
 from sqlalchemy import Engine
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.config import Settings
 from app.detection import Candidate, Category, Reading, SurveyContext, detect_baseline, live_detector
@@ -216,16 +216,21 @@ def sync_adaptive(
                 session.add(row)
                 changed.append(("detection_created", row, None))
 
-        removed = [row for row in unclaimed.values() if row.status == "pending"]
-        for row in removed:
-            session.delete(row)
+        removed_ids: list[int] = []
+        for row in unclaimed.values():
+            if row.status != "pending":
+                continue
+            # Deleted only if it is still pending in the database: a supervisor may have verified it since it was read.
+            deleted = session.exec(delete(Detection).where(Detection.id == row.id, Detection.status == "pending"))
+            if deleted.rowcount:
+                removed_ids.append(row.id)
         session.commit()
 
         for kind, row, previous_category in changed:
             events.append(detection_event(kind, row))
             if row.category == Category.HIGH and previous_category != Category.HIGH:
                 events.append({**detection_event("alert", row), "message": "Potential detection - high priority"})
-        events += [{"type": "detection_removed", "id": row.id} for row in removed]
+        events += [{"type": "detection_removed", "id": detection_id} for detection_id in removed_ids]
     return events
 
 

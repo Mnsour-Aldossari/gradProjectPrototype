@@ -222,6 +222,14 @@ def _mark_running(session: Session, mission: Mission) -> None:
     session.refresh(mission)
 
 
+def _revert_to_planned(session: Session, mission: Mission) -> None:
+    mission.status = "planned"
+    mission.started_at = None
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+
+
 async def _start(
     request: Request, session: Session, mission: Mission, speed_factor: float, gazebo: bool = False
 ) -> Mission:
@@ -245,9 +253,19 @@ async def _start(
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
     async with runner.starting:
         _check_can_start(request, mission)  # another request may have started it meanwhile
+        if px4:
+            # Checked again: a second PX4 mission may have passed the check above while this one was connecting.
+            busy = runner.px4_mission()
+            if busy is not None:
+                raise HTTPException(status.HTTP_409_CONFLICT, f"PX4 is flying mission {busy}; wait until it has finished")
         await asyncio.to_thread(_mark_running, session, mission)
-        request.app.state.hub.publish(mission.id, mission_event(mission, "surveying"))
-        runner.start(mission.id, source, px4=px4)
+        try:
+            request.app.state.hub.publish(mission.id, mission_event(mission, "surveying"))
+            runner.start(mission.id, source, px4=px4)
+        except Exception:
+            # It never flew: back to planned, so the mission is not left "running" with nothing running it.
+            await asyncio.to_thread(_revert_to_planned, session, mission)
+            raise
     return mission
 
 
@@ -281,7 +299,7 @@ async def run_demo_scenario(
     mission = await asyncio.to_thread(_create, session, MissionCreate(**DEMO_SCENARIO), user)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else DEMO_SPEED_FACTOR
     mission = await _start(request, session, mission, speed_factor)  # always the simulator
-    return mission_read(session, mission, user, runner=request.app.state.runner)
+    return await asyncio.to_thread(mission_read, session, mission, user, runner=request.app.state.runner)
 
 
 @router.get("/{mission_id}", response_model=MissionRead)
@@ -313,7 +331,7 @@ async def start_mission(
     if body and body.uav_source is not None and mission.status == "planned":
         mission.uav_source = body.uav_source
     mission = await _start(request, session, mission, speed_factor, gazebo=gazebo)
-    return mission_read(session, mission, user, runner=request.app.state.runner)
+    return await asyncio.to_thread(mission_read, session, mission, user, runner=request.app.state.runner)
 
 
 @router.put("/{mission_id}/takeoff", response_model=MissionRead)
