@@ -23,8 +23,8 @@ DetectionStatus = Literal["pending", "confirmed_by_team", "false_alarm"]
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(max_length=64)
+    password: str = Field(max_length=256)
 
 
 class UserRead(BaseModel):

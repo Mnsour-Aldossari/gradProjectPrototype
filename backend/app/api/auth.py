@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlmodel import select
 
 from app.models import User
@@ -21,10 +21,21 @@ def session_user(user: User, settings: Settings) -> SessionUser:
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(body: LoginRequest, session: SessionDep, settings: SettingsDep) -> LoginResponse:
+def login(body: LoginRequest, request: Request, session: SessionDep, settings: SettingsDep) -> LoginResponse:
+    throttle = request.app.state.login_throttle
+    client = request.client.host if request.client else "unknown"
+    wait = throttle.retry_after(client, body.username)
+    if wait:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many failed sign-in attempts. Try again later.",
+            headers={"Retry-After": str(wait)},
+        )
     user = session.exec(select(User).where(User.username == body.username)).first()
     if user is None or not verify_password(body.password, user.password_hash):
+        throttle.record_failure(client, body.username)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid username or password")
+    throttle.record_success(client, body.username)
     token = create_token(user.id, user.role, settings.secret_key, settings.token_ttl_s)
     return LoginResponse(token=token, user=session_user(user, settings))
 

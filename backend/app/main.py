@@ -13,6 +13,7 @@ from .api.runner import MissionRunner
 from .api.ws import Hub
 from .config import Settings
 from .db import init_db, make_engine
+from .login_throttle import LoginThrottle
 from .ros_wsl import RosInWsl
 from .seed import fail_interrupted_missions, seed_users
 from .uav.px4_mavlink_source import mavsdk_installed
@@ -46,6 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.runner = runner
     app.state.hub = hub
+    app.state.login_throttle = LoginThrottle()
     app.state.ros = RosInWsl(settings.ros_wsl_distro) if settings.ros_wsl else None
 
     app.add_middleware(
