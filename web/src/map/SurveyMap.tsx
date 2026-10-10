@@ -1,13 +1,12 @@
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Polygon, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { COLORS } from '../theme'
 import type { Detection, LatLon, Telemetry } from '../types'
 import { detectionIcon, uavIcon } from './icons'
+import { BaseLayers, MapTools, PointerReadout, ScaleBar, useBaseMap } from './MapChrome'
 
-const SATELLITE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-const SATELLITE_ATTRIBUTION = 'Imagery &copy; Esri, Maxar, Earthstar Geographics'
 
 function metresPerPixel(lat: number, zoom: number): number {
   return (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom
@@ -110,6 +109,8 @@ interface SurveyMapProps {
   fitTo?: LatLon[]
   /** The white band of ground scanned; off while a sensor heatmap shows the same ground. */
   showSwath?: boolean
+  /** The map's own controls (base map, fit, my position, scale, pointer position). Off where cards cover the map. */
+  controls?: boolean
 }
 
 export function SurveyMap({
@@ -127,35 +128,83 @@ export function SurveyMap({
   labelDetections = false,
   fitTo,
   showSwath = true,
+  controls = true,
 }: SurveyMapProps) {
+  const [base, setBase] = useBaseMap()
   const center = useMemo<LatLon>(() => {
     if (!area.length) return [24.1395, 47.262]
     return [area.reduce((s, p) => s + p[0], 0) / area.length, area.reduce((s, p) => s + p[1], 0) / area.length]
   }, [area])
 
   return (
-    <MapContainer center={center} zoom={19} maxZoom={22} className={className ?? 'survey-map'} zoomControl>
-      <TileLayer url={SATELLITE_URL} attribution={SATELLITE_ATTRIBUTION} maxNativeZoom={19} maxZoom={22} />
+    <MapContainer center={center} zoom={19} maxZoom={22} className={`${className ?? 'survey-map'} base-${base}`} zoomControl>
+      <BaseLayers base={base} />
       <FitArea area={fitTo ?? area} padding={fitPadding} />
+      {controls && (
+        <>
+          <MapTools area={fitTo ?? area} base={base} onBase={setBase} />
+          <ScaleBar />
+          <PointerReadout />
+        </>
+      )}
 
-      {/* Survey area boundary, styled after red-and-white hazard marking */}
-      <Polygon positions={area} interactive={false} pathOptions={{ color: '#ffffff', weight: 4, fill: false }} />
+      {/* Survey area boundary, styled after red-and-white hazard marking, with a soft glow so it reads on any ground */}
       <Polygon
         positions={area}
         interactive={false}
-        pathOptions={{ color: COLORS.hazard, weight: 4, dashArray: '10 10', fillColor: '#ffffff', fillOpacity: 0.04 }}
+        pathOptions={{ color: '#ffffff', weight: 7, opacity: 0.35, fill: false, className: 'area-glow' }}
+      />
+      <Polygon positions={area} interactive={false} pathOptions={{ color: '#ffffff', weight: 3.5, fill: false }} />
+      <Polygon
+        positions={area}
+        interactive={false}
+        pathOptions={{
+          color: COLORS.hazard,
+          weight: 3.5,
+          dashArray: '10 10',
+          fillColor: COLORS.hazard,
+          fillOpacity: 0.06,
+          className: 'area-line',
+        }}
       />
 
+      {/* The planned lanes, with where the UAV starts (S) and ends (E) */}
       {path.length > 1 && (
-        <Polyline
-          positions={path}
-          interactive={false}
-          pathOptions={{ color: '#ffffff', weight: 1.2, opacity: 0.75, dashArray: '3 6' }}
-        />
+        <>
+          <Polyline
+            positions={path}
+            interactive={false}
+            pathOptions={{ color: '#ffffff', weight: 1.4, opacity: 0.7, dashArray: '2 6', lineCap: 'round', className: 'plan-line' }}
+          />
+          <CircleMarker
+            center={path[0]}
+            radius={6}
+            interactive={false}
+            pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#34e3a0', fillOpacity: 1, className: 'path-end' }}
+          >
+            <Tooltip permanent direction="left" offset={[-8, 0]} className="path-tag path-tag-start" interactive={false}>
+              S
+            </Tooltip>
+          </CircleMarker>
+          <CircleMarker
+            center={path[path.length - 1]}
+            radius={6}
+            interactive={false}
+            pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#9b8cff', fillOpacity: 1, className: 'path-end' }}
+          >
+            <Tooltip permanent direction="right" offset={[8, 0]} className="path-tag path-tag-end" interactive={false}>
+              E
+            </Tooltip>
+          </CircleMarker>
+        </>
       )}
       {showSwath && <CoverageSwath track={track} widthM={swathWidthM} />}
       {track.length > 1 && (
-        <Polyline positions={track} interactive={false} pathOptions={{ color: COLORS.survey, weight: 1.4, opacity: 0.85 }} />
+        <Polyline
+          positions={track}
+          interactive={false}
+          pathOptions={{ color: COLORS.survey, weight: 2.2, opacity: 0.95, lineCap: 'round', lineJoin: 'round', className: 'track-line' }}
+        />
       )}
 
       {detections.map((d) => (

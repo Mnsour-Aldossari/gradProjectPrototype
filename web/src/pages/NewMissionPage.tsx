@@ -5,7 +5,7 @@ import { api } from '../api'
 import { AccuracyMeter } from '../components/AccuracyMeter'
 import { Select } from '../components/Select'
 import { formatDuration } from '../format'
-import { AreaDrawer, AreaHandles, OUTLINE_COLORS, outline, type DrawTool, type Shape } from '../map/AreaEditor'
+import { AreaDrawer, AreaHandles, AreaLabels, OUTLINE_COLORS, outline, type DrawTool, type Shape } from '../map/AreaEditor'
 import { SurveyMap } from '../map/SurveyMap'
 import { SOIL_LABELS, type AccuracyEstimate, type LatLon, type Mission, type SoilType } from '../types'
 
@@ -17,15 +17,32 @@ const DEMO_AREA: LatLon[] = [
   [24.13932, 47.2617],
 ]
 
-const TOOLS: { tool: DrawTool; label: string; hint: string }[] = [
-  { tool: 'rect', label: 'Rectangle', hint: 'Click two opposite corners.' },
-  { tool: 'circle', label: 'Circle', hint: 'Click the centre, then a point on the edge.' },
+const TOOLS: { tool: DrawTool; label: string; key: string; icon: string; hint: string }[] = [
+  { tool: 'rect', label: 'Rectangle', key: 'R', icon: 'M4 6h16v12H4z', hint: 'Click two opposite corners.' },
+  { tool: 'circle', label: 'Circle', key: 'C', icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18', hint: 'Click the centre, then a point on the edge.' },
   {
     tool: 'polygon',
     label: 'Free shape',
+    key: 'F',
+    icon: 'M5 19 3 9l8-6 9 5-2 11z',
     hint: 'Click each corner; click the first corner or double-click to finish. Backspace removes the last corner.',
   },
 ]
+
+const EDIT_HINT = 'Drag a corner to move it, the dot on a side to add a corner, the cross to move the whole area. Double-click or right-click a corner to remove it.'
+
+function Glyph({ d }: { d: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={d} />
+    </svg>
+  )
+}
+
+const UNDO_ICON = 'M9 14 4 9l5-5 M4 9h10.5a5.5 5.5 0 0 1 0 11H11'
+const REDO_ICON = 'M15 14l5-5-5-5 M20 9H9.5a5.5 5.5 0 0 0 0 11H13'
+const FIELD_ICON = 'M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z M12 7.5a2 2 0 1 0 0 4a2 2 0 1 0 0-4'
+const HISTORY_MAX = 50
 
 /** The backend's verdict on an outline (POST /api/missions/check). */
 interface AreaCheck {
@@ -45,6 +62,8 @@ const CHECK_DELAY_MS = 200
 export function NewMissionPage() {
   const navigate = useNavigate()
   const [shape, setShape] = useState<Shape>({ kind: 'polygon', points: DEMO_AREA })
+  // Every finished change to the outline, for Undo and Redo (Ctrl+Z, Ctrl+Y).
+  const [history, setHistory] = useState<{ list: Shape[]; at: number }>({ list: [{ kind: 'polygon', points: DEMO_AREA }], at: 0 })
   // What the map keeps in view: the test field until the user moves the map (editing never refits it).
   const [fitTo, setFitTo] = useState<LatLon[]>(DEMO_AREA)
   const [tool, setTool] = useState<DrawTool | null>(null)
@@ -102,6 +121,53 @@ export function NewMissionPage() {
   const color = tool && corners > 0 ? (valid ? OUTLINE_COLORS.drawing : OUTLINE_COLORS.bad) : valid ? OUTLINE_COLORS.ok : OUTLINE_COLORS.bad
   const lanes = check ? Math.round(check.path.length / 2) : 0
 
+  function commit(s: Shape) {
+    setShape(s)
+    setHistory((h) => {
+      const list = [...h.list.slice(0, h.at + 1), s].slice(-HISTORY_MAX)
+      return { list, at: list.length - 1 }
+    })
+  }
+  const canUndo = history.at > 0 && !tool
+  const canRedo = history.at < history.list.length - 1 && !tool
+  function step(by: -1 | 1) {
+    const at = history.at + by
+    if (at < 0 || at >= history.list.length || tool) return
+    setHistory({ ...history, at })
+    setShape(history.list[at])
+  }
+
+  function cancelDrawing() {
+    setDraft(null)
+    setCorners(0)
+    setTool(null)
+  }
+
+  // Keys for the map tools; typing in a field of the form is left alone.
+  const keysRef = useRef<(e: KeyboardEvent) => void>(() => undefined)
+  keysRef.current = (e: KeyboardEvent) => {
+    const el = e.target as HTMLElement | null
+    if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
+    const mod = e.ctrlKey || e.metaKey
+    const k = e.key.toLowerCase()
+    if (mod && k === 'z') {
+      e.preventDefault()
+      step(e.shiftKey ? 1 : -1)
+    } else if (mod && k === 'y') {
+      e.preventDefault()
+      step(1)
+    } else if (!mod && !e.altKey) {
+      if (k === 'escape' && tool) cancelDrawing()
+      const t = TOOLS.find((x) => x.key.toLowerCase() === k)
+      if (t) pick(t.tool)
+    }
+  }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keysRef.current(e)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   function pick(t: DrawTool) {
     setDraft(null)
     setCorners(0)
@@ -132,11 +198,11 @@ export function NewMissionPage() {
     }
   }
 
-  const hint = tool ? TOOLS.find((t) => t.tool === tool)!.hint : 'Drag the handles to change the outline.'
+  const hint = tool ? TOOLS.find((t) => t.tool === tool)!.hint : EDIT_HINT
 
   return (
     <main className="mission-layout">
-      <div className="map-pane">
+      <div className="map-pane plan-map">
         <SurveyMap area={tool ? [] : area} path={check?.path ?? []} fitTo={fitTo}>
           {tool ? (
             <AreaDrawer
@@ -147,28 +213,73 @@ export function NewMissionPage() {
                 setCorners(n)
               }}
               onDone={(s) => {
-                setShape(s)
+                commit(s)
                 setDraft(null)
                 setCorners(0)
                 setTool(null)
               }}
-              onCancel={() => {
-                setDraft(null)
-                setCorners(0)
-                setTool(null)
-              }}
+              onCancel={cancelDrawing}
             />
           ) : (
             <>
               {!valid && (
                 <Polygon positions={area} interactive={false} pathOptions={{ color: OUTLINE_COLORS.bad, weight: 3, fill: false }} />
               )}
-              <AreaHandles shape={shape} onChange={setShape} onEnd={() => {}} />
+              <AreaLabels shape={shape} />
+              <AreaHandles shape={shape} onChange={setShape} onEnd={commit} />
             </>
           )}
         </SurveyMap>
-        <div className="map-hint" role="status">
-          {hint}
+
+        <div className="draw-bar" role="toolbar" aria-label="Draw the survey area">
+          <div className="draw-bar-group" role="group" aria-labelledby="draw-label">
+            {TOOLS.map((t) => (
+              <button
+                key={t.tool}
+                type="button"
+                className="draw-bar-tool"
+                aria-pressed={tool === t.tool}
+                aria-keyshortcuts={t.key}
+                title={`${t.label} (${t.key})`}
+                onClick={() => pick(t.tool)}
+              >
+                <Glyph d={t.icon} />
+                <span className="draw-bar-label">{t.label}</span>
+                <kbd aria-hidden="true">{t.key}</kbd>
+              </button>
+            ))}
+          </div>
+          <span className="draw-bar-sep" aria-hidden="true" />
+          <div className="draw-bar-group">
+            <button type="button" className="draw-bar-tool icon-only" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={() => step(-1)}>
+              <Glyph d={UNDO_ICON} />
+            </button>
+            <button type="button" className="draw-bar-tool icon-only" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={() => step(1)}>
+              <Glyph d={REDO_ICON} />
+            </button>
+            <button
+              type="button"
+              className="draw-bar-tool icon-only"
+              aria-label="Use the test field"
+              title="Use the test field"
+              disabled={tool !== null}
+              onClick={() => {
+                commit({ kind: 'polygon', points: DEMO_AREA })
+                setFitTo([...DEMO_AREA])
+              }}
+            >
+              <Glyph d={FIELD_ICON} />
+            </button>
+          </div>
+        </div>
+
+        <div className={`map-hint${tool ? ' is-drawing' : ''}`} role="status">
+          <span>{hint}</span>
+          {tool && (
+            <button type="button" className="map-hint-cancel" onClick={cancelDrawing}>
+              Cancel <kbd>Esc</kbd>
+            </button>
+          )}
         </div>
       </div>
       <aside className="side-pane">
@@ -181,37 +292,13 @@ export function NewMissionPage() {
 
           <div className="field">
             <span id="draw-label">Survey area</span>
-            <div className="draw-tools" role="group" aria-labelledby="draw-label">
-              {TOOLS.map((t) => (
-                <button key={t.tool} type="button" aria-pressed={tool === t.tool} onClick={() => pick(t.tool)}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <div className="row">
-              {tool === 'polygon' && corners > 0 && (
-                <span className="small">
-                  {corners} corner{corners === 1 ? '' : 's'} placed. Backspace removes the last.
-                </span>
-              )}
-              {tool && (
-                <button type="button" className="link-button" onClick={() => pick(tool)}>
-                  Cancel drawing
-                </button>
-              )}
-              {!tool && (
-                <button
-                  type="button"
-                  className="link-button"
-                  onClick={() => {
-                    setShape({ kind: 'polygon', points: DEMO_AREA })
-                    setFitTo([...DEMO_AREA])
-                  }}
-                >
-                  Use the test field
-                </button>
-              )}
-            </div>
+            <p className="small draw-note">
+              {tool === 'polygon' && corners > 0
+                ? `${corners} corner${corners === 1 ? '' : 's'} placed. Backspace removes the last.`
+                : tool
+                  ? 'Drawing on the map. Esc cancels.'
+                  : 'Draw it with the tools on the map, or drag its handles.'}
+            </p>
 
             <div className={`area-check ${valid ? 'ok' : 'bad'}`} aria-live="polite">
               {checkError ? (

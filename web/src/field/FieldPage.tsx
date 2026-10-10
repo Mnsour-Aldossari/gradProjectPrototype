@@ -213,6 +213,7 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           onSelect={setSelectedId}
           fitPadding={insets}
           labelDetections={tab === 'map' && prefs.fieldLayers.labels}
+          controls={false}
         >
           {info.kind === 'real' && device.status === 'ok' && (
             <>
