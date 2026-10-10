@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
 from app.config import Settings
 from app.login_throttle import LoginThrottle
 from app.main import create_app
+from app.models import User
+from app.security import create_token, hash_password, verify_password
 from app.seed import DEMO_USERS, seeded_users
 
 SUPERVISOR = next(u for u in DEMO_USERS if u["username"] == "supervisor")
@@ -62,6 +65,35 @@ def test_seed_password_comes_from_the_environment(database_url, monkeypatch):
     with TestClient(create_app(Settings(database_url=database_url, secret_key="test-secret"))) as c:
         assert _login(c, "supervisor", "from-env-not-source").status_code == 200
         assert _login(c, "supervisor", SUPERVISOR["password"]).status_code == 401
+
+
+def test_a_password_change_ends_the_sessions_opened_with_the_old_password(client):
+    token = _login(client, "supervisor", SUPERVISOR["password"]).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.get("/api/auth/me", headers=headers).status_code == 200
+    with Session(client.app.state.engine) as session:
+        user = session.exec(select(User).where(User.username == "supervisor")).one()
+        user.password_hash = hash_password("a-new-password")
+        session.add(user)
+        session.commit()
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
+    assert _login(client, "supervisor", "a-new-password").status_code == 200
+
+
+def test_a_token_without_the_password_fingerprint_is_refused(client):
+    with Session(client.app.state.engine) as session:
+        user_id = session.exec(select(User).where(User.username == "supervisor")).one().id
+    old_style = create_token(user_id, "supervisor", "test-secret", 3600)  # signed correctly, but no fingerprint
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {old_style}"}).status_code == 401
+
+
+def test_a_malformed_stored_hash_is_a_failed_login_not_a_500():
+    assert verify_password("x", "not-a-hash") is False
+    assert verify_password("x", "pbkdf2_sha256$abc$zz$00") is False  # iterations and salt are not valid
+
+
+def test_unknown_username_is_a_plain_401(client):
+    assert _login(client, "nobody", "whatever").status_code == 401
 
 
 def test_demo_accounts_can_be_turned_off(monkeypatch):

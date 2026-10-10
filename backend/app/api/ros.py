@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from app.api.deps import SettingsDep, SupervisorUser
 from app.config import Settings
 from app.ros_wsl import RosStartFailed
-from app.security import create_token
+from app.security import create_token, password_fingerprint
 
 router = APIRouter(prefix="/api/ros", tags=["ros"])
 NO_WSL = "ROS 2 starts from here only on Windows with WSL"
@@ -49,7 +49,9 @@ async def start_ros(request: Request, settings: SettingsDep, user: SupervisorUse
         raise HTTPException(status.HTTP_409_CONFLICT, NO_WSL)
     server = request.scope.get("server") or ("127.0.0.1", 8000)
     url = settings.ros_backend_url or f"http://127.0.0.1:{server[1]}"
-    token = create_token(user.id, user.role, settings.secret_key, settings.token_ttl_s)
+    token = create_token(
+        user.id, user.role, settings.secret_key, settings.token_ttl_s, password_fingerprint(user.password_hash)
+    )
     try:
         await ros.start(url, token)
     except (RosStartFailed, ValueError) as e:

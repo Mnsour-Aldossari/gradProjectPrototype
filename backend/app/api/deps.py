@@ -11,7 +11,7 @@ from sqlmodel import Session
 
 from app.config import Settings
 from app.models import User
-from app.security import decode_token
+from app.security import decode_token, password_fingerprint
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -43,7 +43,7 @@ def get_current_user(
     if data is None:
         raise unauthorized
     user = session.get(User, data["sub"])
-    if user is None:
+    if user is None or data.get("pv") != password_fingerprint(user.password_hash):
         raise unauthorized
     return user
 

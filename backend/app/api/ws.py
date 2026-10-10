@@ -12,7 +12,7 @@ from sqlmodel import Session, func, select
 
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, User
 from app.schemas import DetectionRead
-from app.security import decode_token
+from app.security import decode_token, password_fingerprint
 
 router = APIRouter(tags=["live"])
 
@@ -95,6 +95,8 @@ def _open(app, token: str, mission_id: int) -> tuple[dict | None, int]:
     data = decode_token(token, app.state.settings.secret_key)
     with Session(app.state.engine) as session:
         user = session.get(User, data["sub"]) if data else None
+        if user is not None and data.get("pv") != password_fingerprint(user.password_hash):
+            user = None
         mission = session.get(Mission, mission_id) if user else None
         if mission is None:
             return None, 4401 if user is None else 4404
