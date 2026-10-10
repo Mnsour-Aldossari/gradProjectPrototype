@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { areaSize, formatDate } from '../format'
+import { allPoints, PastKey, PastMissions } from '../map/PastMissions'
+import { SurveyMap } from '../map/SurveyMap'
 import { SOIL_LABELS, STATUS_LABELS, type Mission } from '../types'
 
 /** The survey outline, drawn small next to the mission's name. */
@@ -155,6 +157,25 @@ export function MissionsPage() {
           </p>
         </div>
       )}
+      {missions && missions.some((m) => m.area.length >= 3) && (
+        <section className="overview" aria-labelledby="overview-title">
+          <div className="section-head">
+            <h2 id="overview-title">Survey map</h2>
+            <span className="small">Every planned outline, in its status colour. Click one to open it.</span>
+          </div>
+          <div className="overview-map-wrap">
+            <SurveyMap
+              area={[]}
+              fitTo={allPoints(missions)}
+              className="overview-map"
+            >
+              <PastMissions missions={missions.filter((m) => m.area.length >= 3)} onSelect={(m) => navigate(`/missions/${m.id}`)} />
+            </SurveyMap>
+          </div>
+          <PastKey />
+        </section>
+      )}
+
       {missions && missions.length > 0 && (
         <section className="mgrid-wrap" aria-labelledby="all-missions">
           <div className="section-head">

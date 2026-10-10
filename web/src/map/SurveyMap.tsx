@@ -5,7 +5,7 @@ import { CircleMarker, MapContainer, Marker, Polygon, Polyline, Tooltip, useMap,
 import { COLORS } from '../theme'
 import type { Detection, LatLon, Telemetry } from '../types'
 import { detectionIcon, uavIcon } from './icons'
-import { BaseLayers, MapTools, PointerReadout, ScaleBar, useBaseMap } from './MapChrome'
+import { BaseLayers, MapTools, type PastControl, PointerReadout, ScaleBar, useBaseMap } from './MapChrome'
 
 
 function metresPerPixel(lat: number, zoom: number): number {
@@ -111,6 +111,8 @@ interface SurveyMapProps {
   showSwath?: boolean
   /** The map's own controls (base map, fit, my position, scale, pointer position). Off where cards cover the map. */
   controls?: boolean
+  /** A button for showing or hiding the other missions, which the page draws as children. */
+  past?: PastControl
 }
 
 export function SurveyMap({
@@ -129,6 +131,7 @@ export function SurveyMap({
   fitTo,
   showSwath = true,
   controls = true,
+  past,
 }: SurveyMapProps) {
   const [base, setBase] = useBaseMap()
   const center = useMemo<LatLon>(() => {
@@ -142,7 +145,7 @@ export function SurveyMap({
       <FitArea area={fitTo ?? area} padding={fitPadding} />
       {controls && (
         <>
-          <MapTools area={fitTo ?? area} base={base} onBase={setBase} />
+          <MapTools area={fitTo ?? area} base={base} onBase={setBase} past={past} />
           <ScaleBar />
           <PointerReadout />
         </>

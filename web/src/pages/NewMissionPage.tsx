@@ -6,6 +6,7 @@ import { AccuracyMeter } from '../components/AccuracyMeter'
 import { Select } from '../components/Select'
 import { formatDuration } from '../format'
 import { AreaDrawer, AreaHandles, AreaLabels, OUTLINE_COLORS, outline, type DrawTool, type Shape } from '../map/AreaEditor'
+import { PastMissions, usePastMissions } from '../map/PastMissions'
 import { SurveyMap } from '../map/SurveyMap'
 import { SOIL_LABELS, type AccuracyEstimate, type LatLon, type Mission, type SoilType } from '../types'
 
@@ -81,6 +82,7 @@ export function NewMissionPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const checkSeq = useRef(0)
+  const earlier = usePastMissions()
 
   const area = outline(shape)
   const checked = draft ?? area
@@ -203,7 +205,8 @@ export function NewMissionPage() {
   return (
     <main className="mission-layout">
       <div className="map-pane plan-map">
-        <SurveyMap area={tool ? [] : area} path={check?.path ?? []} fitTo={fitTo}>
+        <SurveyMap area={tool ? [] : area} path={check?.path ?? []} fitTo={fitTo} past={earlier.past}>
+          {earlier.on && <PastMissions missions={earlier.missions} faint inert={Boolean(tool)} />}
           {tool ? (
             <AreaDrawer
               tool={tool}

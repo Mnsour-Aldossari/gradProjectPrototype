@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, download } from '../api'
 import { useAuth } from '../auth'
 import { CARD_ICONS, CardFrame, Glyph, type CardDrag } from '../components/CardFrame'
@@ -14,6 +14,7 @@ import { formatDuration } from '../format'
 import { remainingS } from '../field/mapInfo'
 import { useMissionLive } from '../live'
 import { HeatLegend, HeatmapLayer, HEAT_SENSOR_LABELS } from '../map/HeatmapLayer'
+import { PastMissions, usePastMissions } from '../map/PastMissions'
 import { SurveyMap } from '../map/SurveyMap'
 import { TakeoffPoint, distanceM, insideArea } from '../map/TakeoffPoint'
 import {
@@ -231,6 +232,8 @@ function useSensorGrid(missionId: number, on: boolean, status: MissionStatus | u
 
 export function MissionPage() {
   const missionId = Number(useParams().id)
+  const navigate = useNavigate()
+  const earlier = usePastMissions(missionId)
   const { user } = useAuth()
   const { state, replaceDetection, reconnect } = useMissionLive(missionId)
   const [profile, setProfile] = useState<ConditionProfile | null>(null)
@@ -925,7 +928,9 @@ export function MissionPage() {
             selectedId={selectedId}
             onSelect={select}
             showSwath={heat === 'off'}
+            past={earlier.past}
           >
+            {earlier.on && <PastMissions missions={earlier.missions} faint onSelect={(m) => navigate(`/missions/${m.id}`)} />}
             {heat !== 'off' && grid && <HeatmapLayer grid={grid} sensor={heat} />}
             {showTakeoff && (
               <TakeoffPoint

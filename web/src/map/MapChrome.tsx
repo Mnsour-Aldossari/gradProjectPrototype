@@ -92,6 +92,7 @@ function useIsolated<T extends HTMLElement>() {
 const ICONS = {
   layers: 'M12 3 2 8l10 5 10-5z M2 13l10 5 10-5 M2 17.5l10 5 10-5',
   fit: 'M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5 M9 12h6 M12 9v6',
+  past: 'M3 7l5-2 5 2 5-2v12l-5 2-5-2-5 2z M8 5v12 M13 7v12',
   locate: 'M12 2v3 M12 19v3 M2 12h3 M19 12h3 M12 6a6 6 0 1 0 0 12a6 6 0 1 0 0-12 M12 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3',
 }
 
@@ -104,7 +105,23 @@ function Glyph({ d }: { d: string }) {
 }
 
 /** The buttons in the map's top-right corner. */
-export function MapTools({ area, base, onBase }: { area: LatLon[]; base: BaseMap; onBase: (b: BaseMap) => void }) {
+export interface PastControl {
+  count: number
+  on: boolean
+  onToggle: () => void
+}
+
+export function MapTools({
+  area,
+  base,
+  onBase,
+  past,
+}: {
+  area: LatLon[]
+  base: BaseMap
+  onBase: (b: BaseMap) => void
+  past?: PastControl
+}) {
   const map = useMap()
   const ref = useIsolated<HTMLDivElement>()
   const [open, setOpen] = useState(false)
@@ -157,6 +174,19 @@ export function MapTools({ area, base, onBase }: { area: LatLon[]; base: BaseMap
         {area.length > 0 && (
           <button type="button" className="map-tool" aria-label="Show the whole survey area" title="Show the whole survey area" onClick={fit}>
             <Glyph d={ICONS.fit} />
+          </button>
+        )}
+        {past && past.count > 0 && (
+          <button
+            type="button"
+            className="map-tool map-tool-past"
+            aria-pressed={past.on}
+            aria-label="Earlier missions"
+            title={`${past.on ? 'Hide' : 'Show'} the ${past.count} other mission${past.count === 1 ? '' : 's'} on the map`}
+            onClick={past.onToggle}
+          >
+            <Glyph d={ICONS.past} />
+            <span className="map-tool-badge" aria-hidden="true">{past.count}</span>
           </button>
         )}
         <button
