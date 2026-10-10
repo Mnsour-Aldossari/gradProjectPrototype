@@ -65,7 +65,7 @@ export const DEFAULT_MISSION_LAYOUT: MissionLayout = {
 }
 
 export const DEFAULT_PREFS: Prefs = {
-  theme: 'light',
+  theme: 'dark', // the only look (styles.css)
   fontSize: 'normal',
   density: 'comfortable',
   layout: { sidebarCollapsed: false, mission: DEFAULT_MISSION_LAYOUT },
@@ -169,7 +169,7 @@ function apply(prefs: Prefs): void {
   const root = document.documentElement
   root.dataset.theme = prefs.theme === 'system' ? (darkQuery().matches ? 'dark' : 'light') : prefs.theme
   // The browser bar matches the page header (--surface in styles.css, and the script in index.html).
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', root.dataset.theme === 'dark' ? '#111a2b' : '#ffffff')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#060a14') // dark only (styles.css)
   // styles.css scales text with --text-scale and spacing with --density for these values.
   root.dataset.font = prefs.fontSize
   root.dataset.density = prefs.density

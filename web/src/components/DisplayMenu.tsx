@@ -2,7 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { usePrefs, type Prefs } from '../prefs'
 
 // The menu's settings; the page layout and the field-map cards in Prefs are set on the pages themselves.
-type ChoiceKey = 'theme' | 'fontSize' | 'density'
+// The look is dark only (styles.css), so there is no theme choice; the stored theme value is kept but unused.
+type ChoiceKey = 'fontSize' | 'density'
 
 interface Group<K extends ChoiceKey> {
   key: K
@@ -10,15 +11,6 @@ interface Group<K extends ChoiceKey> {
   choices: [Prefs[K], string][]
 }
 
-const THEME: Group<'theme'> = {
-  key: 'theme',
-  label: 'Theme',
-  choices: [
-    ['light', 'Light'],
-    ['dark', 'Dark'],
-    ['system', 'Device'],
-  ],
-}
 const FONT_SIZE: Group<'fontSize'> = {
   key: 'fontSize',
   label: 'Text size',
@@ -64,7 +56,7 @@ function Choices<K extends ChoiceKey>({ group }: { group: Group<K> }) {
 }
 
 /**
- * The "Display" button and its small menu: theme, text size and density for the signed-in user.
+ * The "Display" button and its small menu: text size and density for the signed-in user.
  * `inline` opens the menu in the page flow (field Status tab) instead of as a floating panel (sidebar).
  */
 export function DisplayMenu({ inline = false }: { inline?: boolean }) {
@@ -111,7 +103,6 @@ export function DisplayMenu({ inline = false }: { inline?: boolean }) {
       </button>
       {open && (
         <div id={panelId} className="display-panel" role="group" aria-label="Display settings">
-          <Choices group={THEME} />
           <Choices group={FONT_SIZE} />
           <Choices group={DENSITY} />
           <div className="display-foot">

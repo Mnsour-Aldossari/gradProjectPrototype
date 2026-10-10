@@ -1,47 +1,63 @@
-:root {
-  /* Design 2: a light dashboard palette. Names kept from the first version so every page picks it up. */
-  --paper: #f3f5f8; /* page background */
-  --surface: #fff; /* cards and panels */
-  --ink: #101828;
-  --ink-2: #667085;
-  --rule: #e6e9ef;
-  --hazard: #d92d20;
-  --amber: #f59e0b;
-  --survey: #2563eb;
-  --clutter: #94a3b8;
-  --ok: #067647;
+/* Design 3 — "Night ops": one vibrant dark palette (dark only, the owner's decision). The theme preference in
+   src/prefs.ts is kept for stored settings, but every value of it shows this palette. Names are kept from the first
+   version so every page picks the new values up; src/redesign.css (loaded after this file) adds the new look. */
+:root,
+:root[data-theme='dark'],
+:root[data-theme='light'] {
+  --paper: #060a14; /* page background, under the aurora glows */
+  --surface: #0d1323; /* cards and panels */
+  --surface-2: #121a2e; /* raised parts inside a card */
+  --ink: #edf1fb;
+  --ink-2: #9aa5c2; /* 7:1 on --surface */
+  --rule: #1d2742;
+  --hazard: #ff4d6d;
+  --amber: #ffb02e;
+  --survey: #3dd6f5;
+  --clutter: #8b95b0;
+  --ok: #34e3a0;
+  --violet: #9b8cff;
 
-  --tint: #f2f4f7;
-  --tint-soft: #f8f9fb;
-  --raised: #fff;
-  --input-bg: #fff;
-  --input-rule: #d0d5dd;
-  --notice-bg: #fffaeb;
-  --notice-rule: #fedf89;
-  --status-ok-bg: #ecfdf3;
-  --status-ok-fg: #027a48;
-  --status-fail-bg: #fef3f2;
-  --chart-grid: #eaecf0;
-  /* Two-series chart palette, validated (lightness, chroma, colour-blind separation, contrast on --surface). */
-  --series-baseline: #b5651d;
-  --series-adaptive: #2563eb;
-  --button-bg: #2563eb;
-  --button-fg: #fff;
-  --button-hover: #1d4ed8;
-  --nav-active-bg: #eff4ff;
-  /* Filled hazard and survey colours that carry white text: the same in both themes. */
-  --hazard-fill: #d92d20;
-  --survey-fill: #2563eb;
+  /* The signature accent: aqua-mint, the colour of a radar sweep. Dark text sits on it. */
+  --brand: #2ee6c0;
+  --brand-2: #3dc6ff;
+  --brand-ink: #02151a;
+  --brand-grad: linear-gradient(135deg, #2ee6c0 0%, #3dc6ff 100%);
+  --hot-grad: linear-gradient(135deg, #ff4d6d 0%, #ff8a3d 100%);
+  --glow-brand: 0 0 0 1px rgb(46 230 192 / 0.35), 0 8px 28px -6px rgb(46 230 192 / 0.45);
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.06);
-  --shadow-lg: 0 8px 24px rgb(16 24 40 / 0.12);
+  --tint: #16203a;
+  --tint-soft: #111a30;
+  --raised: #141d34;
+  --input-bg: #0a1121;
+  --input-rule: #2a3658;
+  --notice-bg: #261c07;
+  --notice-rule: #6b4e12;
+  --status-ok-bg: rgb(52 227 160 / 0.13);
+  --status-ok-fg: #5ff0b6;
+  --status-fail-bg: rgb(255 77 109 / 0.14);
+  --chart-grid: #1c2640;
+  /* Two-series chart palette: warm against cool, told apart by lightness too. */
+  --series-baseline: #ff9f43;
+  --series-adaptive: #3dd6f5;
+  --button-bg: #2ee6c0;
+  --button-fg: #02151a;
+  --button-hover: #62f0d4;
+  --nav-active-bg: rgb(46 230 192 / 0.12);
+  /* Filled hazard and survey colours that carry white text. */
+  --hazard-fill: #e2304f;
+  --survey-fill: #0a6fb8;
 
-  --font: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 10px 30px -12px rgb(0 0 0 / 0.7);
+  --shadow-lg: 0 24px 60px -18px rgb(0 0 0 / 0.85);
+
+  --font: 'Inter Variable', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Space Grotesk Variable', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', Consolas, monospace;
   --font-cond: var(--font);
   --side: 380px;
-  --sidebar: 236px;
+  --sidebar: 248px;
   /* Display preferences (src/prefs.ts): text size and spacing scale with these. */
   --text-scale: 1;
   --density: 1;
@@ -50,43 +66,8 @@
   background: var(--paper);
   font-family: var(--font);
   font-size: calc(15px * var(--text-scale));
-  line-height: 1.45;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  color-scheme: light;
-}
-
-/* Dark version of the same palette, chosen under Display (src/prefs.ts). Map markers keep their colours. */
-:root[data-theme='dark'] {
-  --paper: #0b1220;
-  --surface: #111a2b;
-  --ink: #e6eaf2;
-  --ink-2: #98a2b3;
-  --rule: #1f2a3d;
-  --hazard: #f97066;
-  --amber: #fdb022;
-  --survey: #6b9bff;
-  --clutter: #94a3b8;
-  --ok: #32d583;
-
-  --tint: #1a2436;
-  --tint-soft: #152033;
-  --raised: #162133;
-  --input-bg: #0f1828;
-  --input-rule: #2a3850;
-  --notice-bg: #2a2110;
-  --notice-rule: #5c4a1a;
-  --status-ok-bg: #0d2e1f;
-  --status-ok-fg: #6ce9a6;
-  --status-fail-bg: #3b1716;
-  --chart-grid: #1f2a3d;
-  --series-baseline: #e0893e;
-  --series-adaptive: #6b9bff;
-  --button-bg: #2563eb;
-  --button-fg: #fff;
-  --button-hover: #3b74f0;
-  --nav-active-bg: #172554;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.5);
   color-scheme: dark;
 }
 
@@ -1031,7 +1012,7 @@ textarea {
   height: 10px;
   border-radius: 2px;
   background:
-    linear-gradient(#1f5fad, #1f5fad) center / 100% 2px no-repeat, /* the map's line colour (COLORS.survey), same in both themes */
+    linear-gradient(#22b8f0, #22b8f0) center / 100% 2px no-repeat, /* the map's line colour (COLORS.survey), same in both themes */
     linear-gradient(rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.45)),
     #a39065;
 }
@@ -1303,22 +1284,22 @@ textarea {
 }
 /* Map labels ("Test location") in the dark theme. :where() keeps the specificity low, so labels with their own look
    still set it. */
-:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip {
+:where(:root) .leaflet-container .leaflet-tooltip {
   background: var(--raised);
   border-color: var(--rule);
   color: var(--ink);
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
 }
-:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-top::before {
+:where(:root) .leaflet-container .leaflet-tooltip-top::before {
   border-top-color: var(--raised);
 }
-:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-bottom::before {
+:where(:root) .leaflet-container .leaflet-tooltip-bottom::before {
   border-bottom-color: var(--raised);
 }
-:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-left::before {
+:where(:root) .leaflet-container .leaflet-tooltip-left::before {
   border-left-color: var(--raised);
 }
-:where(:root[data-theme='dark']) .leaflet-container .leaflet-tooltip-right::before {
+:where(:root) .leaflet-container .leaflet-tooltip-right::before {
   border-right-color: var(--raised);
 }
 
