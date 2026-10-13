@@ -1,0 +1,9 @@
+# Starts a mission through the backend (a supervisor's account). mission_id 0: create and start the demo scenario.
+int64 mission_id
+string uav_source       # simulated (when empty) or px4; the demo always flies with the simulator
+float64 speed_factor    # the simulator's playback speed (1 = real time, 0 = as fast as it can); below 0: the backend's
+bool gazebo             # with px4: PX4 SITL in Gazebo's window instead of the headless Docker image
+---
+bool accepted
+int64 mission_id
+string message          # why not, when not accepted

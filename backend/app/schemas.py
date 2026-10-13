@@ -20,12 +20,11 @@ UtcDatetime = Annotated[datetime, PlainSerializer(_iso_utc, return_type=str)]
 
 SoilType = Literal["dry_sand", "wet_clay", "mineralized_rocky"]
 DetectionStatus = Literal["pending", "confirmed_by_team", "false_alarm"]
-MissionStatus = Literal["planned", "running", "completed", "failed"]
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(max_length=64)
+    password: str = Field(max_length=256)
 
 
 class UserRead(BaseModel):
@@ -37,9 +36,15 @@ class UserRead(BaseModel):
     role: str
 
 
+class SessionUser(UserRead):
+    """The signed-in user as the page needs it: database_ui_url only for a supervisor, and only when it is set."""
+
+    database_ui_url: str | None = None
+
+
 class LoginResponse(BaseModel):
     token: str
-    user: UserRead
+    user: SessionUser
 
 
 class MissionCreate(BaseModel):
@@ -60,6 +65,42 @@ class MissionCreate(BaseModel):
         return area
 
 
+class AreaCheck(MissionCreate):
+    """A survey outline to check while it is drawn; nothing is stored."""
+
+    name: str = "Check"
+
+
+class AccuracyEstimate(BaseModel):
+    """The detector's expected accuracy with these survey settings (app/detection/accuracy.py). Simulated data:
+    it compares settings inside the simulation and does not predict field performance."""
+
+    soil_type: str
+    altitude_m: float
+    speed_mps: float
+    line_spacing_m: float
+    recall: float  # share of the mines found
+    recall_margin: float  # about 95 %: within recall ± this
+    precision: float  # share of the reports that are mines
+    false_alarms_per_ha: float
+    low_metal_recall: float
+    surveys: int
+    seeds: tuple[int, int]
+    method: str
+
+
+class AreaCheckResult(BaseModel):
+    ok: bool
+    problems: list[str]  # what to change, first the most basic
+    path: list[list[float]]  # the lanes the UAV would fly, [lat, lon]
+    path_length_m: float
+    width_m: float
+    height_m: float
+    area_m2: float
+    estimated_duration_s: float
+    accuracy: AccuracyEstimate | None = None  # None without the accuracy table
+
+
 class MissionStats(BaseModel):
     telemetry_points: int
     sensor_readings: int
@@ -78,15 +119,33 @@ class MissionRead(BaseModel):
     speed_mps: float
     line_spacing_m: float
     soil_type: str
-    scenario_seed: int
+    # The supervisor's only: with it and this code the simulated buried objects can be rebuilt.
+    scenario_seed: int | None
     status: str
+    uav_source: str
+    takeoff_lat: float | None
+    takeoff_lon: float | None
+    landing_lat: float | None
+    landing_lon: float | None
+    # Where PX4 takes off: the chosen point, or by default just outside the area at the start of the survey.
+    takeoff_point: list[float] | None = None
+    # Where PX4 lands after the survey: the chosen point, else the takeoff point.
+    landing_point: list[float] | None = None
     progress: float
     battery_pct: float | None
     error: str | None
+    # Apart from the flight: how well the readings cover the lanes (complete | partial | failed | not_started; None
+    # for missions flown before it was recorded), how many readings, the share of the lanes read, and why not all.
+    sensor_collection: str | None
+    sensor_reading_count: int
+    sensor_coverage: float | None
+    sensor_note: str | None
     created_by: int | None
     created_at: UtcDatetime
     started_at: UtcDatetime | None
     completed_at: UtcDatetime | None
+    # While running: surveying, paused, returning or landing. Not stored; the mission runner knows it.
+    phase: str | None = None
     stats: MissionStats | None = None
 
     @computed_field
@@ -121,19 +180,33 @@ class MissionHistory(BaseModel):
     totals_adaptive: CategoryCounts
     totals_verification: VerificationCounts
     completed: int
+    stopped: int
     failed: int
 
 
-class MissionPage(BaseModel):
-    items: list[MissionRead]
-    total: int
-    page: int
-    page_size: int
+class TakeoffRequest(BaseModel):
+    """PX4's takeoff (or landing) point; null for both: the default (takeoff: just outside the area at the start of
+    the survey; landing: the takeoff point)."""
+
+    lat: float | None = Field(None, ge=-90, le=90)
+    lon: float | None = Field(None, ge=-180, le=180)
+
+
+class ControlRequest(BaseModel):
+    action: Literal["pause", "resume", "return", "land"]
 
 
 class StartRequest(BaseModel):
     speed_factor: float | None = Field(
         None, ge=0, le=100, description="1 = real time, 10 = ten times faster, 0 = as fast as possible"
+    )
+    uav_source: Literal["simulated", "px4"] | None = Field(
+        None, description="What flies the survey: the built-in simulator, or PX4 over MAVLink (real time)"
+    )
+    gazebo: bool = Field(
+        False,
+        description="With PX4: PX4 SITL in Gazebo's window (WSL on the server's PC), started at the takeoff point, "
+        "instead of the headless Docker image",
     )
 
 
@@ -149,6 +222,22 @@ class TelemetryRead(BaseModel):
     ground_speed_mps: float
     battery_pct: float
     waypoint_seq: int
+
+
+class SensorReadingRead(BaseModel):
+    """One MD/GPR reading, with where it was taken also in metres from the centre of the survey area (x east,
+    y north): the frame the detectors work in."""
+
+    id: int
+    t_s: float
+    lat: float
+    lon: float
+    x_m: float
+    y_m: float
+    relative_alt_m: float
+    md: float
+    gpr_amp: float
+    gpr_twt_ns: float
 
 
 class DetectionRead(BaseModel):

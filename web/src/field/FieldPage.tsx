@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Circle, CircleMarker, Tooltip } from 'react-leaflet'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Circle, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { DetectionDetail } from '../components/DetectionDetail'
 import { DisplayMenu } from '../components/DisplayMenu'
+import { Select } from '../components/Select'
+import { SensorBadge, SensorNote } from '../components/SensorBadge'
+import { StatusBadge } from '../components/StatusBadge'
 import { formatDuration } from '../format'
 import { useMissionLive } from '../live'
-import { SurveyMap } from '../map/SurveyMap'
+import { SurveyMap, type FitPadding } from '../map/SurveyMap'
+import { usePrefs } from '../prefs'
 import { COLORS } from '../theme'
 import {
   CATEGORY_LABELS,
@@ -18,16 +22,12 @@ import {
   type LatLon,
   type Mission,
 } from '../types'
+import { FieldMapInfo } from './FieldMapInfo'
 import { bearing, centre, distanceM, FAR_FROM_AREA_M, formatDistance, testPosition } from './geo'
+import type { Ranked } from './mapInfo'
 import { useDeviceLocation } from './useLocation'
 
 type Tab = 'map' | 'alerts' | 'status'
-
-interface Ranked {
-  detection: Detection
-  distance: number
-  direction: string
-}
 
 function NavIcon({ tab }: { tab: Tab }) {
   if (tab === 'map')
@@ -111,6 +111,7 @@ function LocationNote({ info, canUseReal, canUseTest, onChoose }: {
 
 function FieldMission({ missionId, missions }: { missionId: number; missions: Mission[] }) {
   const { user, logout } = useAuth()
+  const { prefs } = usePrefs()
   const navigate = useNavigate()
   const { state, replaceDetection, reconnect } = useMissionLive(missionId)
   const device = useDeviceLocation()
@@ -118,6 +119,8 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
   const [tab, setTab] = useState<Tab>('map')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [toast, setToast] = useState<Detection | null>(null)
+  // What the cards over the map cover, so the survey area is fitted into the free part.
+  const [insets, setInsets] = useState<FitPadding | undefined>(undefined)
 
   const latestAlert = state.alerts[0]
   useEffect(() => {
@@ -204,16 +207,40 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           path={mission.path}
           track={state.track}
           swathWidthM={mission.line_spacing_m}
-          uav={mission.status === 'running' || mission.status === 'completed' ? t : null}
+          uav={mission.status === 'running' || mission.status === 'completed' || mission.status === 'stopped' ? t : null}
           detections={reported}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          fitPadding={insets}
+          labelDetections={tab === 'map' && prefs.fieldLayers.labels}
+          controls={false}
         >
           {info.kind === 'real' && device.status === 'ok' && (
             <>
               <Circle center={device.position} radius={device.accuracyM} interactive={false} pathOptions={{ color: COLORS.survey, weight: 1, fillOpacity: 0.08 }} />
               <CircleMarker center={device.position} radius={7} interactive={false} pathOptions={{ color: '#ffffff', weight: 2.5, fillColor: COLORS.survey, fillOpacity: 1 }} />
             </>
+          )}
+          {tab === 'map' && prefs.fieldLayers.guide && info.kind !== 'centre' && origin && ranked[0] && (
+            // Redrawn when the nearest detection or the position changes: Leaflet leaves an open label where it was.
+            <Fragment key={`${ranked[0].detection.id}:${origin[0].toFixed(6)},${origin[1].toFixed(6)}`}>
+              {/* Line from where the user stands to the nearest potential detection, with the distance below it
+                  (the Test location label sits above the starting point). */}
+              <Polyline
+                positions={[origin, [ranked[0].detection.lat, ranked[0].detection.lon]]}
+                interactive={false}
+                pathOptions={{ color: COLORS.ink, weight: 5, opacity: 0.45, lineCap: 'round' }}
+              />
+              <Polyline
+                positions={[origin, [ranked[0].detection.lat, ranked[0].detection.lon]]}
+                interactive={false}
+                pathOptions={{ color: COLORS.white, weight: 2.5, opacity: 0.95, dashArray: '1 7', lineCap: 'round' }}
+              >
+                <Tooltip permanent direction="bottom" offset={[0, 6]} className="guide-label" interactive={false}>
+                  {formatDistance(ranked[0].distance)} {ranked[0].direction}
+                </Tooltip>
+              </Polyline>
+            </Fragment>
           )}
           {info.kind === 'test' && testPos && (
             <CircleMarker center={testPos} radius={8} interactive={false} pathOptions={{ color: '#ffffff', weight: 2.5, fillColor: COLORS.amber, fillOpacity: 1 }}>
@@ -224,32 +251,18 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
           )}
         </SurveyMap>
 
-        {tab === 'map' && info.kind === 'test' && <span className="test-badge test-badge-float">Test location</span>}
-
         {tab === 'map' && (
-          <section className="drone-card" aria-label="UAV status">
-            <div className="drone-card-head">
-              <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
-              <span className="num">{progress}% of path</span>
-            </div>
-            <div className="progress dark" aria-hidden="true">
-              <div style={{ width: `${progress}%` }} />
-            </div>
-            <dl>
-              <div>
-                <dt>Battery</dt>
-                <dd className={`num${t && t.battery_pct < 25 ? ' warn' : ''}`}>{t ? `${t.battery_pct}%` : '–'}</dd>
-              </div>
-              <div>
-                <dt>Height</dt>
-                <dd className="num">{t ? `${t.relative_alt_m.toFixed(1)} m` : '–'}</dd>
-              </div>
-              <div>
-                <dt>Nearest</dt>
-                <dd className="num">{ranked[0] ? `${formatDistance(ranked[0].distance)} ${ranked[0].direction}` : '–'}</dd>
-              </div>
-            </dl>
-          </section>
+          <FieldMapInfo
+            mission={mission}
+            telemetry={t}
+            connection={state.connection}
+            reported={reported}
+            ranked={ranked}
+            testLocation={info.kind === 'test'}
+            onOpen={setSelectedId}
+            onSeeAll={() => setTab('alerts')}
+            onInsets={setInsets}
+          />
         )}
 
         {tab === 'alerts' && (
@@ -287,9 +300,13 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
               {SOIL_LABELS[mission.soil_type]}, sensor height {mission.altitude_m} m, lanes every {mission.line_spacing_m} m
             </p>
             <div className="row spread">
-              <span className={`status status-${mission.status}`}>{STATUS_LABELS[mission.status]}</span>
+              <span className="outcome">
+                <StatusBadge mission={mission} label="Flight" />
+                <SensorBadge mission={mission} label="Sensors" />
+              </span>
               <span className="num">{progress}% of path</span>
             </div>
+            <SensorNote mission={mission} />
             <dl className="telemetry">
               <div>
                 <dt>Battery</dt>
@@ -330,13 +347,11 @@ function FieldMission({ missionId, missions }: { missionId: number; missions: Mi
 
             <label className="field">
               <span>Mission</span>
-              <select value={missionId} onChange={(e) => navigate(`/field/${e.target.value}`)}>
-                {missions.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({STATUS_LABELS[m.status]})
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={missionId}
+                onChange={(id) => navigate(`/field/${id}`)}
+                options={missions.map((m) => ({ value: m.id, label: `${m.name} (${STATUS_LABELS[m.status]})` }))}
+              />
             </label>
             <DisplayMenu inline />
             <div className="row spread">

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,21 +33,75 @@ def load_or_create_secret_key(path: Path | None = None) -> str:
     raise RuntimeError(f"Could not read or create the signing key file {path}")
 
 
+def secret_key_file() -> Path | None:
+    """SECRET_KEY_FILE: where the generated signing key is kept (in a container: a file on the data volume, so the key
+    and the sessions survive a rebuild). Unset: the default file next to the backend."""
+    value = os.environ.get("SECRET_KEY_FILE", "").strip()
+    return Path(value) if value else None
+
+
+def cors_origins(value: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """CORS_ORIGINS: the page addresses allowed to call the API from a browser, separated by commas. Unset: the
+    local development ones."""
+    origins = tuple(o.strip().rstrip("/") for o in value.split(",") if o.strip())
+    return origins or default
+
+
+def database_ui_url(value: str) -> str:
+    """The link to the database page: only an http(s) address is used (it goes into a link in the browser)."""
+    value = value.strip()
+    return value if value.lower().startswith(("http://", "https://")) else ""
+
+
 @dataclass(frozen=True)
 class Settings:
     secret_key: str  # no default on purpose: see Settings.from_env
     # e.g. postgresql+psycopg://uav:uav@localhost:5432/uav - no code changes needed to switch.
     database_url: str = DEFAULT_DATABASE_URL
     default_speed_factor: float = 10.0
-    uav_source: str = "simulated"  # "simulated" | "px4" (future phase)
+    # Where PX4 (SITL or a vehicle) sends MAVLink, for missions flown with PX4. MAVSDK listens here.
+    px4_url: str = "udpin://0.0.0.0:14540"
+    # Start or restart PX4 SITL at a mission's takeoff point: the headless Docker image (where the docker command
+    # exists) and Gazebo's window in WSL (on Windows, where wsl exists). PX4_MANAGE_DOCKER=0 turns both off; never on
+    # in tests (the defaults here).
+    px4_manage_docker: bool = False
+    px4_manage_gazebo: bool = False
+    px4_manage_off: bool = False  # PX4_MANAGE_DOCKER=0: both off on purpose, whatever is installed
+    # A web page for browsing the database (e.g. NocoDB, Adminer), linked in the supervisor's menu. Empty: no link.
+    database_ui_url: str = ""
+    # Where PX4-Autopilot is built in WSL (make px4_sitl gz_x500): the distribution, and the folder in its home.
+    px4_gazebo_distro: str = "Ubuntu-22.04"
+    px4_gazebo_dir: str = "PX4-Autopilot"
+    # A .ttf font with Arabic letters for the PDF report (and its bold); empty: Arial on Windows, DejaVu Sans on Linux.
+    report_font: str = ""
+    report_font_bold: str = ""
     token_ttl_s: int = 12 * 3600
+    # The dashboard's ROS 2 button: the project's ROS 2 nodes started in WSL (on Windows, where wsl exists; never on in
+    # tests, the default here), in this distribution, reaching the backend at this address (empty: 127.0.0.1 and the
+    # port this backend listens on).
+    ros_wsl: bool = False
+    ros_wsl_distro: str = "Ubuntu-24.04"
+    ros_backend_url: str = ""
     cors_origins: tuple[str, ...] = ("http://localhost:5180", "http://127.0.0.1:5180")
 
     @classmethod
     def from_env(cls) -> Settings:
+        manage = os.environ.get("PX4_MANAGE_DOCKER", "1") != "0"
         return cls(
             database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),
-            secret_key=os.environ.get("SECRET_KEY") or load_or_create_secret_key(),
+            secret_key=os.environ.get("SECRET_KEY") or load_or_create_secret_key(secret_key_file()),
             default_speed_factor=float(os.environ.get("SIM_SPEED_FACTOR", "10")),
-            uav_source=os.environ.get("UAV_SOURCE", "simulated"),
+            px4_url=os.environ.get("PX4_URL", "udpin://0.0.0.0:14540"),
+            px4_manage_docker=manage and shutil.which("docker") is not None,
+            px4_manage_gazebo=manage and os.name == "nt" and shutil.which("wsl") is not None,
+            px4_manage_off=not manage,
+            database_ui_url=database_ui_url(os.environ.get("DATABASE_UI_URL", "")),
+            px4_gazebo_distro=os.environ.get("PX4_GAZEBO_DISTRO", "Ubuntu-22.04"),
+            px4_gazebo_dir=os.environ.get("PX4_GAZEBO_DIR", "PX4-Autopilot"),
+            report_font=os.environ.get("REPORT_FONT", ""),
+            report_font_bold=os.environ.get("REPORT_FONT_BOLD", ""),
+            ros_wsl=os.name == "nt" and shutil.which("wsl") is not None,
+            ros_wsl_distro=os.environ.get("ROS_WSL_DISTRO", "Ubuntu-24.04"),
+            ros_backend_url=os.environ.get("ROS_BACKEND_URL", ""),
+            cors_origins=cors_origins(os.environ.get("CORS_ORIGINS", ""), cls.cors_origins),
         )

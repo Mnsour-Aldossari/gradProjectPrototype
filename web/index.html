@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" style="background:#060a14">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1d2a24" />
+    <meta name="theme-color" content="#060a14" />
     <meta name="description" content="UAV landmine survey prototype: mission planning, live monitoring and adaptive classification of potential detections." />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,13 +18,13 @@
       ;(function () {
         try {
           var p = JSON.parse(localStorage.getItem('uav.prefs.last') || 'null') || {}
-          var dark = p.theme === 'dark' || (p.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
           var root = document.documentElement
-          root.setAttribute('data-theme', dark ? 'dark' : 'light')
+          // The look is dark only (styles.css); the attribute is still set for code that reads it.
+          root.setAttribute('data-theme', 'dark')
           if (p.fontSize === 'small' || p.fontSize === 'large') root.setAttribute('data-font', p.fontSize)
           if (p.density === 'compact') root.setAttribute('data-density', 'compact')
         } catch (e) {
-          // storage unavailable: light theme
+          // storage unavailable: default text size and density
         }
       })()
     </script>

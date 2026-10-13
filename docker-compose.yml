@@ -1,10 +1,16 @@
-# NOT built or run yet - see README. Start with: docker compose up --build  ->  http://localhost:8080
+# Start with: docker compose up --build -d  ->  http://localhost:8080 (on PostgreSQL: see docker-compose.postgres.yml)
 services:
   backend:
     build: ./backend
     environment:
       DATABASE_URL: sqlite:////data/uav.db
       SIM_SPEED_FACTOR: "10"
+      # Unset (empty): the signing key is generated once and kept on the data volume (SECRET_KEY_FILE in the image).
+      SECRET_KEY: ${SECRET_KEY:-}
+      # Demo accounts: SEED_DEMO_USERS=0 creates none; the two passwords replace the ones written in the source.
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-1}
+      SEED_SUPERVISOR_PASSWORD: ${SEED_SUPERVISOR_PASSWORD:-}
+      SEED_FIELD_PASSWORD: ${SEED_FIELD_PASSWORD:-}
     volumes:
       - uav-data:/data
 

@@ -6,7 +6,7 @@ import random
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 
-from .flight import FlightSample, fly, lawnmower_path, path_length
+from .flight import FlightSample, fly, path_length, survey_lanes
 from .geo import XY, LatLon, LocalFrame, bounding_box
 from .scenario import Scenario, generate_scenario
 from .sensors import SensorModel, SensorSample
@@ -48,7 +48,7 @@ class SurveyPlan:
 def plan_survey(area: Sequence[Sequence[float]], line_spacing_m: float) -> SurveyPlan:
     frame = LocalFrame.centred_on(area)
     area_xy = tuple(frame.to_xy(lat, lon) for lat, lon in area)
-    waypoints = tuple(lawnmower_path(bounding_box(area_xy), line_spacing_m))
+    waypoints = tuple(survey_lanes(area_xy, line_spacing_m))
     return SurveyPlan(frame=frame, area_xy=area_xy, waypoints_xy=waypoints, length_m=path_length(waypoints))
 
 
@@ -87,6 +87,10 @@ class Simulation:
         )
         for fs in flight:
             yield fs, self._sensors.sample(fs.x, fs.y, fs.alt_m)
+
+    def sensor_sample(self, x: float, y: float, height_m: float) -> SensorSample:
+        """Payload readings at a position flown by something else (PX4), over this scenario's buried objects."""
+        return self._sensors.sample(x, y, height_m)
 
 
 def build_simulation(config: SimulationConfig) -> Simulation:

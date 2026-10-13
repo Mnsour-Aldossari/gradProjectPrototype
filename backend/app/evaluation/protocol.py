@@ -8,6 +8,9 @@ from app.simulation import DEMO_AREA
 
 TUNING_SEEDS: tuple[int, ...] = tuple(range(1000, 1020))
 EVALUATION_SEEDS: tuple[int, ...] = tuple(range(2000, 2030))
+# For the accuracy estimate shown while planning (scripts/accuracy_table.py): neither tuning nor evaluation data, so
+# the estimate neither tunes the detector nor reuses the official results.
+ESTIMATE_SEEDS: tuple[int, ...] = tuple(range(3000, 3030))
 SOIL_TYPES: tuple[str, ...] = ("dry_sand", "wet_clay", "mineralized_rocky")
 
 STANDARD_SURVEY = {

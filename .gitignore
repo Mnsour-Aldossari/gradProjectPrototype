@@ -26,3 +26,9 @@ backend/report.html
 
 # Local database backups
 backups/
+*.egg-info/
+
+# Local files kept out of the repository
+UML.drawio
+backend/package-lock.json
+graphify-out/

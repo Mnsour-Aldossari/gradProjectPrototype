@@ -18,16 +18,19 @@ narrow interface. The prototype has five layers:
 2. **UAV interface layer.** A `TelemetrySource` protocol is the only boundary between the UAV and the rest of the
    system. Flight data follows the field names and units of the MAVLink common message set
    (`GLOBAL_POSITION_INT`, `BATTERY_STATUS`, `MISSION_CURRENT`). Sensor data is a project-defined `SensorSample`,
-   because GPR and MD readings are not MAVLink messages. The prototype implements `SimulatedSource`.
+   because GPR and MD readings are not MAVLink messages. The prototype implements `SimulatedSource` and
+   `Px4MavlinkSource` (PX4 SITL + Gazebo over MAVLink, through MAVSDK), chosen per mission.
 3. **Application layer (backend).** A FastAPI service with:
-   - a REST API for authentication, missions, telemetry, detections, verification and evaluation;
+   - a REST API for authentication, missions, telemetry, detections, verification and evaluation, the sensor
+     readings as a heatmap grid, and the mission report as a PDF (made on the server with fpdf2, `backend/app/report/`);
    - a WebSocket hub that pushes live events to connected clients;
    - a background *mission runner* that consumes a `TelemetrySource`, stores the data and runs the detection
-     engine while the UAV flies.
+     engine while the UAV flies. It writes to the database from a worker thread, never in the event loop that sends
+     the live events, so a database far away (a hosted PostgreSQL) cannot hold up the live view.
 4. **Detection and classification engine.** A pure Python library with no web-framework or database
    dependencies. It contains a fixed-threshold baseline and the adaptive classifier (see
    [Adaptive detection pipeline](#adaptive-detection-pipeline)).
-5. **Data layer.** SQLModel/SQLAlchemy tables using only portable column types. The prototype runs on SQLite.
+5. **Data layer.** SQLModel/SQLAlchemy tables using only portable column types. SQLite by default; PostgreSQL through `DATABASE_URL` (tested in Docker and used with a hosted one, Neon). The schema is built and changed by Alembic migrations (`backend/migrations/`), which the backend runs at startup.
 
 Two user interfaces sit on top and talk to the backend only through REST and WebSocket:
 
@@ -36,7 +39,7 @@ Two user interfaces sit on top and talk to the backend only through REST and Web
   verification), delivered as a Progressive Web App.
 
 The main reason for this structure is replaceability. The simulator can be swapped for a real or PX4-simulated
-UAV by adding another `TelemetrySource`. The detection engine can be tested on its own, or wrapped as a separate
+UAV by adding another `TelemetrySource`; `Px4MavlinkSource` does this for PX4 SITL + Gazebo. The detection engine can be tested on its own, or wrapped as a separate
 service, without touching the rest of the system.
 
 ### Component diagram
@@ -45,14 +48,14 @@ service, without touching the rest of the system.
 flowchart TB
     subgraph SIM["Simulation layer (implemented)"]
         SC["Scenario: soil profile + buried objects"]
-        FL["Flight: lawnmower path, kinematics, battery"]
+        FL["Flight: lawnmower lanes cut to the outline, kinematics, battery"]
         SE["Sensor models: MD + GPR"]
     end
 
     subgraph UAV["UAV interface layer"]
         TS["TelemetrySource protocol<br/>MAVLink-shaped frames + SensorSample"]
         SS["SimulatedSource (implemented)"]
-        PX["Px4MavlinkSource (stub only, not implemented)"]
+        PX["Px4MavlinkSource (implemented: PX4 SITL + Gazebo via MAVSDK)"]
     end
 
     subgraph BE["Backend: FastAPI"]
@@ -66,7 +69,7 @@ flowchart TB
         AD["Adaptive classifier"]
     end
 
-    DB[("Database<br/>SQLite (tested)")]
+    DB[("Database<br/>SQLite (default) or PostgreSQL")]
 
     subgraph UI["User interfaces (React + TypeScript)"]
         WEB["Supervisor dashboard"]
@@ -110,19 +113,19 @@ sequenceDiagram
     API-->>Web: 202 Accepted
     loop every frame (5 Hz simulated)
         Source-->>Runner: TelemetryFrame (position, battery, mission, sensor sample)
-        Runner->>DB: store telemetry + sensor readings (batched)
+        Runner-)DB: store telemetry + sensor readings (batched, from a worker thread)
         Runner->>Hub: telemetry event
         Hub-->>Web: telemetry (UAV marker, scanned swath, sensor trace)
     end
     loop every 5 s of flight
         Runner->>Engine: new readings
         Engine-->>Runner: candidates (high / suspect / clutter + explanation)
-        Runner->>DB: create / update / remove adaptive detections
+        Runner-)DB: create / update / remove adaptive detections (worker thread, latest candidates)
         Runner->>Hub: detection events, alert for new high priority
         Hub-->>Web: markers + alert
         Hub-->>Field: markers + alert
     end
-    Runner->>DB: final adaptive sync + baseline detections, status completed
+    Runner->>DB: final adaptive sync + baseline detections, status completed (landing confirmed), sensor collection
     Field->>API: PATCH /api/detections/{id} (confirmed_by_team / false_alarm)
     API->>Hub: detection_updated
     Hub-->>Web: verification shown on the supervisor dashboard
@@ -155,8 +158,11 @@ erDiagram
         float line_spacing_m
         string soil_type
         int scenario_seed
-        string status "planned | running | completed | failed"
+        string status "planned | running | completed | stopped | failed"
         float progress
+        string sensor_collection "complete | partial | failed | not_started"
+        int sensor_reading_count
+        float sensor_coverage
         int created_by FK
     }
     TELEMETRY_POINTS {
@@ -216,16 +222,23 @@ Depth is estimated from the radar travel time using the soil's permittivity. Par
 seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROTOCOL.md) and
 [EVALUATION_RESULTS.md](EVALUATION_RESULTS.md).
 
+Since 2026-10-08 the app and the ROS 2 detector node run **version 2** of this pipeline
+(`backend/app/detection/adaptive_v2.py`): the body ratio is corrected for the sensor height, and a reflector without
+metal deeper than 0.12 m is taken for a stone. It was adopted by the project owner's decision although its evaluation
+missed one condition of the rule fixed beforehand (6 more false alarms over 450 surveys, for 10 points more mines
+found); see [EVALUATION_PROTOCOL_V2.md](EVALUATION_PROTOCOL_V2.md) and
+[EVALUATION_RESULTS_V2.md](EVALUATION_RESULTS_V2.md). Version 1 stays the officially evaluated detector.
+
 ## Design decisions
 
 | Decision | Rationale |
 |---|---|
-| `TelemetrySource` adapter between the UAV and the backend | The backend, engine, database and interfaces do not depend on where frames come from, so a PX4/MAVLink source can be added later without changing them. |
+| `TelemetrySource` adapter between the UAV and the backend | The backend, engine, database and interfaces do not depend on where frames come from. The PX4/MAVLink source was added later with no change to the detection engine; the backend only gained the source choice per mission. |
 | MAVLink-shaped flight data, without ROS 2 in the core | The backend only needs position, battery and mission progress, which MAVLink provides directly. ROS 2 stays optional for a later sensor pipeline. |
 | Detection engine as a pure library | It can be unit-tested and evaluated offline on thousands of simulated surveys, and could later be wrapped as a ROS 2 node or a separate service. |
 | **Mobile access as a Progressive Web App** (`/field`), not a native app | One code base and one API serve the supervisor dashboard and the field view. The field view is mobile-first and installable from the browser. This was enough for the prototype's goals and the available time. A native Flutter app remains a future option on the same API. |
 | WebSocket for live updates | Telemetry, detections and alerts change several times per second during a survey; pushing them avoids polling and keeps the supervisor and field screens consistent. |
-| Portable database types; SQLite in the prototype | Polygons and feature maps are stored as JSON, so the schema is meant to run on PostgreSQL by changing `DATABASE_URL`. **This has not been tested on PostgreSQL.** |
+| Portable database types; SQLite by default | Polygons and feature maps are stored as JSON, so the same schema runs on PostgreSQL by changing `DATABASE_URL`. Tested on PostgreSQL 17 in Docker (all tests pass on it) and used with a hosted PostgreSQL (Neon). |
 | Simulation-based evaluation with a tuning / evaluation seed split | It allows repeatable, honest comparison of the baseline and the adaptive method; results are labelled as simulated. |
 
 ## Implementation status
@@ -236,22 +249,78 @@ seeds and frozen before evaluation; see [EVALUATION_PROTOCOL.md](EVALUATION_PROT
 | `TelemetrySource` + `SimulatedSource` | Implemented and tested |
 | FastAPI REST API, WebSocket hub, mission runner | Implemented and tested (PyTest + browser) |
 | Baseline and adaptive classification | Implemented, calibrated on tuning seeds, evaluated on separate seeds |
-| SQLite database | Implemented and tested |
+| Database: SQLite (default) or PostgreSQL | Implemented and tested on both |
 | Supervisor web dashboard (React + TypeScript + Leaflet) | Implemented and tested in the browser |
+| 3D view (`web/src/view3d/`, three.js) | Implemented and tested in the browser with the simulator (live and replay); a visual view of the same data as the map, in the backend's local metre frame. Not yet opened during a PX4 flight |
 | Field view `/field` | Implemented and tested in the browser at phone size. Web app manifest and icons added; service worker written but not verified; not yet installed on a real phone |
 | Mission history page (counts per category, verification progress) | Implemented and tested in the browser |
+| ROS 2 (`ros2_ws/`, Jazzy) | Bridge, detector node, transforms, diagnostics, recording and replay, commands (services `/mission/start`, `/mission/control`, action `/mission/fly`) through the backend's API, and PX4 read directly over uXRCE-DDS (`px4_link`: `/px4/fix`, `/px4/status`, checked against the backend's MAVLink view). The supervisor's **ROS 2** switch in the dashboard starts and stops them in WSL (`app/ros_wsl.py`, `/api/ros`). `colcon test`, and end to end against the backend: the node's potential detections equal the backend's; the commands behave as the dashboard's; PX4 in Gazebo's window read by ROS within centimetres of the backend. RViz not tried |
+| Sensor heatmap (MD / GPR) on the mission map | Implemented; tested with PyTest and in the browser with the simulator (live and finished) |
+| PDF mission report (supervisor) | Implemented; tested with PyTest (SQLite and PostgreSQL), in the browser and in the Docker image |
 | Evaluation page and generated results | Implemented |
-| PX4 / MAVLink source | Stub only; see Future Phases |
+| PX4 / MAVLink source (`Px4MavlinkSource`) | Implemented and flown on small surveys with PX4 1.17.0 SITL (headless Docker image) and PX4 v1.18.0-beta1 SITL in Gazebo's window (WSL); see [PX4 SITL + Gazebo](#px4-sitl--gazebo). Not tried with a real vehicle; QGroundControl only by hand |
+
+## PX4 SITL + Gazebo
+
+The supervisor picks **Fly with: PX4 SITL** or **PX4 SITL + Gazebo window** before starting a survey
+(`missions.uav_source` is `px4`; the window is chosen with each start). Then:
+
+1. On the backend's PC, the chosen PX4 SITL is started at the takeoff point H when it is off or more than 2 m away,
+   and the other one is stopped so that only one PX4 answers. PX4 SITL takes its home only when it starts, so this
+   is how it takes off from H. `px4_docker.py` runs `docker stop` and `docker run` of the headless image;
+   `px4_gazebo.py` feeds a fixed script to sh in WSL that starts PX4 with only Gazebo's server, then Gazebo's window
+   (WSLg), and stops PX4 when the window closes. Both pass the coordinates as numbers. `PX4_MANAGE_DOCKER=0` turns
+   this off.
+2. The backend finds PX4 over MAVLink (MAVSDK, `udpin://0.0.0.0:14540`), waits for its GPS fix and home position,
+   checks the area is within PX4's 900 m mission limit from home, and uploads the simulator's lawnmower path as
+   mission items (mission height and speed, 0.5 m acceptance radius, starting at the first waypoint). If any of this
+   fails the mission stays planned and the reason is shown. A vehicle left in Return mode is switched to Hold so it
+   can arm.
+3. PX4 arms, takes off and flies the lanes. Frames are built at 5 Hz from PX4's position, velocity, heading and
+   battery. The waypoint being flown is taken from PX4's position, as MAVSDK's mission progress was empty with
+   PX4 1.17.
+4. On the survey lines, MD and GPR samples come from the project's sensor model at PX4's position, over the
+   scenario's buried objects. On a real UAV they would come from the payload computer as a separate stream.
+5. After the last waypoint PX4 flies at the survey height to the landing point L, or back to H, and lands there (a
+   land mission item; return to launch only as a fallback). If the run is cancelled the backend commands return to
+   launch; if the backend stops, PX4's link-loss failsafe returns and lands (observed).
+
+## Flight controls
+
+`POST /api/missions/{id}/control` (supervisor) sets the wanted phase on the mission's `FlightControl`
+(`backend/app/uav/control.py`): surveying, paused, returning or landing. The source flying the mission reads it
+between frames, so commands run in the source's own event loop (MAVSDK needs that):
+
+| Command | Simulator | PX4 |
+|---|---|---|
+| Pause / Resume | one frame at rest, then no frames until resumed; the flight clock stops | Hold mode / mission start, which continues at the waypoint being flown to |
+| Return Home | straight to the start of the path, then down at 0.5 m/s | return to launch |
+| Land | down where it is at 0.5 m/s | land |
+
+No sensor readings are taken while paused or on the way down. After Return Home or Land the run ends once the UAV
+is down (PX4: disarmed), and the mission is stored as `stopped` with the reason; the detector's last update and the
+baseline run on what was scanned. The phase is not stored: it comes with the mission while it runs (REST, WebSocket
+snapshot and mission events).
+
+Whichever way a flight ends, the runner then checks the last frame before storing anything
+(`backend/app/uav/landing.py`): disarmed, landed state on the ground, within 0.35 m of the takeoff ground, under 2 s
+old and no failsafe; otherwise the mission fails with the reasons. Each frame carries a `VehicleStatus` for this
+(MAVLink HEARTBEAT armed flag, EXTENDED_SYS_STATE landed state). Separately, `backend/app/api/collection.py` grades
+the sensor collection from where the readings lie along the lanes (complete, partial, failed, not started), so a
+flight and its data are judged apart: missing readings never stop a flight, and a failed flight keeps and counts
+what was read.
 
 ## Future Phases
 
-None of the items below is implemented in the prototype.
+None of the items below is implemented in the prototype, apart from the first part of ROS 2 (said there).
 
-- **PX4 SITL + Gazebo through MAVLink.** Implement `Px4MavlinkSource` with MAVSDK-Python (e.g. `udp://:14540`),
-  subscribing to position, velocity, heading, battery and mission progress. GPR/MD samples would arrive from the
-  payload computer as a separate stream and be time-aligned with position before entering the system.
-- **ROS 2 (optional).** Use it for the sensor pipeline if Gazebo sensor plugins are introduced. The detection
-  engine can be wrapped as a ROS 2 node without changes to its logic.
+- **PX4 on a real vehicle, with real payload data.** The same MAVLink link as PX4 SITL, plus MD/GPR samples from
+  the payload computer as a separate stream, time-aligned with position, instead of the sensor model at PX4's
+  position. QGroundControl was only tried by hand.
+- **ROS 2, further.** Implemented (`ros2_ws/`): a bridge publishes a mission from the backend, the detection engine
+  runs as a ROS 2 node, unchanged, ROS can start and command missions through the backend, and ROS reads PX4 itself
+  over uXRCE-DDS (read only; PX4 is commanded by the backend alone). Not done: feeding the
+  backend from ROS (a real payload's readings on `/sensors/readings`), Gazebo sensor plugins.
 - **Simulated control commands.** Takeoff, landing, pause, resume and return-to-launch would first be added as
   commands to the simulated UAV, then forwarded to a PX4 source. None of them is implemented; the dashboard can
   only plan and start a mission.
@@ -261,9 +330,10 @@ None of the items below is implemented in the prototype.
 - **Sharing field-team positions.** The field view uses the device location locally, for distances, but does not
   send it to the server.
 - **Flutter mobile app.** A native app could use the same REST and WebSocket API as the PWA.
-- **PostgreSQL + PostGIS.** The schema uses portable types, but the system has not been run on PostgreSQL, and no
-  PostGIS spatial features are used yet.
-- **Containers (Docker).** Not built or run in the prototype.
+- **PostGIS.** The system runs on PostgreSQL (tested with PostgreSQL 17 in Docker; SQLite stays the default), but
+  no PostGIS spatial features are used yet.
+- **Containers (Docker).** Built and run on a developer PC, with SQLite or PostgreSQL (sign-in and the demo scenario
+  work); a hosted deployment of them is not tried.
 - **Real sensor data.** Calibrate the sensor models and the classifier against real MD/GPR measurements; the
   current parameters are tuned on simulated data only.
 - **Production hardening.** Managed user accounts, secrets management, HTTPS, and deployment beyond a single

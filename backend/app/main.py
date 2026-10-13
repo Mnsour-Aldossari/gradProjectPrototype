@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
+import faulthandler
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, detections, evaluation, missions, ws
+from .api import accuracy, auth, detections, evaluation, heatmap, missions, reports, ros, ws
 from .api.runner import MissionRunner
 from .api.ws import Hub
 from .config import Settings
 from .db import init_db, make_engine
+from .login_throttle import LoginThrottle
+from .ros_wsl import RosInWsl
 from .seed import fail_interrupted_missions, seed_users
+from .uav.px4_mavlink_source import mavsdk_installed
+
+# A crash in native code (MAVSDK's library, for PX4) ends the backend without a Python error; this prints where it was.
+faulthandler.enable()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -40,22 +47,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.runner = runner
     app.state.hub = hub
+    app.state.login_throttle = LoginThrottle()
+    app.state.ros = RosInWsl(settings.ros_wsl_distro) if settings.ros_wsl else None
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
     )
     app.include_router(auth.router)
     app.include_router(missions.router)
+    app.include_router(heatmap.router)
+    app.include_router(reports.router)
     app.include_router(detections.router)
     app.include_router(evaluation.router)
+    app.include_router(accuracy.router)
+    app.include_router(ros.router)
     app.include_router(ws.router)
 
     @app.get("/api/health", tags=["health"])
     def health() -> dict:
-        return {"status": "ok", "uav_source": settings.uav_source}
+        # px4_available: the server can talk to PX4 (MAVSDK installed); whether PX4 runs shows when a mission starts.
+        # px4_restarts: PX4 SITL is started at a mission's takeoff point when needed (Docker on this machine).
+        # px4_gazebo: PX4 SITL can also be started in Gazebo's window (WSL on this Windows PC).
+        # px4_manage_off: both are turned off with PX4_MANAGE_DOCKER=0.
+        return {
+            "status": "ok",
+            "px4_available": mavsdk_installed(),
+            "px4_restarts": settings.px4_manage_docker,
+            "px4_gazebo": settings.px4_manage_gazebo,
+            "px4_manage_off": settings.px4_manage_off,
+            "database": engine.dialect.name,  # sqlite or postgresql: which one holds the data
+        }
 
     return app
 

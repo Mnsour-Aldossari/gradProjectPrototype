@@ -1,33 +1,42 @@
 from __future__ import annotations
 
+import asyncio
 import secrets
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlmodel import Session, func, select
 
-from app.detection import FROZEN_PARAMS
+from app.detection import LIVE_PARAMS
 from app.detection.context import condition_profile
 from app.evaluation.protocol import EVALUATION_SEEDS, STANDARD_SURVEY
 from app.models import Detection, Mission, SensorReading, TelemetryPoint, User, utcnow
 from app.schemas import (
+    AreaCheck,
+    AreaCheckResult,
     CategoryCounts,
     ConditionProfileRead,
+    ControlRequest,
     MissionCreate,
     MissionHistory,
     MissionHistoryItem,
-    MissionPage,
     MissionRead,
-    MissionStatus,
     MissionStats,
-    SoilType,
+    SensorReadingRead,
     StartRequest,
+    TakeoffRequest,
     TelemetryRead,
     VerificationCounts,
 )
-from app.simulation import plan_survey
+from app.simulation import SurveyPlan, plan_survey
+from app.simulation.geo import LocalFrame, is_simple, polygon_area
 from app.simulation.scenario import generate_scenario
 
+from .accuracy import accuracy_read
 from .deps import CurrentUser, SessionDep, SettingsDep, SupervisorUser
+from app.uav.control import ControlRejected
+from app.uav.px4_plan import Waypoint, default_takeoff, landing_check, takeoff_check
+from app.uav.px4_mavlink_source import Px4Unavailable
+
 from .runner import make_source, mission_event, survey_context_for
 
 router = APIRouter(prefix="/api/missions", tags=["missions"])
@@ -58,59 +67,52 @@ def get_mission_or_404(session: Session, mission_id: int) -> Mission:
     return mission
 
 
-def _count(session: Session, table: type, mission_id: int) -> int:
-    return session.exec(select(func.count()).select_from(table).where(table.mission_id == mission_id)).one()
+def _stats(session: Session, mission_id: int) -> MissionStats:
+    """The three counts in one query: each query is a round trip, which counts with a database far away."""
+
+    def count(table: type):
+        return select(func.count()).select_from(table).where(table.mission_id == mission_id).scalar_subquery()
+
+    telemetry, sensor, detections = session.exec(
+        select(count(TelemetryPoint), count(SensorReading), count(Detection))
+    ).one()
+    return MissionStats(telemetry_points=telemetry, sensor_readings=sensor, detections=detections)
 
 
-def mission_read(session: Session, mission: Mission, with_stats: bool = False) -> MissionRead:
+def mission_read(
+    session: Session, mission: Mission, user: User, with_stats: bool = False, runner=None
+) -> MissionRead:
+    """user: who asks; only a supervisor gets the scenario seed. runner: the MissionRunner, to add the phase of a
+    running mission."""
     out = MissionRead.model_validate(mission)
-    if with_stats:
-        out.stats = MissionStats(
-            telemetry_points=_count(session, TelemetryPoint, mission.id),
-            sensor_readings=_count(session, SensorReading, mission.id),
-            detections=_count(session, Detection, mission.id),
+    if user.role != "supervisor":
+        out.scenario_seed = None
+    if len(mission.path) >= 2:
+        takeoff = (
+            [mission.takeoff_lat, mission.takeoff_lon]
+            if mission.takeoff_lat is not None
+            else list(default_takeoff(mission.area, mission.path))
         )
+        out.takeoff_point = takeoff
+        out.landing_point = [mission.landing_lat, mission.landing_lon] if mission.landing_lat is not None else takeoff
+    if runner is not None and mission.status == "running":
+        out.phase = runner.phase(mission.id)
+    if with_stats:
+        out.stats = _stats(session, mission.id)
     return out
 
 
 @router.get("", response_model=list[MissionRead])
-def list_missions(session: SessionDep, _: CurrentUser) -> list[MissionRead]:
+def list_missions(session: SessionDep, user: CurrentUser) -> list[MissionRead]:
     missions = session.exec(select(Mission).order_by(Mission.id.desc())).all()
-    return [mission_read(session, m) for m in missions]
-
-
-@router.get("/search", response_model=MissionPage)
-def search_missions(
-    session: SessionDep,
-    _: CurrentUser,
-    q: str = Query("", max_length=100, description="Part of the mission name, case-insensitive"),
-    status_: MissionStatus | None = Query(None, alias="status"),
-    soil_type: SoilType | None = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
-) -> MissionPage:
-    """Missions newest first, filtered by name, status and soil type, one page at a time."""
-    query = select(Mission)
-    if q.strip():
-        query = query.where(func.lower(Mission.name).contains(q.strip().lower(), autoescape=True))
-    if status_ is not None:
-        query = query.where(Mission.status == status_)
-    if soil_type is not None:
-        query = query.where(Mission.soil_type == soil_type)
-    total = session.exec(select(func.count()).select_from(query.subquery())).one()
-    missions = session.exec(
-        query.order_by(Mission.id.desc()).offset((page - 1) * page_size).limit(page_size)
-    ).all()
-    return MissionPage(
-        items=[mission_read(session, m) for m in missions], total=total, page=page, page_size=page_size
-    )
+    return [mission_read(session, m, user) for m in missions]
 
 
 @router.get("/history", response_model=MissionHistory)
-def mission_history(session: SessionDep, _: CurrentUser) -> MissionHistory:
-    """Finished missions (completed or failed) with potential-detection counts per category."""
+def mission_history(session: SessionDep, user: CurrentUser) -> MissionHistory:
+    """Finished missions (completed, stopped or failed) with potential-detection counts per category."""
     missions = session.exec(
-        select(Mission).where(Mission.status.in_(("completed", "failed"))).order_by(Mission.id.desc())
+        select(Mission).where(Mission.status.in_(("completed", "stopped", "failed"))).order_by(Mission.id.desc())
     ).all()
     rows = session.exec(
         select(Detection.mission_id, Detection.method, Detection.category, Detection.status, func.count())
@@ -134,7 +136,7 @@ def mission_history(session: SessionDep, _: CurrentUser) -> MissionHistory:
 
     items = [
         MissionHistoryItem(
-            mission=mission_read(session, m),
+            mission=mission_read(session, m, user),
             adaptive=adaptive[m.id],
             verification=verification[m.id],
             baseline_high=baseline_high[m.id],
@@ -154,28 +156,40 @@ def mission_history(session: SessionDep, _: CurrentUser) -> MissionHistory:
             false_alarm=sum(i.verification.false_alarm for i in items),
         ),
         completed=sum(m.status == "completed" for m in missions),
+        stopped=sum(m.status == "stopped" for m in missions),
         failed=sum(m.status == "failed" for m in missions),
     )
 
 
-def _create(session: Session, body: MissionCreate, user: User) -> Mission:
+def survey_problems(body: MissionCreate, seed: int) -> tuple[SurveyPlan, list[str]]:
+    """The survey plan for an outline, and what would stop it being created (empty if nothing). The same rules
+    for creating a mission and for checking an outline while it is drawn."""
     plan = plan_survey(body.area, body.line_spacing_m)
+    problems: list[str] = []
+    if not is_simple(plan.area_xy):
+        problems.append("The outline crosses itself; move a corner so that no edges cross")
     width, height = plan.width_m, plan.height_m
     if not (MIN_SIDE_M <= width <= MAX_SIDE_M and MIN_SIDE_M <= height <= MAX_SIDE_M):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"Survey area must be {MIN_SIDE_M:.0f}-{MAX_SIDE_M:.0f} m on each side (got {width:.0f} x {height:.0f} m)",
+        problems.append(
+            f"Survey area must be {MIN_SIDE_M:.0f}-{MAX_SIDE_M:.0f} m on each side (got {width:.0f} x {height:.0f} m)"
         )
+    if len(plan.waypoints_xy) < 2:
+        problems.append("The area is too narrow for a survey lane; make it wider")
     if plan.length_m > MAX_PATH_M:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"Survey path would be {plan.length_m / 1000:.1f} km; increase line spacing or reduce the area",
-        )
+        problems.append(f"Survey path would be {plan.length_m / 1000:.1f} km; increase line spacing or reduce the area")
+    if not problems:
+        try:
+            generate_scenario(plan.area_xy, body.soil_type, seed)
+        except ValueError as exc:
+            problems.append(f"{str(exc).capitalize()}; make the area larger or less narrow")
+    return plan, problems
+
+
+def _create(session: Session, body: MissionCreate, user: User) -> Mission:
     seed = body.scenario_seed if body.scenario_seed is not None else secrets.randbelow(1_000_000)
-    try:
-        generate_scenario(plan.area_xy, body.soil_type, seed)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    plan, problems = survey_problems(body, seed)
+    if problems:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problems[0])
 
     mission = Mission(
         name=body.name,
@@ -195,24 +209,86 @@ def _create(session: Session, body: MissionCreate, user: User) -> Mission:
     return mission
 
 
-def _start(request: Request, session: Session, mission: Mission, speed_factor: float) -> Mission:
-    runner = request.app.state.runner
-    if mission.status != "planned" or runner.is_running(mission.id):
+def _check_can_start(request: Request, mission: Mission) -> None:
+    if mission.status != "planned" or request.app.state.runner.is_running(mission.id):
         raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
-    source = make_source(mission, request.app.state.settings, speed_factor)
+
+
+def _mark_running(session: Session, mission: Mission) -> None:
     mission.status = "running"
     mission.started_at = utcnow()
     session.add(mission)
     session.commit()
     session.refresh(mission)
-    request.app.state.hub.publish(mission.id, mission_event(mission))
-    runner.start(mission.id, source)
+
+
+def _revert_to_planned(session: Session, mission: Mission) -> None:
+    mission.status = "planned"
+    mission.started_at = None
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+
+
+async def _start(
+    request: Request, session: Session, mission: Mission, speed_factor: float, gazebo: bool = False
+) -> Mission:
+    """Start the mission with the source in mission.uav_source. PX4 is reached and given the survey first; if
+    that fails the mission stays planned and the reason goes back to the user. gazebo: PX4 in Gazebo's window.
+
+    The database is used from worker threads here, as in the runner: these endpoints run in the event loop, which
+    keeps the live views of other flights moving."""
+    runner = request.app.state.runner
+    _check_can_start(request, mission)
+    source = make_source(mission, request.app.state.settings, speed_factor, gazebo=gazebo)
+    px4 = mission.uav_source == "px4"
+    if px4:
+        busy = runner.px4_mission()
+        if busy is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"PX4 is flying mission {busy}; wait until it has finished")
+        try:
+            await source.connect()
+        except Px4Unavailable as e:
+            await asyncio.to_thread(session.rollback)  # the source choice is only kept for a mission that starts
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    async with runner.starting:
+        _check_can_start(request, mission)  # another request may have started it meanwhile
+        if px4:
+            # Checked again: a second PX4 mission may have passed the check above while this one was connecting.
+            busy = runner.px4_mission()
+            if busy is not None:
+                raise HTTPException(status.HTTP_409_CONFLICT, f"PX4 is flying mission {busy}; wait until it has finished")
+        await asyncio.to_thread(_mark_running, session, mission)
+        try:
+            request.app.state.hub.publish(mission.id, mission_event(mission, "surveying"))
+            runner.start(mission.id, source, px4=px4)
+        except Exception:
+            # It never flew: back to planned, so the mission is not left "running" with nothing running it.
+            await asyncio.to_thread(_revert_to_planned, session, mission)
+            raise
     return mission
+
+
+@router.post("/check", response_model=AreaCheckResult)
+def check_area(body: AreaCheck, _: SupervisorUser) -> AreaCheckResult:
+    """Check a survey outline while it is drawn: the lanes it would get and what to change, without storing it."""
+    plan, problems = survey_problems(body, body.scenario_seed if body.scenario_seed is not None else 0)
+    return AreaCheckResult(
+        ok=not problems,
+        problems=problems,
+        path=[list(p) for p in plan.waypoints_latlon],
+        path_length_m=round(plan.length_m, 1),
+        width_m=round(plan.width_m, 1),
+        height_m=round(plan.height_m, 1),
+        area_m2=round(polygon_area(plan.area_xy), 1),
+        estimated_duration_s=round(plan.length_m / body.speed_mps, 1),
+        accuracy=accuracy_read(body.soil_type, body.altitude_m, body.speed_mps, body.line_spacing_m),
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=MissionRead)
 def create_mission(body: MissionCreate, session: SessionDep, user: SupervisorUser) -> MissionRead:
-    return mission_read(session, _create(session, body, user))
+    return mission_read(session, _create(session, body, user), user)
 
 
 @router.post("/demo", status_code=status.HTTP_202_ACCEPTED, response_model=MissionRead)
@@ -220,14 +296,16 @@ async def run_demo_scenario(
     request: Request, session: SessionDep, user: SupervisorUser, body: StartRequest | None = None
 ) -> MissionRead:
     """Create and start the fixed demo scenario. Same seed and settings every time, so the same result."""
-    mission = _create(session, MissionCreate(**DEMO_SCENARIO), user)
+    mission = await asyncio.to_thread(_create, session, MissionCreate(**DEMO_SCENARIO), user)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else DEMO_SPEED_FACTOR
-    return mission_read(session, _start(request, session, mission, speed_factor))
+    mission = await _start(request, session, mission, speed_factor)  # always the simulator
+    return await asyncio.to_thread(mission_read, session, mission, user, runner=request.app.state.runner)
 
 
 @router.get("/{mission_id}", response_model=MissionRead)
-def get_mission(mission_id: int, session: SessionDep, _: CurrentUser) -> MissionRead:
-    return mission_read(session, get_mission_or_404(session, mission_id), with_stats=True)
+def get_mission(mission_id: int, request: Request, session: SessionDep, user: CurrentUser) -> MissionRead:
+    mission = get_mission_or_404(session, mission_id)
+    return mission_read(session, mission, user, with_stats=True, runner=request.app.state.runner)
 
 
 @router.post("/{mission_id}/start", status_code=status.HTTP_202_ACCEPTED, response_model=MissionRead)
@@ -236,12 +314,85 @@ async def start_mission(
     request: Request,
     session: SessionDep,
     settings: SettingsDep,
-    _: SupervisorUser,
+    user: SupervisorUser,
     body: StartRequest | None = None,
 ) -> MissionRead:
-    mission = get_mission_or_404(session, mission_id)
+    mission = await asyncio.to_thread(get_mission_or_404, session, mission_id)
     speed_factor = body.speed_factor if body and body.speed_factor is not None else settings.default_speed_factor
-    return mission_read(session, _start(request, session, mission, speed_factor))
+    gazebo = body is not None and body.gazebo
+    if gazebo and (body.uav_source or mission.uav_source) != "px4":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Gazebo's window is for missions flown with PX4")
+    if gazebo and not settings.px4_manage_gazebo:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Gazebo's window needs PX4 SITL in WSL on the server's PC (README, 'Gazebo window'). Fly with PX4 SITL "
+            "instead.",
+        )
+    if body and body.uav_source is not None and mission.status == "planned":
+        mission.uav_source = body.uav_source
+    mission = await _start(request, session, mission, speed_factor, gazebo=gazebo)
+    return await asyncio.to_thread(mission_read, session, mission, user, runner=request.app.state.runner)
+
+
+@router.put("/{mission_id}/takeoff", response_model=MissionRead)
+def set_takeoff(mission_id: int, body: TakeoffRequest, session: SessionDep, user: SupervisorUser) -> MissionRead:
+    """Where PX4 takes off for this mission, chosen on the map before the survey starts. It must be within PX4's
+    900 m of the start of the survey. Both null: the start of the survey."""
+    mission = get_mission_or_404(session, mission_id)
+    if mission.status != "planned":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
+    if (body.lat is None) != (body.lon is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give both lat and lon, or neither")
+    if body.lat is not None:
+        start = mission.path[0]
+        reason = takeoff_check((body.lat, body.lon), [Waypoint(start[0], start[1], 0, 0)])
+        if reason:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
+    mission.takeoff_lat, mission.takeoff_lon = body.lat, body.lon
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+    return mission_read(session, mission, user)
+
+
+@router.put("/{mission_id}/landing", response_model=MissionRead)
+def set_landing(mission_id: int, body: TakeoffRequest, session: SessionDep, user: SupervisorUser) -> MissionRead:
+    """Where PX4 lands after the survey, chosen on the map before it starts (within 900 m of the end of the survey).
+    Both null: back at the takeoff point."""
+    mission = get_mission_or_404(session, mission_id)
+    if mission.status != "planned":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is already {mission.status}")
+    if (body.lat is None) != (body.lon is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give both lat and lon, or neither")
+    if body.lat is not None:
+        end = mission.path[-1]
+        reason = landing_check((body.lat, body.lon), [Waypoint(end[0], end[1], 0, 0)])
+        if reason:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
+    mission.landing_lat, mission.landing_lon = body.lat, body.lon
+    session.add(mission)
+    session.commit()
+    session.refresh(mission)
+    return mission_read(session, mission, user)
+
+
+@router.post("/{mission_id}/control", status_code=status.HTTP_202_ACCEPTED, response_model=MissionRead)
+def control_mission(
+    mission_id: int, body: ControlRequest, request: Request, session: SessionDep, user: SupervisorUser
+) -> MissionRead:
+    """Pause or resume the survey, or end it early with a return home or a landing (the mission then becomes
+    stopped once the UAV is down). Works for the simulator and PX4 alike."""
+    mission = get_mission_or_404(session, mission_id)
+    runner = request.app.state.runner
+    try:
+        phase = runner.control(mission_id, body.action)
+    except KeyError:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Mission is {mission.status}, not flying") from None
+    except ControlRejected as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+    # The live views show the command at once, from the mission just read (no other trip to the database).
+    request.app.state.hub.publish(mission_id, mission_event(mission, phase))
+    return mission_read(session, mission, user, runner=runner)
 
 
 @router.get("/{mission_id}/telemetry", response_model=list[TelemetryRead])
@@ -262,21 +413,51 @@ def get_telemetry(
     return list(session.exec(query).all())
 
 
+@router.get("/{mission_id}/readings", response_model=list[SensorReadingRead])
+def get_readings(
+    mission_id: int,
+    session: SessionDep,
+    _: CurrentUser,
+    after_id: int = Query(0, ge=0, description="Only readings stored after this one, to page through them"),
+    limit: int = Query(5000, ge=1, le=20000),
+) -> list[SensorReadingRead]:
+    """The sensor readings in the order they were taken (simulated data). The ROS 2 bridge pages through them, so
+    the detector node gets every reading, as the mission runner does."""
+    mission = get_mission_or_404(session, mission_id)
+    frame = LocalFrame.centred_on(mission.area)  # as the runner places readings for the detectors
+    rows = session.exec(
+        select(SensorReading)
+        .where(SensorReading.mission_id == mission_id, SensorReading.id > after_id)
+        .order_by(SensorReading.id)
+        .limit(limit)
+    ).all()
+    out = []
+    for r in rows:
+        x, y = frame.to_xy(r.lat, r.lon)
+        out.append(
+            SensorReadingRead(
+                id=r.id, t_s=r.t_s, lat=r.lat, lon=r.lon, x_m=x, y_m=y, relative_alt_m=r.relative_alt_m,
+                md=r.md, gpr_amp=r.gpr_amp, gpr_twt_ns=r.gpr_twt_ns,
+            )
+        )  # fmt: skip
+    return out
+
+
 @router.get("/{mission_id}/profile", response_model=ConditionProfileRead)
 def get_condition_profile(mission_id: int, session: SessionDep, _: CurrentUser) -> ConditionProfileRead:
-    """How the adaptive detector is configured for this mission's survey conditions."""
+    """How the app's live detector (version 2) is configured for this mission's survey conditions."""
     mission = get_mission_or_404(session, mission_id)
-    profile = condition_profile(survey_context_for(mission), FROZEN_PARAMS)
+    profile = condition_profile(survey_context_for(mission), LIVE_PARAMS)
     return ConditionProfileRead(
         soil_type=profile.soil_type,
         soil_label=profile.soil_label,
         permittivity=profile.permittivity,
         md_reliability=profile.md_reliability,
         gpr_reliability=profile.gpr_reliability,
-        md_threshold_k=round(FROZEN_PARAMS.k_md / profile.md_reliability, 2),
-        gpr_threshold_k=FROZEN_PARAMS.k_gpr,
+        md_threshold_k=round(LIVE_PARAMS.k_md / profile.md_reliability, 2),
+        gpr_threshold_k=LIVE_PARAMS.k_gpr,
         radar_trusted=profile.radar_trusted,
-        background_window_m=FROZEN_PARAMS.background_window_m,
+        background_window_m=LIVE_PARAMS.background_window_m,
         link_radius_m=profile.link_radius_m,
         notes=list(profile.notes),
     )

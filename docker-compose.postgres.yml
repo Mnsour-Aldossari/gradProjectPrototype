@@ -1,0 +1,28 @@
+# The same app on PostgreSQL instead of SQLite. Start with:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build -d
+# The database is not published on a port, so only the backend container reaches it. POSTGRES_PASSWORD has no default:
+# set it in the shell or a .env file (a password with @ : / or % in it needs URL-escaping in DATABASE_URL).
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: uav
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the shell or in a .env file}
+      POSTGRES_DB: uav
+    volumes:
+      - uav-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uav -d uav"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+psycopg://uav:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the shell or in a .env file}@postgres:5432/uav
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  uav-pgdata:

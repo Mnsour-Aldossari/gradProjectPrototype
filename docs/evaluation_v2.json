@@ -1,0 +1,1147 @@
+{
+ "generated": "2026-10-08",
+ "adopted": false,
+ "checks": [
+  {
+   "condition": "Recall over the five settings at least 0.02 above v1's",
+   "value": "0.825 vs 0.727",
+   "met": true
+  },
+  {
+   "condition": "False alarms over the five settings not more than v1's",
+   "value": "407 vs 401",
+   "met": false
+  },
+  {
+   "condition": "Recall at the standard setting not more than 0.02 below v1's",
+   "value": "0.781 vs 0.719",
+   "met": true
+  }
+ ],
+ "fresh": {
+  "1.5/2.0/2.0": {
+   "dry_sand": {
+    "baseline": {
+     "targets": 93,
+     "found": 35,
+     "false_alarms": 43,
+     "recall": 0.3763,
+     "precision": 0.4487,
+     "f1": 0.4094,
+     "low_metal": 52,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 43
+     }
+    },
+    "v1": {
+     "targets": 93,
+     "found": 75,
+     "false_alarms": 43,
+     "recall": 0.8065,
+     "precision": 0.6356,
+     "f1": 0.7109,
+     "low_metal": 52,
+     "low_metal_found": 34,
+     "false_alarm_causes": {
+      "scrap_metal": 8,
+      "rock": 34,
+      "background": 1
+     }
+    },
+    "v2": {
+     "targets": 93,
+     "found": 79,
+     "false_alarms": 20,
+     "recall": 0.8495,
+     "precision": 0.798,
+     "f1": 0.8229,
+     "low_metal": 52,
+     "low_metal_found": 38,
+     "false_alarm_causes": {
+      "scrap_metal": 8,
+      "rock": 12
+     }
+    }
+   },
+   "all": {
+    "baseline": {
+     "targets": 274,
+     "found": 111,
+     "false_alarms": 135,
+     "recall": 0.4051,
+     "precision": 0.4512,
+     "f1": 0.4269,
+     "low_metal": 149,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 135
+     }
+    },
+    "v1": {
+     "targets": 274,
+     "found": 197,
+     "false_alarms": 76,
+     "recall": 0.719,
+     "precision": 0.7216,
+     "f1": 0.7203,
+     "low_metal": 149,
+     "low_metal_found": 82,
+     "false_alarm_causes": {
+      "scrap_metal": 26,
+      "rock": 43,
+      "background": 7
+     }
+    },
+    "v2": {
+     "targets": 274,
+     "found": 214,
+     "false_alarms": 66,
+     "recall": 0.781,
+     "precision": 0.7643,
+     "f1": 0.7726,
+     "low_metal": 149,
+     "low_metal_found": 101,
+     "false_alarm_causes": {
+      "scrap_metal": 28,
+      "rock": 22,
+      "background": 16
+     }
+    }
+   },
+   "wet_clay": {
+    "baseline": {
+     "targets": 98,
+     "found": 37,
+     "false_alarms": 47,
+     "recall": 0.3776,
+     "precision": 0.4405,
+     "f1": 0.4066,
+     "low_metal": 54,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 47
+     }
+    },
+    "v1": {
+     "targets": 98,
+     "found": 65,
+     "false_alarms": 23,
+     "recall": 0.6633,
+     "precision": 0.7386,
+     "f1": 0.6989,
+     "low_metal": 54,
+     "low_metal_found": 31,
+     "false_alarm_causes": {
+      "scrap_metal": 12,
+      "rock": 9,
+      "background": 2
+     }
+    },
+    "v2": {
+     "targets": 98,
+     "found": 73,
+     "false_alarms": 28,
+     "recall": 0.7449,
+     "precision": 0.7228,
+     "f1": 0.7337,
+     "low_metal": 54,
+     "low_metal_found": 41,
+     "false_alarm_causes": {
+      "scrap_metal": 13,
+      "rock": 10,
+      "background": 5
+     }
+    }
+   },
+   "mineralized_rocky": {
+    "baseline": {
+     "targets": 83,
+     "found": 39,
+     "false_alarms": 45,
+     "recall": 0.4699,
+     "precision": 0.4643,
+     "f1": 0.4671,
+     "low_metal": 43,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 45
+     }
+    },
+    "v1": {
+     "targets": 83,
+     "found": 57,
+     "false_alarms": 10,
+     "recall": 0.6867,
+     "precision": 0.8507,
+     "f1": 0.76,
+     "low_metal": 43,
+     "low_metal_found": 17,
+     "false_alarm_causes": {
+      "background": 4,
+      "scrap_metal": 6
+     }
+    },
+    "v2": {
+     "targets": 83,
+     "found": 62,
+     "false_alarms": 18,
+     "recall": 0.747,
+     "precision": 0.775,
+     "f1": 0.7607,
+     "low_metal": 43,
+     "low_metal_found": 22,
+     "false_alarm_causes": {
+      "background": 11,
+      "scrap_metal": 7
+     }
+    }
+   }
+  },
+  "1.0/1.0/1.0": {
+   "dry_sand": {
+    "baseline": {
+     "targets": 93,
+     "found": 41,
+     "false_alarms": 63,
+     "recall": 0.4409,
+     "precision": 0.3942,
+     "f1": 0.4162,
+     "low_metal": 52,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 63
+     }
+    },
+    "v1": {
+     "targets": 93,
+     "found": 90,
+     "false_alarms": 39,
+     "recall": 0.9677,
+     "precision": 0.6977,
+     "f1": 0.8108,
+     "low_metal": 52,
+     "low_metal_found": 49,
+     "false_alarm_causes": {
+      "rock": 38,
+      "scrap_metal": 1
+     }
+    },
+    "v2": {
+     "targets": 93,
+     "found": 91,
+     "false_alarms": 25,
+     "recall": 0.9785,
+     "precision": 0.7845,
+     "f1": 0.8708,
+     "low_metal": 52,
+     "low_metal_found": 50,
+     "false_alarm_causes": {
+      "scrap_metal": 10,
+      "rock": 14,
+      "background": 1
+     }
+    }
+   },
+   "all": {
+    "baseline": {
+     "targets": 274,
+     "found": 125,
+     "false_alarms": 174,
+     "recall": 0.4562,
+     "precision": 0.4181,
+     "f1": 0.4363,
+     "low_metal": 149,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 174
+     }
+    },
+    "v1": {
+     "targets": 274,
+     "found": 219,
+     "false_alarms": 56,
+     "recall": 0.7993,
+     "precision": 0.7964,
+     "f1": 0.7978,
+     "low_metal": 149,
+     "low_metal_found": 129,
+     "false_alarm_causes": {
+      "rock": 51,
+      "scrap_metal": 2,
+      "background": 3
+     }
+    },
+    "v2": {
+     "targets": 274,
+     "found": 251,
+     "false_alarms": 79,
+     "recall": 0.9161,
+     "precision": 0.7606,
+     "f1": 0.8311,
+     "low_metal": 149,
+     "low_metal_found": 135,
+     "false_alarm_causes": {
+      "scrap_metal": 31,
+      "rock": 29,
+      "background": 19
+     }
+    }
+   },
+   "wet_clay": {
+    "baseline": {
+     "targets": 98,
+     "found": 44,
+     "false_alarms": 64,
+     "recall": 0.449,
+     "precision": 0.4074,
+     "f1": 0.4272,
+     "low_metal": 54,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 64
+     }
+    },
+    "v1": {
+     "targets": 98,
+     "found": 65,
+     "false_alarms": 15,
+     "recall": 0.6633,
+     "precision": 0.8125,
+     "f1": 0.7303,
+     "low_metal": 54,
+     "low_metal_found": 51,
+     "false_alarm_causes": {
+      "rock": 13,
+      "background": 1,
+      "scrap_metal": 1
+     }
+    },
+    "v2": {
+     "targets": 98,
+     "found": 85,
+     "false_alarms": 32,
+     "recall": 0.8673,
+     "precision": 0.7265,
+     "f1": 0.7907,
+     "low_metal": 54,
+     "low_metal_found": 50,
+     "false_alarm_causes": {
+      "scrap_metal": 11,
+      "rock": 12,
+      "background": 9
+     }
+    }
+   },
+   "mineralized_rocky": {
+    "baseline": {
+     "targets": 83,
+     "found": 40,
+     "false_alarms": 47,
+     "recall": 0.4819,
+     "precision": 0.4598,
+     "f1": 0.4706,
+     "low_metal": 43,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 47
+     }
+    },
+    "v1": {
+     "targets": 83,
+     "found": 64,
+     "false_alarms": 2,
+     "recall": 0.7711,
+     "precision": 0.9697,
+     "f1": 0.8591,
+     "low_metal": 43,
+     "low_metal_found": 29,
+     "false_alarm_causes": {
+      "background": 2
+     }
+    },
+    "v2": {
+     "targets": 83,
+     "found": 75,
+     "false_alarms": 22,
+     "recall": 0.9036,
+     "precision": 0.7732,
+     "f1": 0.8333,
+     "low_metal": 43,
+     "low_metal_found": 35,
+     "false_alarm_causes": {
+      "background": 9,
+      "scrap_metal": 10,
+      "rock": 3
+     }
+    }
+   }
+  },
+  "0.75/2.0/2.0": {
+   "dry_sand": {
+    "baseline": {
+     "targets": 93,
+     "found": 40,
+     "false_alarms": 48,
+     "recall": 0.4301,
+     "precision": 0.4545,
+     "f1": 0.442,
+     "low_metal": 52,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 48
+     }
+    },
+    "v1": {
+     "targets": 93,
+     "found": 65,
+     "false_alarms": 40,
+     "recall": 0.6989,
+     "precision": 0.619,
+     "f1": 0.6566,
+     "low_metal": 52,
+     "low_metal_found": 31,
+     "false_alarm_causes": {
+      "rock": 36,
+      "scrap_metal": 4
+     }
+    },
+    "v2": {
+     "targets": 93,
+     "found": 76,
+     "false_alarms": 38,
+     "recall": 0.8172,
+     "precision": 0.6667,
+     "f1": 0.7343,
+     "low_metal": 52,
+     "low_metal_found": 35,
+     "false_alarm_causes": {
+      "scrap_metal": 23,
+      "rock": 13,
+      "background": 2
+     }
+    }
+   },
+   "all": {
+    "baseline": {
+     "targets": 274,
+     "found": 123,
+     "false_alarms": 148,
+     "recall": 0.4489,
+     "precision": 0.4539,
+     "f1": 0.4514,
+     "low_metal": 149,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 140,
+      "rock": 8
+     }
+    },
+    "v1": {
+     "targets": 274,
+     "found": 146,
+     "false_alarms": 55,
+     "recall": 0.5328,
+     "precision": 0.7264,
+     "f1": 0.6147,
+     "low_metal": 149,
+     "low_metal_found": 85,
+     "false_alarm_causes": {
+      "rock": 45,
+      "scrap_metal": 5,
+      "background": 5
+     }
+    },
+    "v2": {
+     "targets": 274,
+     "found": 217,
+     "false_alarms": 108,
+     "recall": 0.792,
+     "precision": 0.6677,
+     "f1": 0.7245,
+     "low_metal": 149,
+     "low_metal_found": 97,
+     "false_alarm_causes": {
+      "scrap_metal": 58,
+      "rock": 27,
+      "background": 23
+     }
+    }
+   },
+   "wet_clay": {
+    "baseline": {
+     "targets": 98,
+     "found": 43,
+     "false_alarms": 49,
+     "recall": 0.4388,
+     "precision": 0.4674,
+     "f1": 0.4526,
+     "low_metal": 54,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 49
+     }
+    },
+    "v1": {
+     "targets": 98,
+     "found": 41,
+     "false_alarms": 13,
+     "recall": 0.4184,
+     "precision": 0.7593,
+     "f1": 0.5395,
+     "low_metal": 54,
+     "low_metal_found": 36,
+     "false_alarm_causes": {
+      "rock": 9,
+      "background": 3,
+      "scrap_metal": 1
+     }
+    },
+    "v2": {
+     "targets": 98,
+     "found": 78,
+     "false_alarms": 39,
+     "recall": 0.7959,
+     "precision": 0.6667,
+     "f1": 0.7256,
+     "low_metal": 54,
+     "low_metal_found": 39,
+     "false_alarm_causes": {
+      "scrap_metal": 19,
+      "rock": 9,
+      "background": 11
+     }
+    }
+   },
+   "mineralized_rocky": {
+    "baseline": {
+     "targets": 83,
+     "found": 40,
+     "false_alarms": 51,
+     "recall": 0.4819,
+     "precision": 0.4396,
+     "f1": 0.4598,
+     "low_metal": 43,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 43,
+      "rock": 8
+     }
+    },
+    "v1": {
+     "targets": 83,
+     "found": 40,
+     "false_alarms": 2,
+     "recall": 0.4819,
+     "precision": 0.9524,
+     "f1": 0.64,
+     "low_metal": 43,
+     "low_metal_found": 18,
+     "false_alarm_causes": {
+      "background": 2
+     }
+    },
+    "v2": {
+     "targets": 83,
+     "found": 63,
+     "false_alarms": 31,
+     "recall": 0.759,
+     "precision": 0.6702,
+     "f1": 0.7119,
+     "low_metal": 43,
+     "low_metal_found": 23,
+     "false_alarm_causes": {
+      "background": 10,
+      "scrap_metal": 16,
+      "rock": 5
+     }
+    }
+   }
+  },
+  "1.5/1.0/1.0": {
+   "dry_sand": {
+    "baseline": {
+     "targets": 93,
+     "found": 41,
+     "false_alarms": 59,
+     "recall": 0.4409,
+     "precision": 0.41,
+     "f1": 0.4249,
+     "low_metal": 52,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 59
+     }
+    },
+    "v1": {
+     "targets": 93,
+     "found": 85,
+     "false_alarms": 49,
+     "recall": 0.914,
+     "precision": 0.6343,
+     "f1": 0.7489,
+     "low_metal": 52,
+     "low_metal_found": 44,
+     "false_alarm_causes": {
+      "scrap_metal": 11,
+      "rock": 38
+     }
+    },
+    "v2": {
+     "targets": 93,
+     "found": 90,
+     "false_alarms": 26,
+     "recall": 0.9677,
+     "precision": 0.7759,
+     "f1": 0.8612,
+     "low_metal": 52,
+     "low_metal_found": 49,
+     "false_alarm_causes": {
+      "scrap_metal": 11,
+      "rock": 14,
+      "background": 1
+     }
+    }
+   },
+   "all": {
+    "baseline": {
+     "targets": 274,
+     "found": 125,
+     "false_alarms": 168,
+     "recall": 0.4562,
+     "precision": 0.4266,
+     "f1": 0.4409,
+     "low_metal": 149,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 168
+     }
+    },
+    "v1": {
+     "targets": 274,
+     "found": 238,
+     "false_alarms": 87,
+     "recall": 0.8686,
+     "precision": 0.7323,
+     "f1": 0.7947,
+     "low_metal": 149,
+     "low_metal_found": 122,
+     "false_alarm_causes": {
+      "scrap_metal": 34,
+      "rock": 49,
+      "background": 4
+     }
+    },
+    "v2": {
+     "targets": 274,
+     "found": 247,
+     "false_alarms": 80,
+     "recall": 0.9015,
+     "precision": 0.7554,
+     "f1": 0.822,
+     "low_metal": 149,
+     "low_metal_found": 131,
+     "false_alarm_causes": {
+      "scrap_metal": 36,
+      "rock": 26,
+      "background": 18
+     }
+    }
+   },
+   "wet_clay": {
+    "baseline": {
+     "targets": 98,
+     "found": 44,
+     "false_alarms": 62,
+     "recall": 0.449,
+     "precision": 0.4151,
+     "f1": 0.4314,
+     "low_metal": 54,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 62
+     }
+    },
+    "v1": {
+     "targets": 98,
+     "found": 85,
+     "false_alarms": 26,
+     "recall": 0.8673,
+     "precision": 0.7658,
+     "f1": 0.8134,
+     "low_metal": 54,
+     "low_metal_found": 50,
+     "false_alarm_causes": {
+      "scrap_metal": 13,
+      "rock": 10,
+      "background": 3
+     }
+    },
+    "v2": {
+     "targets": 98,
+     "found": 85,
+     "false_alarms": 33,
+     "recall": 0.8673,
+     "precision": 0.7203,
+     "f1": 0.787,
+     "low_metal": 54,
+     "low_metal_found": 50,
+     "false_alarm_causes": {
+      "scrap_metal": 13,
+      "rock": 11,
+      "background": 9
+     }
+    }
+   },
+   "mineralized_rocky": {
+    "baseline": {
+     "targets": 83,
+     "found": 40,
+     "false_alarms": 47,
+     "recall": 0.4819,
+     "precision": 0.4598,
+     "f1": 0.4706,
+     "low_metal": 43,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 47
+     }
+    },
+    "v1": {
+     "targets": 83,
+     "found": 68,
+     "false_alarms": 12,
+     "recall": 0.8193,
+     "precision": 0.85,
+     "f1": 0.8344,
+     "low_metal": 43,
+     "low_metal_found": 28,
+     "false_alarm_causes": {
+      "background": 1,
+      "scrap_metal": 10,
+      "rock": 1
+     }
+    },
+    "v2": {
+     "targets": 83,
+     "found": 72,
+     "false_alarms": 21,
+     "recall": 0.8675,
+     "precision": 0.7742,
+     "f1": 0.8182,
+     "low_metal": 43,
+     "low_metal_found": 32,
+     "false_alarm_causes": {
+      "background": 8,
+      "scrap_metal": 12,
+      "rock": 1
+     }
+    }
+   }
+  },
+  "2.0/2.0/2.0": {
+   "dry_sand": {
+    "baseline": {
+     "targets": 93,
+     "found": 18,
+     "false_alarms": 24,
+     "recall": 0.1935,
+     "precision": 0.4286,
+     "f1": 0.2667,
+     "low_metal": 52,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 24
+     }
+    },
+    "v1": {
+     "targets": 93,
+     "found": 70,
+     "false_alarms": 72,
+     "recall": 0.7527,
+     "precision": 0.493,
+     "f1": 0.5957,
+     "low_metal": 52,
+     "low_metal_found": 29,
+     "false_alarm_causes": {
+      "scrap_metal": 37,
+      "rock": 34,
+      "background": 1
+     }
+    },
+    "v2": {
+     "targets": 93,
+     "found": 78,
+     "false_alarms": 25,
+     "recall": 0.8387,
+     "precision": 0.7573,
+     "f1": 0.7959,
+     "low_metal": 52,
+     "low_metal_found": 37,
+     "false_alarm_causes": {
+      "scrap_metal": 11,
+      "rock": 14
+     }
+    }
+   },
+   "all": {
+    "baseline": {
+     "targets": 274,
+     "found": 66,
+     "false_alarms": 69,
+     "recall": 0.2409,
+     "precision": 0.4889,
+     "f1": 0.3227,
+     "low_metal": 149,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 69
+     }
+    },
+    "v1": {
+     "targets": 274,
+     "found": 196,
+     "false_alarms": 127,
+     "recall": 0.7153,
+     "precision": 0.6068,
+     "f1": 0.6566,
+     "low_metal": 149,
+     "low_metal_found": 75,
+     "false_alarm_causes": {
+      "scrap_metal": 81,
+      "rock": 39,
+      "background": 7
+     }
+    },
+    "v2": {
+     "targets": 274,
+     "found": 201,
+     "false_alarms": 74,
+     "recall": 0.7336,
+     "precision": 0.7309,
+     "f1": 0.7322,
+     "low_metal": 149,
+     "low_metal_found": 93,
+     "false_alarm_causes": {
+      "scrap_metal": 29,
+      "rock": 23,
+      "background": 22
+     }
+    }
+   },
+   "wet_clay": {
+    "baseline": {
+     "targets": 98,
+     "found": 20,
+     "false_alarms": 21,
+     "recall": 0.2041,
+     "precision": 0.4878,
+     "f1": 0.2878,
+     "low_metal": 54,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 21
+     }
+    },
+    "v1": {
+     "targets": 98,
+     "found": 72,
+     "false_alarms": 38,
+     "recall": 0.7347,
+     "precision": 0.6545,
+     "f1": 0.6923,
+     "low_metal": 54,
+     "low_metal_found": 32,
+     "false_alarm_causes": {
+      "scrap_metal": 31,
+      "rock": 5,
+      "background": 2
+     }
+    },
+    "v2": {
+     "targets": 98,
+     "found": 70,
+     "false_alarms": 31,
+     "recall": 0.7143,
+     "precision": 0.6931,
+     "f1": 0.7035,
+     "low_metal": 54,
+     "low_metal_found": 38,
+     "false_alarm_causes": {
+      "scrap_metal": 12,
+      "rock": 9,
+      "background": 10
+     }
+    }
+   },
+   "mineralized_rocky": {
+    "baseline": {
+     "targets": 83,
+     "found": 28,
+     "false_alarms": 24,
+     "recall": 0.3373,
+     "precision": 0.5385,
+     "f1": 0.4148,
+     "low_metal": 43,
+     "low_metal_found": 0,
+     "false_alarm_causes": {
+      "scrap_metal": 24
+     }
+    },
+    "v1": {
+     "targets": 83,
+     "found": 54,
+     "false_alarms": 17,
+     "recall": 0.6506,
+     "precision": 0.7606,
+     "f1": 0.7013,
+     "low_metal": 43,
+     "low_metal_found": 14,
+     "false_alarm_causes": {
+      "background": 4,
+      "scrap_metal": 13
+     }
+    },
+    "v2": {
+     "targets": 83,
+     "found": 53,
+     "false_alarms": 18,
+     "recall": 0.6386,
+     "precision": 0.7465,
+     "f1": 0.6883,
+     "low_metal": 43,
+     "low_metal_found": 18,
+     "false_alarm_causes": {
+      "background": 12,
+      "scrap_metal": 6
+     }
+    }
+   }
+  }
+ },
+ "pooled": {
+  "baseline": {
+   "targets": 1370,
+   "found": 550,
+   "false_alarms": 694,
+   "recall": 0.4015,
+   "precision": 0.4421,
+   "f1": 0.4208,
+   "low_metal": 745,
+   "low_metal_found": 0,
+   "false_alarm_causes": {
+    "scrap_metal": 686,
+    "rock": 8
+   }
+  },
+  "v1": {
+   "targets": 1370,
+   "found": 996,
+   "false_alarms": 401,
+   "recall": 0.727,
+   "precision": 0.713,
+   "f1": 0.7199,
+   "low_metal": 745,
+   "low_metal_found": 493,
+   "false_alarm_causes": {
+    "scrap_metal": 148,
+    "rock": 227,
+    "background": 26
+   }
+  },
+  "v2": {
+   "targets": 1370,
+   "found": 1130,
+   "false_alarms": 407,
+   "recall": 0.8248,
+   "precision": 0.7352,
+   "f1": 0.7774,
+   "low_metal": 745,
+   "low_metal_found": 557,
+   "false_alarm_causes": {
+    "scrap_metal": 182,
+    "rock": 127,
+    "background": 98
+   }
+  }
+ },
+ "old_seeds_standard": {
+  "dry_sand": {
+   "baseline": {
+    "targets": 86,
+    "found": 38,
+    "false_alarms": 53,
+    "recall": 0.4419,
+    "precision": 0.4176,
+    "f1": 0.4294,
+    "low_metal": 47,
+    "low_metal_found": 0,
+    "false_alarm_causes": {
+     "scrap_metal": 53
+    }
+   },
+   "v1": {
+    "targets": 86,
+    "found": 68,
+    "false_alarms": 52,
+    "recall": 0.7907,
+    "precision": 0.5667,
+    "f1": 0.6602,
+    "low_metal": 47,
+    "low_metal_found": 29,
+    "false_alarm_causes": {
+     "rock": 35,
+     "background": 2,
+     "scrap_metal": 15
+    }
+   },
+   "v2": {
+    "targets": 86,
+    "found": 73,
+    "false_alarms": 27,
+    "recall": 0.8488,
+    "precision": 0.73,
+    "f1": 0.7849,
+    "low_metal": 47,
+    "low_metal_found": 34,
+    "false_alarm_causes": {
+     "rock": 11,
+     "scrap_metal": 15,
+     "background": 1
+    }
+   }
+  },
+  "all": {
+   "baseline": {
+    "targets": 257,
+    "found": 112,
+    "false_alarms": 150,
+    "recall": 0.4358,
+    "precision": 0.4275,
+    "f1": 0.4316,
+    "low_metal": 141,
+    "low_metal_found": 0,
+    "false_alarm_causes": {
+     "scrap_metal": 150
+    }
+   },
+   "v1": {
+    "targets": 257,
+    "found": 187,
+    "false_alarms": 82,
+    "recall": 0.7276,
+    "precision": 0.6952,
+    "f1": 0.711,
+    "low_metal": 141,
+    "low_metal_found": 78,
+    "false_alarm_causes": {
+     "rock": 40,
+     "background": 8,
+     "scrap_metal": 34
+    }
+   },
+   "v2": {
+    "targets": 257,
+    "found": 200,
+    "false_alarms": 75,
+    "recall": 0.7782,
+    "precision": 0.7273,
+    "f1": 0.7519,
+    "low_metal": 141,
+    "low_metal_found": 91,
+    "false_alarm_causes": {
+     "rock": 18,
+     "scrap_metal": 37,
+     "background": 20
+    }
+   }
+  },
+  "wet_clay": {
+   "baseline": {
+    "targets": 97,
+    "found": 38,
+    "false_alarms": 46,
+    "recall": 0.3918,
+    "precision": 0.4524,
+    "f1": 0.4199,
+    "low_metal": 56,
+    "low_metal_found": 0,
+    "false_alarm_causes": {
+     "scrap_metal": 46
+    }
+   },
+   "v1": {
+    "targets": 97,
+    "found": 65,
+    "false_alarms": 20,
+    "recall": 0.6701,
+    "precision": 0.7647,
+    "f1": 0.7143,
+    "low_metal": 56,
+    "low_metal_found": 31,
+    "false_alarm_causes": {
+     "scrap_metal": 15,
+     "rock": 5
+    }
+   },
+   "v2": {
+    "targets": 97,
+    "found": 72,
+    "false_alarms": 35,
+    "recall": 0.7423,
+    "precision": 0.6729,
+    "f1": 0.7059,
+    "low_metal": 56,
+    "low_metal_found": 38,
+    "false_alarm_causes": {
+     "background": 13,
+     "rock": 7,
+     "scrap_metal": 15
+    }
+   }
+  },
+  "mineralized_rocky": {
+   "baseline": {
+    "targets": 74,
+    "found": 36,
+    "false_alarms": 51,
+    "recall": 0.4865,
+    "precision": 0.4138,
+    "f1": 0.4472,
+    "low_metal": 38,
+    "low_metal_found": 0,
+    "false_alarm_causes": {
+     "scrap_metal": 51
+    }
+   },
+   "v1": {
+    "targets": 74,
+    "found": 54,
+    "false_alarms": 10,
+    "recall": 0.7297,
+    "precision": 0.8438,
+    "f1": 0.7826,
+    "low_metal": 38,
+    "low_metal_found": 18,
+    "false_alarm_causes": {
+     "scrap_metal": 4,
+     "background": 6
+    }
+   },
+   "v2": {
+    "targets": 74,
+    "found": 55,
+    "false_alarms": 13,
+    "recall": 0.7432,
+    "precision": 0.8088,
+    "f1": 0.7746,
+    "low_metal": 38,
+    "low_metal_found": 19,
+    "false_alarm_causes": {
+     "background": 6,
+     "scrap_metal": 7
+    }
+   }
+  }
+ }
+}

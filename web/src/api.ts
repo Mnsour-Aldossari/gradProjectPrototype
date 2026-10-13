@@ -117,7 +117,33 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   return (await res.json()) as T
 }
 
+/** Fetches a file (with the session's token) and hands it to the browser to save as `filename`. */
+export async function download(path: string, filename: string): Promise<void> {
+  const token = getToken()
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (res.status === 401) endExpiredSession(token !== null)
+  if (!res.ok) {
+    let detail: Detail
+    try {
+      detail = (await res.json()).detail
+    } catch {
+      detail = undefined
+    }
+    throw new ApiError(res.status, describe(detail, `Download failed (${res.status})`))
+  }
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+/** The live link's address. The token is not in it: the page sends it as the first message once the socket is open,
+ *  so it stays out of access logs, proxy logs and browser history. */
 export function liveUrl(missionId: number): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${scheme}://${window.location.host}/ws/missions/${missionId}?token=${encodeURIComponent(getToken() ?? '')}`
+  return `${scheme}://${window.location.host}/ws/missions/${missionId}`
 }

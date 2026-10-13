@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from collections import defaultdict
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
-from app.models import Detection, Mission, TelemetryPoint, User
+from app.models import Detection, Mission, SensorReading, TelemetryPoint, User
 from app.schemas import DetectionRead
-from app.security import decode_token
+from app.security import decode_token, password_fingerprint
 
 router = APIRouter(tags=["live"])
 
@@ -56,16 +57,20 @@ def detection_event(kind: str, detection: Detection) -> dict:
     return {"type": kind, "detection": DetectionRead.model_validate(detection).model_dump(mode="json")}
 
 
-def _snapshot(session: Session, mission: Mission) -> dict:
+def _snapshot(session: Session, mission: Mission, user: User, runner) -> dict:
     from .missions import mission_read  # avoid import cycle
 
     detections = session.exec(select(Detection).where(Detection.mission_id == mission.id).order_by(Detection.id)).all()
     points = session.exec(
         select(TelemetryPoint).where(TelemetryPoint.mission_id == mission.id).order_by(TelemetryPoint.t_s)
     ).all()
+    # When the survey lines began (first sensor reading), as in the live telemetry events.
+    survey_start_s = session.exec(
+        select(func.min(SensorReading.t_s)).where(SensorReading.mission_id == mission.id)
+    ).one()
     return {
         "type": "snapshot",
-        "mission": mission_read(session, mission, with_stats=True).model_dump(mode="json"),
+        "mission": mission_read(session, mission, user, with_stats=True, runner=runner).model_dump(mode="json"),
         "detections": [DetectionRead.model_validate(d).model_dump(mode="json") for d in detections],
         "track": [[p.lat, p.lon] for p in points],
         "last_telemetry": None
@@ -78,39 +83,78 @@ def _snapshot(session: Session, mission: Mission) -> dict:
             "heading_deg": points[-1].heading_deg,
             "ground_speed_mps": points[-1].ground_speed_mps,
             "battery_pct": points[-1].battery_pct,
+            "survey_start_s": survey_start_s,
+            "paused_s": runner.paused_s(mission.id),
         },
     }
 
 
-@router.websocket("/ws/missions/{mission_id}")
-async def mission_events(websocket: WebSocket, mission_id: int, token: str = Query(...)) -> None:
-    app = websocket.app
+def _open(app, token: str, mission_id: int) -> tuple[dict | None, int]:
+    """The snapshot for this user, or (None, the close code) if they may not see the mission. Runs in a worker
+    thread: the database may be far away, and the event loop keeps the other live views moving meanwhile."""
     data = decode_token(token, app.state.settings.secret_key)
     with Session(app.state.engine) as session:
         user = session.get(User, data["sub"]) if data else None
+        if user is not None and data.get("pv") != password_fingerprint(user.password_hash):
+            user = None
         mission = session.get(Mission, mission_id) if user else None
         if mission is None:
-            await websocket.close(code=4401 if user is None else 4404)
-            return
-        hub: Hub = app.state.hub
-        queue = hub.subscribe(mission_id)  # before the snapshot, so no event falls in between
-        snapshot = _snapshot(session, mission)
+            return None, 4401 if user is None else 4404
+        return _snapshot(session, mission, user, app.state.runner), 0
 
-    await websocket.accept()
 
-    async def forward() -> None:
-        await websocket.send_json(snapshot)
-        while True:
-            await websocket.send_json(await queue.get())
+AUTH_TIMEOUT_S = 10.0
 
-    sender = asyncio.create_task(forward())
+
+async def _first_message_token(websocket: WebSocket) -> str | None:
+    """The token from the client's first message, {"type": "auth", "token": "..."}: sent over the open socket, it stays
+    out of the URL and so out of access logs, proxy logs and browser history."""
     try:
+        message = json.loads(await asyncio.wait_for(websocket.receive_text(), AUTH_TIMEOUT_S))
+    except (TimeoutError, ValueError, WebSocketDisconnect):
+        return None
+    token = message.get("token") if isinstance(message, dict) and message.get("type") == "auth" else None
+    return token if isinstance(token, str) else None
+
+
+@router.websocket("/ws/missions/{mission_id}")
+async def mission_events(websocket: WebSocket, mission_id: int, token: str | None = Query(None)) -> None:
+    """Live events for a mission. The token goes in the first message; ?token= still works for older clients."""
+    app = websocket.app
+    hub: Hub = app.state.hub
+    accepted = False
+    if token is None:
+        await websocket.accept()
+        accepted = True
+        token = await _first_message_token(websocket)
+    if token is None or decode_token(token, app.state.settings.secret_key) is None:
+        # Checked before subscribing, so a forged token costs nothing. After accept() the close code reaches the client.
+        with contextlib.suppress(Exception):
+            await websocket.close(code=4401)
+        return
+    queue = hub.subscribe(mission_id)  # before the snapshot, so no event falls in between
+    sender: asyncio.Task | None = None
+    try:
+        snapshot, refused = await asyncio.to_thread(_open, app, token, mission_id)
+        if snapshot is None:
+            await websocket.close(code=refused)
+            return
+        if not accepted:
+            await websocket.accept()
+
+        async def forward() -> None:
+            await websocket.send_json(snapshot)
+            while True:
+                await websocket.send_json(await queue.get())
+
+        sender = asyncio.create_task(forward())
         while True:
             await websocket.receive_text()  # clients don't send anything; this detects disconnects
     except WebSocketDisconnect:
         pass
     finally:
         hub.unsubscribe(mission_id, queue)
-        sender.cancel()
-        with contextlib.suppress(asyncio.CancelledError, Exception):
-            await sender
+        if sender is not None:
+            sender.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await sender

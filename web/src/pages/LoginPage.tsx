@@ -50,60 +50,92 @@ export function LoginPage() {
 
   return (
     <main className="login">
-      <div className="login-mark" aria-hidden="true">
-        <svg viewBox="0 0 120 104">
-          <path d="M60 6 L114 98 H6 Z" fill="none" stroke="currentColor" strokeWidth="6" strokeLinejoin="round" />
-          <path d="M60 30 L88 80 H32 Z" className="login-mark-inner" />
-        </svg>
-      </div>
-      <h1>UAV Landmine Survey</h1>
-      <p className="lede">
-        Mission planning, live UAV monitoring and adaptive classification of potential detections. Graduation project
-        prototype, Prince Sattam Bin Abdulaziz University.
-      </p>
-      {expired && (
-        <div className="notice" role="status">
-          <p lang="ar" dir="rtl">
-            انتهت الجلسة، سجّل دخولك من جديد
-          </p>
-          <p className="small">Your session has ended. Sign in again.</p>
+      <section className="login-hero" aria-hidden="true">
+        <div className="radar">
+          <span className="radar-ring r1" />
+          <span className="radar-ring r2" />
+          <span className="radar-ring r3" />
+          <span className="radar-sweep" />
+          <span className="radar-blip b1" />
+          <span className="radar-blip b2" />
+          <span className="radar-blip b3" />
+          <svg className="radar-drone" viewBox="0 0 24 24">
+            <path d="M12 9v6 M9 12h6 M5 5l4 4 M19 5l-4 4 M5 19l4-4 M19 19l-4-4" />
+            <circle cx="5" cy="5" r="2.4" />
+            <circle cx="19" cy="5" r="2.4" />
+            <circle cx="5" cy="19" r="2.4" />
+            <circle cx="19" cy="19" r="2.4" />
+          </svg>
         </div>
-      )}
-      <form className="login-form" onSubmit={submit}>
-        <label className="field">
-          <span>Username</span>
-          <input
-            autoFocus
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-        </label>
-        <label className="field">
-          <span>Password</span>
-          <input
-            ref={passwordInput}
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </label>
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
+        <ul className="login-points">
+          <li>
+            <b>MD + GPR</b> two sensors, one picture
+          </li>
+          <li>
+            <b>Adaptive</b> thresholds that learn the soil
+          </li>
+          <li>
+            <b>Live</b> map of every potential detection
+          </li>
+        </ul>
+      </section>
+      <section className="login-panel">
+        <div className="login-mark" aria-hidden="true">
+          <svg viewBox="0 0 120 104">
+            <path d="M60 6 L114 98 H6 Z" fill="none" stroke="currentColor" strokeWidth="6" strokeLinejoin="round" />
+            <path d="M60 30 L88 80 H32 Z" className="login-mark-inner" />
+          </svg>
+        </div>
+        <p className="eyebrow">Detection prototype</p>
+        <h1>UAV Landmine Survey</h1>
+        <p className="lede">
+          Mission planning, live UAV monitoring and adaptive classification of potential detections. Graduation
+          project prototype, Prince Sattam Bin Abdulaziz University.
+        </p>
+        {expired && (
+          <div className="notice" role="status">
+            <p lang="ar" dir="rtl">
+              انتهت الجلسة، سجّل دخولك من جديد
+            </p>
+            <p className="small">Your session has ended. Sign in again.</p>
+          </div>
         )}
-        <button className="button" type="submit" disabled={busy} aria-busy={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-      <p className="small">
-        Demo accounts for the supervisor and the field operator are listed in <code>backend/app/seed.py</code>. All
-        survey data in this prototype is simulated.
-      </p>
+        <form className="login-form" onSubmit={submit}>
+          <label className="field">
+            <span>Username</span>
+            <input
+              autoFocus
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input
+              ref={passwordInput}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <button className="button button-lg" type="submit" disabled={busy} aria-busy={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+        <p className="small">
+          Demo accounts for the supervisor and the field operator are listed in <code>backend/app/seed.py</code>. All
+          survey data in this prototype is simulated.
+        </p>
+      </section>
     </main>
   )
 }

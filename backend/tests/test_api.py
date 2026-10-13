@@ -25,6 +25,7 @@ def test_create_mission_plans_the_survey_path(client):
     assert r.status_code == 201, r.text
     mission = r.json()
     assert mission["status"] == "planned"
+    assert mission["uav_source"] == "simulated"
     assert len(mission["path"]) >= 4
     assert mission["path_length_m"] > 0
     assert mission["estimated_duration_s"] == round(mission["path_length_m"] / mission["speed_mps"], 1)
@@ -50,13 +51,16 @@ def test_full_mission_run_stores_telemetry_readings_and_detections(client):
     assert mission["progress"] == 1.0
     stats = mission["stats"]
     assert stats["telemetry_points"] > 100
-    assert stats["sensor_readings"] == stats["telemetry_points"]
+    # A reading with every frame of the survey; none on the way down after the last lane (1.5 m at 0.5 m/s).
+    assert 0 < stats["telemetry_points"] - stats["sensor_readings"] <= 20
     assert stats["detections"] >= 1
+    assert (mission["sensor_collection"], mission["sensor_reading_count"]) == ("complete", stats["sensor_readings"])
 
     telemetry = client.get(f"/api/missions/{mission_id}/telemetry", headers=sup).json()
     assert len(telemetry) == stats["telemetry_points"]
     assert telemetry[0]["battery_pct"] >= telemetry[-1]["battery_pct"]
     assert 1.0 < telemetry[0]["relative_alt_m"] < 2.0
+    assert telemetry[-1]["relative_alt_m"] == 0.0  # landed
 
     detections = client.get(f"/api/missions/{mission_id}/detections", headers=sup).json()
     assert len(detections) == stats["detections"]
@@ -72,7 +76,7 @@ def test_full_mission_run_stores_telemetry_readings_and_detections(client):
 
 def test_live_adaptive_detections_match_the_offline_detector(client):
     """Detections built up during the flight equal a batch run over the whole survey."""
-    from app.detection import detect_adaptive
+    from app.detection import detect_live
     from app.evaluation.harness import simulate_scenario
     from app.simulation import DEMO_AREA
 
@@ -84,7 +88,7 @@ def test_live_adaptive_detections_match_the_offline_detector(client):
     live = client.get(f"/api/missions/{mission_id}/detections?method=adaptive", headers=sup).json()
 
     run = simulate_scenario("wet_clay", 77, {"area": DEMO_AREA, "altitude_m": 1.5, "speed_mps": 2.0, "line_spacing_m": 2.0})
-    offline = detect_adaptive(run.readings, run.context)
+    offline = detect_live(run.readings, run.context)
     assert sorted((d["category"], d["n_hits"]) for d in live) == sorted((c.category.value, c.n_hits) for c in offline)
 
 
@@ -208,20 +212,54 @@ def test_history_counts_potential_detections_per_category(client):
     assert history["completed"] == 1 and history["totals_adaptive"] == item["adaptive"]
 
 
-def test_search_filters_and_pages_missions(client):
-    sup = auth_headers(client, "supervisor")
-    for i in range(5):
-        client.post("/api/missions", json=mission_body(name=f"North field {i}"), headers=sup)
-    client.post("/api/missions", json=mission_body(name="South 100%", soil_type="wet_clay"), headers=sup)
+def test_outline_is_checked_while_it_is_drawn(client):
+    import math
 
-    r = client.get("/api/missions/search", params={"page_size": 4}, headers=auth_headers(client, "field")).json()
-    assert r["total"] == 6 and len(r["items"]) == 4 and r["items"][0]["name"] == "South 100%"  # newest first
-    second = client.get("/api/missions/search", params={"page_size": 4, "page": 2}, headers=sup).json()
-    assert [m["name"] for m in second["items"]] == ["North field 1", "North field 0"]
+    headers = auth_headers(client, "supervisor")
+    lat0, lon0 = 24.1395, 47.2620
+    circle = [
+        [lat0 + 25 / 111195 * math.sin(a), lon0 + 25 / (111195 * math.cos(math.radians(lat0))) * math.cos(a)]
+        for a in (2 * math.pi * i / 32 for i in range(32))
+    ]
+    r = client.post("/api/missions/check", json=mission_body(area=circle, line_spacing_m=2.0), headers=headers)
+    body = r.json()
+    assert r.status_code == 200 and body["ok"] and body["problems"] == []
+    assert len(body["path"]) > 20 and abs(body["area_m2"] - math.pi * 25**2) < 30
+    created = client.post("/api/missions", json=mission_body(area=circle, line_spacing_m=2.0), headers=headers)
+    assert created.status_code == 201 and created.json()["path"] == body["path"]  # what is checked is what flies
 
-    assert client.get("/api/missions/search", params={"q": "NORTH"}, headers=sup).json()["total"] == 5
-    assert client.get("/api/missions/search", params={"q": "%"}, headers=sup).json()["total"] == 1  # literal %
-    assert client.get("/api/missions/search", params={"soil_type": "wet_clay"}, headers=sup).json()["total"] == 1
-    assert client.get("/api/missions/search", params={"status": "running"}, headers=sup).json()["total"] == 0
-    assert client.get("/api/missions/search", params={"status": "lost"}, headers=sup).status_code == 422
-    assert client.get("/api/missions/search", params={"page": 0}, headers=sup).status_code == 422
+    bow_tie = [[lat0, lon0], [lat0 + 0.0003, lon0 + 0.0003], [lat0, lon0 + 0.0003], [lat0 + 0.0003, lon0]]
+    bad = client.post("/api/missions/check", json=mission_body(area=bow_tie), headers=headers).json()
+    assert not bad["ok"] and "crosses itself" in bad["problems"][0]
+    tiny = [[lat0, lon0], [lat0 + 0.00005, lon0], [lat0 + 0.00005, lon0 + 0.00005], [lat0, lon0 + 0.00005]]
+    small = client.post("/api/missions/check", json=mission_body(area=tiny), headers=headers).json()
+    assert not small["ok"] and "on each side" in small["problems"][0]
+    assert client.post("/api/missions/check", json=mission_body(), headers=auth_headers(client, "field")).status_code == 403
+
+
+def test_database_page_link_is_for_the_supervisor_and_only_when_set(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings, database_ui_url
+    from app.main import create_app
+    from app.seed import DEMO_USERS
+
+    assert database_ui_url(" http://localhost:8082 ") == "http://localhost:8082"
+    assert database_ui_url("javascript:alert(1)") == "" and database_ui_url("") == ""
+
+    url = "http://localhost:8082"
+    settings = Settings(
+        database_url=f"sqlite:///{(tmp_path / 'link.db').as_posix()}", secret_key="test-secret", database_ui_url=url
+    )
+    with TestClient(create_app(settings)) as c:
+        for user, shown in (("supervisor", url), ("field", None)):
+            headers = auth_headers(c, user)
+            assert c.get("/api/auth/me", headers=headers).json()["database_ui_url"] == shown
+        password = next(u["password"] for u in DEMO_USERS if u["username"] == "supervisor")
+        login = c.post("/api/auth/login", json={"username": "supervisor", "password": password}).json()
+        assert login["user"]["database_ui_url"] == url
+        assert "database_ui_url" not in c.get("/api/health").text  # not on the public health check
+
+
+def test_no_database_page_link_without_the_setting(client):
+    assert client.get("/api/auth/me", headers=auth_headers(client, "supervisor")).json()["database_ui_url"] is None
