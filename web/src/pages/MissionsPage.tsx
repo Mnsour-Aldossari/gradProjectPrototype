@@ -1,11 +1,23 @@
 import { useEffect, useId, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { areaSize, formatDate } from '../format'
 import { allPoints, PastKey, PastMissions } from '../map/PastMissions'
+import { Select } from '../components/Select'
 import { SurveyMap } from '../map/SurveyMap'
-import { SOIL_LABELS, STATUS_LABELS, type Mission } from '../types'
+import { SOIL_LABELS, STATUS_LABELS, type Mission, type MissionStatus, type SoilType } from '../types'
+
+const PAGE_SIZE = 12
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  ...(Object.entries(STATUS_LABELS) as [MissionStatus, string][]).map(([value, label]) => ({ value, label })),
+]
+const SOIL_OPTIONS = [
+  { value: '', label: 'All soils' },
+  ...(Object.entries(SOIL_LABELS) as [SoilType, string][]).map(([value, label]) => ({ value, label })),
+]
 
 /** The survey outline, drawn small next to the mission's name. */
 function AreaThumb({ area }: { area: Mission['area'] }) {
@@ -66,6 +78,22 @@ export function MissionsPage() {
   const navigate = useNavigate()
   const supervisor = user?.role === 'supervisor'
 
+  // Search, filters and page live in the address, so the back button returns to the same list.
+  const [params, setParams] = useSearchParams()
+  const q = params.get('q') ?? ''
+  const statusFilter = params.get('status') ?? ''
+  const soilFilter = params.get('soil') ?? ''
+  const filtered = q.trim() !== '' || statusFilter !== '' || soilFilter !== ''
+
+  function update(changes: Record<string, string>) {
+    const next = new URLSearchParams(params)
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === '' || (key === 'page' && value === '1')) next.delete(key)
+      else next.set(key, value)
+    }
+    setParams(next, { replace: true })
+  }
+
   async function runDemo() {
     setStartingDemo(true)
     setError(null)
@@ -85,6 +113,17 @@ export function MissionsPage() {
   }, [])
 
   const list = missions ?? []
+  const needle = q.trim().toLowerCase()
+  const matches = list.filter(
+    (m) =>
+      (needle === '' || m.name.toLowerCase().includes(needle)) &&
+      (statusFilter === '' || m.status === statusFilter) &&
+      (soilFilter === '' || m.soil_type === soilFilter),
+  )
+  const pages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE))
+  const page = Math.min(pages, Math.max(1, Number(params.get('page')) || 1))
+  const first = (page - 1) * PAGE_SIZE
+  const shown = matches.slice(first, first + PAGE_SIZE)
   const flying = list.filter((m) => m.status === 'running').length
   const done = list.filter((m) => m.status === 'completed').length
   const hectares = list.reduce((sum, m) => {
@@ -180,10 +219,36 @@ export function MissionsPage() {
         <section className="mgrid-wrap" aria-labelledby="all-missions">
           <div className="section-head">
             <h2 id="all-missions">All missions</h2>
-            <span className="count-chip">{missions.length}</span>
+            <span className="count-chip">{filtered ? `${matches.length} of ${missions.length}` : missions.length}</span>
           </div>
+          <div className="mfilters" role="search">
+            <label className="field">
+              <span>Search</span>
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => update({ q: e.target.value, page: '1' })}
+                placeholder="Mission name"
+                maxLength={100}
+              />
+            </label>
+            <label className="field">
+              <span>Status</span>
+              <Select value={statusFilter} options={STATUS_OPTIONS} onChange={(v) => update({ status: v, page: '1' })} />
+            </label>
+            <label className="field">
+              <span>Soil</span>
+              <Select value={soilFilter} options={SOIL_OPTIONS} onChange={(v) => update({ soil: v, page: '1' })} />
+            </label>
+            {filtered && (
+              <button type="button" className="button secondary" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
+                Clear filters
+              </button>
+            )}
+          </div>
+          {matches.length === 0 && <p className="empty">No missions match these filters.</p>}
           <ul className="mgrid">
-            {missions.map((m) => {
+            {shown.map((m) => {
               const size = areaSize(m.area)
               return (
                 <li key={m.id} className={`mcard mcard-${m.status}`}>
@@ -219,7 +284,7 @@ export function MissionsPage() {
                 </li>
               )
             })}
-            {supervisor && (
+            {supervisor && !filtered && page === pages && (
               <li className="mcard mcard-add">
                 <Link to="/missions/new" className="mcard-add-link">
                   <span className="mcard-add-icon" aria-hidden="true">
@@ -232,6 +297,34 @@ export function MissionsPage() {
               </li>
             )}
           </ul>
+          {matches.length > PAGE_SIZE && (
+            <nav className="pager" aria-label="Pages of missions">
+              <span className="small">
+                {first + 1}–{first + shown.length} of {matches.length}
+              </span>
+              <div className="row">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => update({ page: String(page - 1) })}
+                  disabled={page <= 1}
+                >
+                  Previous
+                </button>
+                <span className="small">
+                  Page {page} of {pages}
+                </span>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => update({ page: String(page + 1) })}
+                  disabled={page >= pages}
+                >
+                  Next
+                </button>
+              </div>
+            </nav>
+          )}
         </section>
       )}
     </main>
