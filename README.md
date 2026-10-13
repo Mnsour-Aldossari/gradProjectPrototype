@@ -453,9 +453,17 @@ and buried objects are not shown, only what was detected. The page loads three.j
 
 ## Demo accounts (test credentials only)
 
-Two demo accounts are created on first start: `supervisor` (mission supervisor) and `field` (field operator).
-Their passwords are in `backend/app/seed.py`. They are **test credentials for local demos only** and must not be
-used on any machine reachable by others.
+Demo accounts are created on start, each with its username as the password:
+
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `admin` | mission supervisor |
+| `field` | `field` | field operator |
+
+An older database is brought up to these on start: its `supervisor` account becomes `admin` (keeping its missions)
+and a demo account with another password gets the one above back. They are **test credentials for local demos
+only** and must not be used on any machine reachable by others (`SEED_DEMO_USERS=0` turns them off, and
+`SEED_SUPERVISOR_PASSWORD`, `SEED_FIELD_PASSWORD` replace the passwords).
 
 Field view: field operators land on `/field` after signing in, a mobile-first page (full-screen map,
 high-priority alerts, nearest potential detections by distance, verification, bottom navigation Map / Alerts /

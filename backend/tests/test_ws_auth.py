@@ -10,7 +10,7 @@ from app.api import ws as ws_module
 
 
 def _mission_and_token(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     return mission_id, sup["Authorization"].removeprefix("Bearer ")
 

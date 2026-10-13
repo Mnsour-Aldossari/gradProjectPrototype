@@ -33,7 +33,7 @@ def slow_database(engine, delay_s: float = DELAY_S):
 
 
 def test_live_view_keeps_moving_while_the_database_is_slow(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     token = sup["Authorization"].removeprefix("Bearer ")
     arrivals = []  # (wall clock, flight time) of each telemetry event
@@ -59,7 +59,7 @@ def test_live_view_keeps_moving_while_the_database_is_slow(client):
 
 
 def test_a_mission_started_twice_at_once_flies_once(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     answers = []
 
@@ -83,7 +83,7 @@ def test_a_failed_write_ends_the_mission_as_failed(client, monkeypatch):
         raise OSError("disk full")
 
     monkeypatch.setattr("app.api.runner._flush", full)
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
     mission = wait_until_finished(client, mission_id, sup)

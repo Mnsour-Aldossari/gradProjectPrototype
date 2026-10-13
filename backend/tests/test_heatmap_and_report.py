@@ -74,7 +74,7 @@ def test_a_big_survey_gets_fewer_bigger_cells():
 
 @pytest.fixture
 def flown(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
     return wait_until_finished(client, mission_id, sup)
@@ -93,7 +93,7 @@ def test_the_heatmap_holds_every_reading_of_the_mission(client, flown):
 
 
 def test_a_planned_mission_has_an_empty_heatmap(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     heatmap = client.get(f"/api/missions/{mission_id}/heatmap", headers=sup).json()
     assert heatmap["readings"] == 0 and set(heatmap["md"]) == {None}
@@ -114,7 +114,7 @@ def assert_every_page_has_the_notice(pages: list[str]) -> None:
 
 
 def test_the_supervisor_gets_a_pdf_report(client, flown):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     r = client.get(f"/api/missions/{flown['id']}/report.pdf", headers=sup)
     assert r.status_code == 200, r.text
     assert r.headers["content-type"] == "application/pdf"
@@ -137,11 +137,11 @@ def test_the_supervisor_gets_a_pdf_report(client, flown):
 def test_the_field_operator_cannot_get_the_report(client, flown):
     assert client.get(f"/api/missions/{flown['id']}/report.pdf", headers=auth_headers(client, "field")).status_code == 403
     assert client.get(f"/api/missions/{flown['id']}/report.pdf").status_code == 401
-    assert client.get("/api/missions/999/report.pdf", headers=auth_headers(client, "supervisor")).status_code == 404
+    assert client.get("/api/missions/999/report.pdf", headers=auth_headers(client, "admin")).status_code == 404
 
 
 def test_an_arabic_name_and_many_detections_over_several_pages(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     name = "مسح الحقل الشمالي"
     mission_id = client.post("/api/missions", json=mission_body(name=name), headers=sup).json()["id"]
     with Session(client.app.state.engine) as session:
@@ -167,7 +167,7 @@ def test_an_arabic_name_and_many_detections_over_several_pages(client):
 def test_without_a_font_with_arabic_letters_the_report_says_what_to_set(database_url, tmp_path):
     settings = Settings(database_url=database_url, secret_key="test-secret", report_font=str(tmp_path / "none.ttf"))
     with TestClient(create_app(settings)) as client:
-        sup = auth_headers(client, "supervisor")
+        sup = auth_headers(client, "admin")
         mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
         r = client.get(f"/api/missions/{mission_id}/report.pdf", headers=sup)
     assert r.status_code == 503

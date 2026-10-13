@@ -28,7 +28,7 @@ def _detection(mission_id: int, status: str) -> Detection:
 
 
 def _mission(client) -> tuple[int, dict]:
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     return client.post("/api/missions", json=mission_body(), headers=sup).json()["id"], sup
 
 

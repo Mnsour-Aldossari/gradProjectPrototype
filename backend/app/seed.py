@@ -9,11 +9,12 @@ from sqlmodel import Session, select
 
 from .api.collection import apply, assess_stored
 from .models import Mission, User
-from .security import hash_password
+from .security import hash_password, verify_password
 
+# Easy to type for a local demo: each password is the username.
 DEMO_USERS = (
-    {"username": "supervisor", "password": "Supervisor#2026", "full_name": "Mission Supervisor", "role": "supervisor"},
-    {"username": "field", "password": "Field#2026", "full_name": "Field Operator", "role": "field_operator"},
+    {"username": "admin", "password": "admin", "full_name": "Mission Supervisor", "role": "supervisor"},
+    {"username": "field", "password": "field", "full_name": "Field Operator", "role": "field_operator"},
 )
 
 
@@ -23,16 +24,32 @@ def seeded_users() -> tuple[dict, ...]:
     if os.environ.get("SEED_DEMO_USERS", "1") == "0":
         return ()
     overrides = {
-        "supervisor": os.environ.get("SEED_SUPERVISOR_PASSWORD"),
+        "admin": os.environ.get("SEED_SUPERVISOR_PASSWORD"),
         "field": os.environ.get("SEED_FIELD_PASSWORD"),
     }
     return tuple({**u, "password": overrides.get(u["username"]) or u["password"]} for u in DEMO_USERS)
 
 
+# The supervisor's demo account had another name before; an older database keeps its missions under it.
+RENAMED = {"supervisor": "admin"}
+
+
 def seed_users(engine: Engine) -> None:
+    """Creates the demo accounts. One that already exists gets the seeded password back if it has another one (the
+    demo passwords were changed to easy ones), so the accounts always open with what seed.py says."""
+    users = seeded_users()
+    if not users:
+        return
     with Session(engine) as session:
-        for u in seeded_users():
-            if session.exec(select(User).where(User.username == u["username"])).first() is None:
+        for old, new in RENAMED.items():
+            if session.exec(select(User).where(User.username == new)).first() is None:
+                user = session.exec(select(User).where(User.username == old)).first()
+                if user is not None:
+                    user.username = new
+                    session.add(user)
+        for u in users:
+            user = session.exec(select(User).where(User.username == u["username"])).first()
+            if user is None:
                 session.add(
                     User(
                         username=u["username"],
@@ -41,6 +58,9 @@ def seed_users(engine: Engine) -> None:
                         password_hash=hash_password(u["password"]),
                     )
                 )
+            elif not verify_password(u["password"], user.password_hash):
+                user.password_hash = hash_password(u["password"])
+                session.add(user)
         session.commit()
 
 

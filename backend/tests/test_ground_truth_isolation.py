@@ -215,7 +215,7 @@ def everything_sent_about(client, headers, mission_id: int) -> dict:
 def test_a_mission_over_objects_with_other_labels_stores_and_sends_the_same(client, monkeypatch):
     """The whole path: simulator, mission runner (live adaptive detections, then the baseline), database, REST and
     the WebSocket snapshot and the heatmap."""
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     first = everything_sent_about(client, sup, run_mission(client, sup))
 
     built: list[Simulation] = []
@@ -235,7 +235,7 @@ def test_a_mission_over_objects_with_other_labels_stores_and_sends_the_same(clie
 
 
 def test_the_comparison_sees_every_column_of_the_readings_and_detections(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     sent = everything_sent_about(client, sup, run_mission(client, sup))
     for name, table in (("readings", SensorReading), ("detection_rows", Detection)):
         assert set(sent[name][0]) == {c.name for c in table.__table__.columns} - RUN_SPECIFIC
@@ -270,7 +270,7 @@ def test_the_list_of_names_covers_every_field_of_the_ground_truth():
 
 
 def test_no_rest_response_or_live_event_names_the_ground_truth(client):
-    sup, field = auth_headers(client, "supervisor"), auth_headers(client, "field")
+    sup, field = auth_headers(client, "admin"), auth_headers(client, "field")
     password = next(u["password"] for u in DEMO_USERS if u["username"] == "field")
     body = mission_body()
     sent = [
@@ -339,7 +339,7 @@ def test_the_evaluation_report_scores_against_the_truth_but_gives_no_positions(c
 
 def test_only_the_supervisor_gets_the_scenario_seed(client):
     """With the seed and this code the buried objects of a simulated mission can be rebuilt."""
-    sup, field = auth_headers(client, "supervisor"), auth_headers(client, "field")
+    sup, field = auth_headers(client, "admin"), auth_headers(client, "field")
     mission_id = run_mission(client, sup)
 
     def seeds(headers) -> list:

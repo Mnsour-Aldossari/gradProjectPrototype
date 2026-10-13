@@ -32,7 +32,7 @@ class FakeRos:
 
 def test_only_a_supervisor_starts_ros_and_the_nodes_get_a_token_of_theirs(client):
     ros = client.app.state.ros = FakeRos()
-    field, supervisor = auth_headers(client, "field"), auth_headers(client, "supervisor")
+    field, supervisor = auth_headers(client, "field"), auth_headers(client, "admin")
     assert client.get("/api/ros", headers=field).status_code == 403
     assert client.post("/api/ros/start", headers=field).status_code == 403
     assert client.get("/api/ros", headers=supervisor).json()["running"] is False
@@ -46,7 +46,7 @@ def test_only_a_supervisor_starts_ros_and_the_nodes_get_a_token_of_theirs(client
 
 
 def test_a_start_that_fails_says_why_and_without_wsl_there_is_no_button(client):
-    supervisor = auth_headers(client, "supervisor")
+    supervisor = auth_headers(client, "admin")
     client.app.state.ros = FakeRos(fails="ROS 2 is not built in WSL: run bash ros2_ws/build.sh once")
     r = client.post("/api/ros/start", headers=supervisor)
     assert r.status_code == 502 and "build.sh" in r.json()["detail"]

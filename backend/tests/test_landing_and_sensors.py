@@ -126,7 +126,7 @@ def test_the_longest_pause_is_measured_in_real_time():
 def fly(client, monkeypatch, source_cls=None) -> dict:
     if source_cls is not None:
         monkeypatch.setattr("app.api.runner.SimulatedSource", source_cls)
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=headers).json()["id"]
     assert client.get(f"/api/missions/{mission_id}", headers=headers).json()["sensor_collection"] == NOT_STARTED
     r = client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=headers)
@@ -257,7 +257,7 @@ def test_a_flight_that_fails_keeps_and_counts_what_was_read(client, monkeypatch)
 
 
 def test_a_mission_cut_off_by_a_server_stop_is_assessed_from_its_stored_readings(client, database_url):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=headers).json()["id"]
     engine = make_engine(database_url)
     with Session(engine) as session:

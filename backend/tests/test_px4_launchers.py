@@ -178,7 +178,7 @@ def test_health_says_whether_gazebo_can_be_started(client):
 
 
 def test_gazebo_without_wsl_leaves_the_mission_planned(client):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=headers).json()["id"]
     r = client.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4", "gazebo": True}, headers=headers)
     assert r.status_code == 503 and "WSL" in r.json()["detail"]

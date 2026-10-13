@@ -6,7 +6,7 @@ def test_health(client):
 
 
 def test_login_rejects_wrong_password(client):
-    r = client.post("/api/auth/login", json={"username": "supervisor", "password": "wrong"})
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "wrong"})
     assert r.status_code == 401
 
 
@@ -21,7 +21,7 @@ def test_field_operator_cannot_create_missions(client):
 
 
 def test_create_mission_plans_the_survey_path(client):
-    r = client.post("/api/missions", json=mission_body(), headers=auth_headers(client, "supervisor"))
+    r = client.post("/api/missions", json=mission_body(), headers=auth_headers(client, "admin"))
     assert r.status_code == 201, r.text
     mission = r.json()
     assert mission["status"] == "planned"
@@ -32,7 +32,7 @@ def test_create_mission_plans_the_survey_path(client):
 
 
 def test_create_mission_rejects_bad_input(client):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     tiny = [[24.1, 47.2], [24.1, 47.20005], [24.10005, 47.20005]]
     assert client.post("/api/missions", json=mission_body(area=tiny), headers=headers).status_code == 422
     assert client.post("/api/missions", json=mission_body(soil_type="lava"), headers=headers).status_code == 422
@@ -40,7 +40,7 @@ def test_create_mission_rejects_bad_input(client):
 
 
 def test_full_mission_run_stores_telemetry_readings_and_detections(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
 
     r = client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
@@ -80,7 +80,7 @@ def test_live_adaptive_detections_match_the_offline_detector(client):
     from app.evaluation.harness import simulate_scenario
     from app.simulation import DEMO_AREA
 
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     body = mission_body(speed_mps=2.0, line_spacing_m=2.0, soil_type="wet_clay", scenario_seed=77)
     mission_id = client.post("/api/missions", json=body, headers=sup).json()["id"]
     client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
@@ -93,7 +93,7 @@ def test_live_adaptive_detections_match_the_offline_detector(client):
 
 
 def test_condition_profile_endpoint(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(soil_type="wet_clay"), headers=sup).json()["id"]
     profile = client.get(f"/api/missions/{mission_id}/profile", headers=sup).json()
     assert profile["soil_type"] == "wet_clay"
@@ -102,7 +102,7 @@ def test_condition_profile_endpoint(client):
 
 
 def test_websocket_streams_snapshot_then_live_events(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     token = sup["Authorization"].removeprefix("Bearer ")
     with client.websocket_connect(f"/ws/missions/{mission_id}?token={token}") as ws:
@@ -129,7 +129,7 @@ def test_websocket_rejects_bad_token(client):
 
 
 def test_mission_cannot_start_twice(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     assert client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup).status_code == 202
     assert client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup).status_code == 409
@@ -137,7 +137,7 @@ def test_mission_cannot_start_twice(client):
 
 
 def test_personnel_can_record_verification_outcome(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     field = auth_headers(client, "field")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
@@ -172,7 +172,7 @@ def test_evaluation_report_is_marked_simulated_and_lists_known_limitations(clien
 
 
 def test_demo_scenario_gives_the_same_detections_every_run(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     assert client.post("/api/missions/demo", headers=auth_headers(client, "field")).status_code == 403
 
     def run_once():
@@ -190,7 +190,7 @@ def test_demo_scenario_gives_the_same_detections_every_run(client):
 
 
 def test_history_counts_potential_detections_per_category(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     planned = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     done = client.post("/api/missions", json=mission_body(scenario_seed=12), headers=sup).json()["id"]
     client.post(f"/api/missions/{done}/start", json={"speed_factor": 0}, headers=sup)
@@ -215,7 +215,7 @@ def test_history_counts_potential_detections_per_category(client):
 def test_outline_is_checked_while_it_is_drawn(client):
     import math
 
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     lat0, lon0 = 24.1395, 47.2620
     circle = [
         [lat0 + 25 / 111195 * math.sin(a), lon0 + 25 / (111195 * math.cos(math.radians(lat0))) * math.cos(a)]
@@ -252,14 +252,14 @@ def test_database_page_link_is_for_the_supervisor_and_only_when_set(tmp_path):
         database_url=f"sqlite:///{(tmp_path / 'link.db').as_posix()}", secret_key="test-secret", database_ui_url=url
     )
     with TestClient(create_app(settings)) as c:
-        for user, shown in (("supervisor", url), ("field", None)):
+        for user, shown in (("admin", url), ("field", None)):
             headers = auth_headers(c, user)
             assert c.get("/api/auth/me", headers=headers).json()["database_ui_url"] == shown
-        password = next(u["password"] for u in DEMO_USERS if u["username"] == "supervisor")
-        login = c.post("/api/auth/login", json={"username": "supervisor", "password": password}).json()
+        password = next(u["password"] for u in DEMO_USERS if u["username"] == "admin")
+        login = c.post("/api/auth/login", json={"username": "admin", "password": password}).json()
         assert login["user"]["database_ui_url"] == url
         assert "database_ui_url" not in c.get("/api/health").text  # not on the public health check
 
 
 def test_no_database_page_link_without_the_setting(client):
-    assert client.get("/api/auth/me", headers=auth_headers(client, "supervisor")).json()["database_ui_url"] is None
+    assert client.get("/api/auth/me", headers=auth_headers(client, "admin")).json()["database_ui_url"] is None

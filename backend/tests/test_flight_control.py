@@ -111,7 +111,7 @@ def control(client, mission_id, action, headers):
 
 
 def test_returned_home_mission_is_stopped_with_its_detections_kept(client):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = start(client, headers)
     r = control(client, mission_id, "pause", headers)
     assert r.status_code == 202 and r.json()["phase"] == "paused"
@@ -126,7 +126,7 @@ def test_returned_home_mission_is_stopped_with_its_detections_kept(client):
 
 
 def test_control_is_for_the_supervisor_of_a_flying_mission(client):
-    supervisor = auth_headers(client, "supervisor")
+    supervisor = auth_headers(client, "admin")
     planned = client.post("/api/missions", json=mission_body(), headers=supervisor).json()["id"]
     assert control(client, planned, "pause", supervisor).status_code == 409
     assert control(client, 9999, "pause", supervisor).status_code == 404
@@ -140,7 +140,7 @@ def test_control_is_for_the_supervisor_of_a_flying_mission(client):
 
 
 def test_live_view_shows_the_phase(client):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = start(client, headers)
     token = headers["Authorization"].removeprefix("Bearer ")
     control(client, mission_id, "pause", headers)

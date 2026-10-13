@@ -53,7 +53,7 @@ def test_the_table_covers_the_grid_and_flying_slower_with_closer_lanes_finds_mor
 
 @pytest.mark.skipif(not TABLE_PATH.exists(), reason="accuracy table not generated")
 def test_the_outline_check_and_the_api_give_the_estimate(client):
-    supervisor = auth_headers(client, "supervisor")
+    supervisor = auth_headers(client, "admin")
     check = client.post("/api/missions/check", json=mission_body(altitude_m=1.0), headers=supervisor).json()
     assert check["accuracy"]["altitude_m"] == 1.0 and 0 < check["accuracy"]["recall"] <= 1
     field = auth_headers(client, "field")

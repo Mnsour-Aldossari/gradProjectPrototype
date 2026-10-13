@@ -22,7 +22,7 @@ def all_readings(client, headers, mission_id: int, page: int) -> list[dict]:
 
 
 def test_pages_hold_every_reading_in_order_with_the_detectors_coordinates(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     body = mission_body()
     mission_id = client.post("/api/missions", json=body, headers=sup).json()["id"]
     client.post(f"/api/missions/{mission_id}/start", json={"speed_factor": 0}, headers=sup)
@@ -47,7 +47,7 @@ def test_pages_hold_every_reading_in_order_with_the_detectors_coordinates(client
 
 
 def test_readings_need_a_mission_and_a_session(client):
-    sup = auth_headers(client, "supervisor")
+    sup = auth_headers(client, "admin")
     mission_id = client.post("/api/missions", json=mission_body(), headers=sup).json()["id"]
     assert client.get(f"/api/missions/{mission_id}/readings", headers=sup).json() == []
     assert client.get("/api/missions/999/readings", headers=sup).status_code == 404

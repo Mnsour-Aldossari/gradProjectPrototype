@@ -44,7 +44,7 @@ def test_health_says_whether_the_server_can_talk_to_px4(client):
 
 def test_px4_not_running_leaves_the_mission_planned_with_the_reason(client, monkeypatch):
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", AbsentPx4)
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = create(client, headers)
     r = client.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers)
     assert r.status_code == 503
@@ -55,7 +55,7 @@ def test_px4_not_running_leaves_the_mission_planned_with_the_reason(client, monk
 
 def test_mission_flown_with_px4_is_stored_and_detects_like_the_simulator(client, monkeypatch):
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", FakePx4)
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = create(client, headers)
     r = client.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers)
     assert r.status_code == 202, r.text
@@ -71,7 +71,7 @@ def test_one_px4_mission_at_a_time(client, monkeypatch):
         speed_factor = 1.0  # real time: still flying when the second start comes
 
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", SlowPx4)
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     first, second = create(client, headers), create(client, headers)
     assert client.post(f"/api/missions/{first}/start", json={"uav_source": "px4"}, headers=headers).status_code == 202
     r = client.post(f"/api/missions/{second}/start", json={"uav_source": "px4"}, headers=headers)
@@ -82,7 +82,7 @@ def test_one_px4_mission_at_a_time(client, monkeypatch):
 
 
 def test_start_rejects_an_unknown_source(client):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = create(client, headers)
     r = client.post(f"/api/missions/{mission_id}/start", json={"uav_source": "ardupilot"}, headers=headers)
     assert r.status_code == 422
@@ -90,7 +90,7 @@ def test_start_rejects_an_unknown_source(client):
 
 def test_demo_scenario_always_uses_the_simulator(client, monkeypatch):
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", AbsentPx4)
-    r = client.post("/api/missions/demo", json={"speed_factor": 0}, headers=auth_headers(client, "supervisor"))
+    r = client.post("/api/missions/demo", json={"speed_factor": 0}, headers=auth_headers(client, "admin"))
     assert r.status_code == 202 and r.json()["uav_source"] == "simulated"
 
 
@@ -136,7 +136,7 @@ def test_cancelled_run_lets_the_source_finish(database_url, monkeypatch):
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", EndlessPx4)
     settings = Settings(database_url=database_url, secret_key="test-secret")
     with TestClient(create_app(settings)) as c:
-        headers = auth_headers(c, "supervisor")
+        headers = auth_headers(c, "admin")
         mission_id = create(c, headers)
         assert c.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers).status_code == 202
         assert flying.wait(10)  # the run reads the mission (in a worker thread) before it flies
@@ -153,7 +153,7 @@ def test_live_view_knows_when_the_survey_lines_began(client, monkeypatch):
     """survey_start_s (first sensor reading) comes in live telemetry and in the snapshot after a reload, so the page
     can time the survey without takeoff. The stand-in reads from the start, like the simulator."""
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", FakePx4)
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = create(client, headers)
     token = headers["Authorization"].removeprefix("Bearer ")
     with client.websocket_connect(f"/ws/missions/{mission_id}?token={token}") as ws:
@@ -172,7 +172,7 @@ def test_px4_mission_returned_home_is_stopped(client, monkeypatch):
         speed_factor = 1.0
 
     monkeypatch.setattr("app.api.runner.Px4MavlinkSource", SlowPx4)
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = create(client, headers)
     assert client.post(f"/api/missions/{mission_id}/start", json={"uav_source": "px4"}, headers=headers).status_code == 202
     r = client.post(f"/api/missions/{mission_id}/control", json={"action": "return"}, headers=headers)
@@ -182,7 +182,7 @@ def test_px4_mission_returned_home_is_stopped(client, monkeypatch):
 
 
 def test_takeoff_point_is_set_on_a_planned_mission(client):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = create(client, headers)
     start = client.get(f"/api/missions/{mission_id}", headers=headers).json()["path"][0]
     near = {"lat": start[0] + 0.0002, "lon": start[1]}  # about 22 m north
@@ -278,7 +278,7 @@ def test_after_a_restart_px4_must_hold_still_at_the_takeoff_point(monkeypatch):
 
 
 def test_takeoff_and_landing_points_shown_with_the_mission(client):
-    headers = auth_headers(client, "supervisor")
+    headers = auth_headers(client, "admin")
     mission_id = create(client, headers)
     m = client.get(f"/api/missions/{mission_id}", headers=headers).json()
     start, end = m["path"][0], m["path"][-1]

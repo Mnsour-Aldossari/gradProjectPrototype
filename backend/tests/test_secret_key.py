@@ -29,7 +29,7 @@ def test_token_signed_with_the_old_default_secret_is_rejected(env_settings):
         assert r.status_code == 401
 
         # control: the same request with a token from a real login works
-        login = client.post("/api/auth/login", json={"username": "supervisor", "password": "Supervisor#2026"})
+        login = client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
         assert login.status_code == 200
         ok = client.get("/api/auth/me", headers={"Authorization": f"Bearer {login.json()['token']}"})
         assert ok.status_code == 200
