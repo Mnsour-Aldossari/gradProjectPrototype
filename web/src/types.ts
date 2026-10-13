@@ -104,6 +104,13 @@ export interface ConditionProfile {
   notes: string[]
 }
 
+export interface MissionPage {
+  items: Mission[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export const SOIL_LABELS: Record<SoilType, string> = {
   dry_sand: 'Dry sand',
   wet_clay: 'Wet clay',

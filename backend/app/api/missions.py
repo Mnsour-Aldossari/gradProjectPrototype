@@ -15,8 +15,11 @@ from app.schemas import (
     MissionCreate,
     MissionHistory,
     MissionHistoryItem,
+    MissionPage,
     MissionRead,
+    MissionStatus,
     MissionStats,
+    SoilType,
     StartRequest,
     TelemetryRead,
     VerificationCounts,
@@ -74,6 +77,33 @@ def mission_read(session: Session, mission: Mission, with_stats: bool = False) -
 def list_missions(session: SessionDep, _: CurrentUser) -> list[MissionRead]:
     missions = session.exec(select(Mission).order_by(Mission.id.desc())).all()
     return [mission_read(session, m) for m in missions]
+
+
+@router.get("/search", response_model=MissionPage)
+def search_missions(
+    session: SessionDep,
+    _: CurrentUser,
+    q: str = Query("", max_length=100, description="Part of the mission name, case-insensitive"),
+    status_: MissionStatus | None = Query(None, alias="status"),
+    soil_type: SoilType | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+) -> MissionPage:
+    """Missions newest first, filtered by name, status and soil type, one page at a time."""
+    query = select(Mission)
+    if q.strip():
+        query = query.where(func.lower(Mission.name).contains(q.strip().lower(), autoescape=True))
+    if status_ is not None:
+        query = query.where(Mission.status == status_)
+    if soil_type is not None:
+        query = query.where(Mission.soil_type == soil_type)
+    total = session.exec(select(func.count()).select_from(query.subquery())).one()
+    missions = session.exec(
+        query.order_by(Mission.id.desc()).offset((page - 1) * page_size).limit(page_size)
+    ).all()
+    return MissionPage(
+        items=[mission_read(session, m) for m in missions], total=total, page=page, page_size=page_size
+    )
 
 
 @router.get("/history", response_model=MissionHistory)

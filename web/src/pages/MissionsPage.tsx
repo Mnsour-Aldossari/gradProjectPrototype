@@ -1,16 +1,45 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { areaSize, formatDate } from '../format'
-import { SOIL_LABELS, STATUS_LABELS, type Mission } from '../types'
+import { SOIL_LABELS, STATUS_LABELS, type Mission, type MissionPage } from '../types'
+
+const PAGE_SIZE = 10
+const SEARCH_DELAY_MS = 300
 
 export function MissionsPage() {
   const { user } = useAuth()
-  const [missions, setMissions] = useState<Mission[] | null>(null)
+  const [result, setResult] = useState<MissionPage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [startingDemo, setStartingDemo] = useState(false)
   const navigate = useNavigate()
+
+  // Filters and page live in the address, so the back button returns to the same list.
+  const [params, setParams] = useSearchParams()
+  const q = params.get('q') ?? ''
+  const status = params.get('status') ?? ''
+  const soil = params.get('soil') ?? ''
+  const page = Math.max(1, Number(params.get('page')) || 1)
+  const [text, setText] = useState(q)
+  const filtered = q !== '' || status !== '' || soil !== ''
+
+  function update(changes: Record<string, string>) {
+    // Read from the address bar, not this render's params, so a delayed search never undoes a newer filter.
+    const next = new URLSearchParams(window.location.search)
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === '' || (key === 'page' && value === '1')) next.delete(key)
+      else next.set(key, value)
+    }
+    setParams(next, { replace: true })
+  }
+
+  useEffect(() => {
+    if (text.trim() === q) return
+    const timer = setTimeout(() => update({ q: text.trim(), page: '1' }), SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text])
 
   async function runDemo() {
     setStartingDemo(true)
@@ -25,10 +54,30 @@ export function MissionsPage() {
   }
 
   useEffect(() => {
-    api<Mission[]>('/api/missions')
-      .then(setMissions)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load missions'))
-  }, [])
+    let current = true
+    const query = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) })
+    if (q) query.set('q', q)
+    if (status) query.set('status', status)
+    if (soil) query.set('soil_type', soil)
+    setError(null)
+    api<MissionPage>(`/api/missions/search?${query}`)
+      .then((r) => {
+        if (!current) return
+        const last = Math.max(1, Math.ceil(r.total / r.page_size))
+        if (page > last) update({ page: String(last) })
+        else setResult(r)
+      })
+      .catch((e) => current && setError(e instanceof Error ? e.message : 'Could not load missions'))
+    return () => {
+      current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, status, soil, page])
+
+  const missions: Mission[] | null = result?.items ?? null
+  const total = result?.total ?? 0
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const first = (page - 1) * PAGE_SIZE + 1
 
   return (
     <main className="page">
@@ -51,9 +100,56 @@ export function MissionsPage() {
           20× speed. It produces the same potential detections every time it runs.
         </p>
       )}
+      <div className="filters" role="search">
+        <label className="field">
+          <span>Search</span>
+          <input
+            type="search"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Mission name"
+            maxLength={100}
+          />
+        </label>
+        <label className="field">
+          <span>Status</span>
+          <select value={status} onChange={(e) => update({ status: e.target.value, page: '1' })}>
+            <option value="">All statuses</option>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Soil</span>
+          <select value={soil} onChange={(e) => update({ soil: e.target.value, page: '1' })}>
+            <option value="">All soils</option>
+            {Object.entries(SOIL_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {filtered && (
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => {
+              setText('')
+              setParams(new URLSearchParams(), { replace: true })
+            }}
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
       {error && <p className="error">{error}</p>}
       {missions === null && !error && <p className="small">Loading missions</p>}
-      {missions?.length === 0 && (
+      {missions?.length === 0 && filtered && <p className="empty">No missions match these filters.</p>}
+      {missions?.length === 0 && !filtered && (
         <p className="empty">
           {user?.role === 'supervisor'
             ? 'No missions yet. Create one to plan the first survey.'
@@ -92,6 +188,34 @@ export function MissionsPage() {
             })}
           </tbody>
         </table>
+      )}
+      {missions && total > 0 && (
+        <nav className="pager" aria-label="Pages">
+          <span className="small">
+            {first}–{first + missions.length - 1} of {total}
+          </span>
+          <div className="row">
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => update({ page: String(page - 1) })}
+              disabled={page <= 1}
+            >
+              Previous
+            </button>
+            <span className="small">
+              Page {page} of {pages}
+            </span>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => update({ page: String(page + 1) })}
+              disabled={page >= pages}
+            >
+              Next
+            </button>
+          </div>
+        </nav>
       )}
     </main>
   )

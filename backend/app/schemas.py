@@ -20,6 +20,7 @@ UtcDatetime = Annotated[datetime, PlainSerializer(_iso_utc, return_type=str)]
 
 SoilType = Literal["dry_sand", "wet_clay", "mineralized_rocky"]
 DetectionStatus = Literal["pending", "confirmed_by_team", "false_alarm"]
+MissionStatus = Literal["planned", "running", "completed", "failed"]
 
 
 class LoginRequest(BaseModel):
@@ -121,6 +122,13 @@ class MissionHistory(BaseModel):
     totals_verification: VerificationCounts
     completed: int
     failed: int
+
+
+class MissionPage(BaseModel):
+    items: list[MissionRead]
+    total: int
+    page: int
+    page_size: int
 
 
 class StartRequest(BaseModel):

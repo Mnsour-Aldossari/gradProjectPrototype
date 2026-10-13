@@ -206,3 +206,22 @@ def test_history_counts_potential_detections_per_category(client):
     assert item["verification"]["false_alarm"] == 1
     assert item["verification"]["pending"] == len(reported) - 1
     assert history["completed"] == 1 and history["totals_adaptive"] == item["adaptive"]
+
+
+def test_search_filters_and_pages_missions(client):
+    sup = auth_headers(client, "supervisor")
+    for i in range(5):
+        client.post("/api/missions", json=mission_body(name=f"North field {i}"), headers=sup)
+    client.post("/api/missions", json=mission_body(name="South 100%", soil_type="wet_clay"), headers=sup)
+
+    r = client.get("/api/missions/search", params={"page_size": 4}, headers=auth_headers(client, "field")).json()
+    assert r["total"] == 6 and len(r["items"]) == 4 and r["items"][0]["name"] == "South 100%"  # newest first
+    second = client.get("/api/missions/search", params={"page_size": 4, "page": 2}, headers=sup).json()
+    assert [m["name"] for m in second["items"]] == ["North field 1", "North field 0"]
+
+    assert client.get("/api/missions/search", params={"q": "NORTH"}, headers=sup).json()["total"] == 5
+    assert client.get("/api/missions/search", params={"q": "%"}, headers=sup).json()["total"] == 1  # literal %
+    assert client.get("/api/missions/search", params={"soil_type": "wet_clay"}, headers=sup).json()["total"] == 1
+    assert client.get("/api/missions/search", params={"status": "running"}, headers=sup).json()["total"] == 0
+    assert client.get("/api/missions/search", params={"status": "lost"}, headers=sup).status_code == 422
+    assert client.get("/api/missions/search", params={"page": 0}, headers=sup).status_code == 422
