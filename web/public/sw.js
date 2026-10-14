@@ -33,10 +33,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok) {
-          const copy = response.clone()
-          caches.open(CACHE).then((cache) => cache.put(request, copy))
-        }
+        if (response.ok) event.waitUntil(keepCopy(request, response.clone()))
         return response
       })
       .catch(async () => {
@@ -50,3 +47,14 @@ self.addEventListener('fetch', (event) => {
       }),
   )
 })
+
+// Keeps a copy of a good network answer for offline use. A full or blocked cache only loses that copy: the answer
+// itself has already been served.
+async function keepCopy(request, response) {
+  try {
+    const cache = await caches.open(CACHE)
+    await cache.put(request, response)
+  } catch {
+    // no offline copy this time; the next successful load tries again
+  }
+}

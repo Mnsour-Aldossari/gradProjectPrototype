@@ -462,7 +462,7 @@ input[type='radio'] {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--brand-ink); /* dark on the light gradient: white would be under 3:1 on its cyan end */
   background: linear-gradient(135deg, #9b8cff, #3dc6ff);
   box-shadow: 0 6px 18px -4px rgb(155 140 255 / 0.7);
 }
@@ -572,6 +572,7 @@ input[type='radio'] {
     linear-gradient(90deg, rgb(61 198 255 / 0.08) 1px, transparent 1px) 0 0 / 8px 8px,
     #0a1528;
   box-shadow: inset 0 0 0 1px rgb(61 198 255 / 0.25);
+  color: rgb(46 230 192 / 0.45);
 }
 .mthumb svg {
   width: 100%;
@@ -1552,6 +1553,7 @@ input[type='radio'] {
   border-radius: 0;
   background: none;
   box-shadow: none;
+  color: color-mix(in srgb, var(--tone) 50%, transparent);
 }
 .mcard-map .mthumb polygon {
   fill: color-mix(in srgb, var(--tone) 18%, transparent);
@@ -1563,12 +1565,6 @@ input[type='radio'] {
 .mthumb pattern line {
   stroke: currentColor;
   stroke-width: 0.35;
-}
-.mthumb {
-  color: rgb(46 230 192 / 0.45);
-}
-.mcard-map .mthumb {
-  color: color-mix(in srgb, var(--tone) 50%, transparent);
 }
 .mthumb polygon.mthumb-lanes,
 .mcard-map .mthumb polygon.mthumb-lanes {
@@ -1815,6 +1811,7 @@ input[type='radio'] {
   box-shadow: var(--shadow);
 }
 .map-tool {
+  position: relative;
   display: grid;
   place-items: center;
   padding: 0;
@@ -1904,8 +1901,8 @@ input[type='radio'] {
   border: 2px solid var(--brand) !important;
   border-top: 0 !important;
   padding: 0 4px;
-  line-height: 18px;
   font: 600 10.5px var(--font-mono);
+  line-height: 18px;
   white-space: nowrap;
   backdrop-filter: blur(8px);
 }
@@ -2240,9 +2237,6 @@ kbd {
    the overview map on the Missions page.
    ========================================================================================================== */
 
-.map-tool {
-  position: relative;
-}
 .map-tool-past[aria-pressed='true'] {
   background: var(--brand-grad);
   color: var(--brand-ink);

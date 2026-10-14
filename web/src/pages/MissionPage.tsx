@@ -221,7 +221,7 @@ function useSensorGrid(missionId: number, on: boolean, status: MissionStatus | u
         .finally(() => {
           if (!stopped && status === 'running') timer = window.setTimeout(load, HEATMAP_REFRESH_MS)
         })
-    load()
+    void load()
     return () => {
       stopped = true
       window.clearTimeout(timer)
@@ -829,21 +829,23 @@ function MissionPageFor({ missionId }: { missionId: number }) {
             Compare with the fixed-threshold baseline
             {mission.status !== 'completed' && mission.status !== 'stopped' && <span className="small"> (after the survey)</span>}
           </label>
-          <div className="toggle heat-toggle" role="radiogroup" aria-label="Sensor heatmap on the map">
+          <div
+            className="toggle heat-toggle"
+            role="radiogroup"
+            aria-label="Sensor heatmap on the map"
+            onKeyDown={(e) => {
+              // A radio group is one tab stop; the arrow keys move between its choices.
+              const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+              if (!step) return
+              e.preventDefault()
+              const at = HEATMAP_PREFS.indexOf(heat)
+              const next = HEATMAP_PREFS[(at + step + HEATMAP_PREFS.length) % HEATMAP_PREFS.length]
+              setPrefs({ missionLayers: { ...prefs.missionLayers, heatmap: next } })
+              e.currentTarget.querySelector<HTMLElement>(`[data-choice="${next}"]`)?.focus()
+            }}
+          >
             <span aria-hidden="true">Heatmap</span>
-            <span
-              className="segmented compact"
-              onKeyDown={(e) => {
-                // A radio group is one tab stop; the arrow keys move between its choices.
-                const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
-                if (!step) return
-                e.preventDefault()
-                const at = HEATMAP_PREFS.findIndex((choice) => choice === heat)
-                const next = HEATMAP_PREFS[(at + step + HEATMAP_PREFS.length) % HEATMAP_PREFS.length]
-                setPrefs({ missionLayers: { ...prefs.missionLayers, heatmap: next } })
-                e.currentTarget.querySelector<HTMLElement>(`[data-choice="${next}"]`)?.focus()
-              }}
-            >
+            <span className="segmented compact">
               {HEATMAP_PREFS.map((choice) => (
                 <button
                   key={choice}
