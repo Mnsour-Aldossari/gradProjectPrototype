@@ -481,6 +481,7 @@ textarea {
   font-weight: 700;
   font-size: calc(15px * var(--text-scale));
   line-height: 1.2;
+  container-type: inline-size;
 }
 .brand-mark {
   flex: none;
@@ -496,9 +497,6 @@ textarea {
 }
 /* The name stays on one line: at large text it shrinks to what the sidebar holds (about 10.6 px of width per px of
    font size, plus the 44 px logo and gap) instead of wrapping. Browsers without container units keep the size above. */
-.brand {
-  container-type: inline-size;
-}
 .brand-text {
   font-size: min(calc(15px * var(--text-scale)), calc((100cqi - 44px) / 10.6));
 }
@@ -1209,6 +1207,7 @@ textarea {
   align-items: center;
   gap: 6px;
   min-width: 82px;
+  font-weight: 600;
 }
 .takeoff-letter {
   display: inline-grid;
@@ -1227,9 +1226,6 @@ textarea {
 }
 .takeoff-warn {
   color: var(--hazard);
-}
-.takeoff-label {
-  font-weight: 600;
 }
 .takeoff-hint {
   flex: 1 1 100%;
@@ -1427,10 +1423,6 @@ textarea {
 }
 .login h1 {
   font-size: calc(34px * var(--text-scale));
-}
-.lede {
-  margin: 0;
-  color: var(--ink-2);
 }
 .login-form {
   display: grid;
@@ -1924,6 +1916,7 @@ td.miss {
 .field-main {
   position: relative;
   min-height: 0;
+  overflow: hidden; /* cards never spill over the bottom navigation */
 }
 .test-badge {
   display: inline-block;
@@ -2330,6 +2323,7 @@ td.miss {
   grid-template-columns: minmax(0, 1fr) var(--side);
   gap: calc(16px * var(--density));
   min-height: 0;
+  position: relative;
 }
 .card {
   background: var(--surface);
@@ -2880,9 +2874,6 @@ td.miss {
 }
 
 /* Splitter (Splitter.tsx): column width on a laptop, map height on a phone. Shown in Customize mode. */
-.mp-grid {
-  position: relative;
-}
 .splitter {
   position: absolute;
   z-index: 1002; /* over the map's own controls */
@@ -2998,9 +2989,6 @@ td.miss {
  * --dock tells FieldMapInfo which map edge a card covers in the current layout, so the survey area is fitted into
  * the space the cards leave free. Phones get a compact form; wider screens show titles and more detail.
  */
-.field-main {
-  overflow: hidden; /* cards never spill over the bottom navigation */
-}
 .field-hud {
   position: absolute;
   inset: 10px;
@@ -3611,8 +3599,6 @@ td.miss {
     grid-row: 4;
     justify-self: center;
     width: min(380px, 100%);
-  }
-  .field-hud .drone-card {
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;

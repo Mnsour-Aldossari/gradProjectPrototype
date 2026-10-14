@@ -5,8 +5,12 @@ FROM python:3.14-slim
 RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# requirements.lock pins every package (and what they need) to an exact version and hash, made from requirements.txt
+# with: uv pip compile requirements.txt --generate-hashes --python-version 3.14 --python-platform x86_64-manylinux_2_28
+#       --only-binary :all: --no-header -o requirements.lock
+# Wheels only: no package runs a setup script while it is installed.
+COPY requirements.lock .
+RUN pip install --no-cache-dir --only-binary :all: --require-hashes -r requirements.lock
 
 COPY app ./app
 COPY migrations ./migrations

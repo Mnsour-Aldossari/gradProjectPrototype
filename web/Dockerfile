@@ -3,11 +3,13 @@
 FROM node:22-alpine AS build
 WORKDIR /web
 COPY package.json package-lock.json ./
-RUN npm ci
+# No install scripts: none of the packages this build uses needs one (only fsevents has one, and it is macOS only).
+RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+# The unprivileged nginx image runs as the nginx user, not root, so it listens on 8080 instead of 80.
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /web/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080

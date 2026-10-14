@@ -23,7 +23,10 @@ def test_scenario_has_5_to_8_well_separated_objects_of_every_kind(soil, seed):
 
 
 def test_same_seed_gives_same_scenario_and_different_seed_does_not():
-    assert generate_scenario(AREA_XY, "dry_sand", 3) == generate_scenario(AREA_XY, "dry_sand", 3)
+    first = generate_scenario(AREA_XY, "dry_sand", 3)
+    again = generate_scenario(AREA_XY, "dry_sand", 3)
+    assert first == again
+    assert first is not again  # two separate runs, not one cached object
     assert generate_scenario(AREA_XY, "dry_sand", 3).objects != generate_scenario(AREA_XY, "dry_sand", 4).objects
 
 
