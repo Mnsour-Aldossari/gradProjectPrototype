@@ -1,6 +1,6 @@
 # UAV-Based Landmine Detection System — Prototype
 
-Graduation project prototype (Software Engineering, Prince Sattam Bin Abdulaziz University).
+Graduation project prototype (2026) (Software Engineering, Prince Sattam Bin Abdulaziz University).
 A simulated UAV surveys an area with a metal detector (MD) and ground-penetrating radar (GPR);
 the system stores the mission data, classifies **potential detections**, and presents them for
 verification by trained personnel. Nothing in this system confirms a landmine.
